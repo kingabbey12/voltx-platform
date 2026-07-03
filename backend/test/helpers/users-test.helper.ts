@@ -11,19 +11,20 @@ import { seedRbac } from '../../prisma/seed';
 export const DEFAULT_TEST_PASSWORD = 'SecurePassword123!';
 
 export async function resetAuthTestData(prisma: PrismaService): Promise<void> {
-  await prisma.verificationToken.deleteMany();
-  await prisma.refreshToken.deleteMany();
-  await prisma.membership.deleteMany();
-  await prisma.rolePermission.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.organization.deleteMany();
-  await prisma.role.deleteMany();
-  await prisma.permission.deleteMany();
+  await prisma.system.auditLog.deleteMany();
+  await prisma.system.verificationToken.deleteMany();
+  await prisma.system.refreshToken.deleteMany();
+  await prisma.system.membership.deleteMany();
+  await prisma.system.rolePermission.deleteMany();
+  await prisma.system.user.deleteMany();
+  await prisma.system.organization.deleteMany();
+  await prisma.system.role.deleteMany();
+  await prisma.system.permission.deleteMany();
 }
 
 export async function resetAndSeedAuthTestData(prisma: PrismaService): Promise<void> {
   await resetAuthTestData(prisma);
-  await seedRbac(prisma);
+  await seedRbac(prisma.system);
 }
 
 export const createUserPayload = {
@@ -52,7 +53,7 @@ export async function setUserPassword(
   password = DEFAULT_TEST_PASSWORD,
 ): Promise<void> {
   const passwordHash = await hashPassword(password);
-  await prisma.user.update({
+  await prisma.system.user.update({
     where: { id: userId },
     data: { passwordHash },
   });
@@ -64,21 +65,26 @@ export async function seedAuthContext(
   roleKey = 'admin',
   overrides: Partial<typeof createUserPayload> = {},
   password = DEFAULT_TEST_PASSWORD,
+  options: { organizationId?: string } = {},
 ) {
-  const organization = await prisma.organization.create({
-    data: {
-      name: 'Voltx Labs',
-      slug: `voltx-labs-${crypto.randomUUID()}`,
-      status: OrganizationStatus.ACTIVE,
-    },
-  });
+  const organization = options.organizationId
+    ? await prisma.system.organization.findUniqueOrThrow({
+        where: { id: options.organizationId },
+      })
+    : await prisma.system.organization.create({
+        data: {
+          name: 'Voltx Labs',
+          slug: `voltx-labs-${crypto.randomUUID()}`,
+          status: OrganizationStatus.ACTIVE,
+        },
+      });
 
-  const role = await prisma.role.findUniqueOrThrow({ where: { key: roleKey } });
+  const role = await prisma.system.role.findUniqueOrThrow({ where: { key: roleKey } });
 
   const user = await seedUser(usersRepository, overrides);
   await setUserPassword(prisma, user.id, password);
 
-  const membership = await prisma.membership.create({
+  const membership = await prisma.system.membership.create({
     data: {
       userId: user.id,
       organizationId: organization.id,

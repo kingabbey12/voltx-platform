@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, UserStatus } from '@prisma/client';
+import { MembershipStatus, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { UserEntity } from './entities/user.entity';
 import { toUserEntity } from './entities/user.mapper';
 
@@ -11,7 +12,7 @@ export interface CreateUserData {
   avatarUrl?: string;
   phoneNumber?: string;
   jobTitle?: string;
-  status?: UserStatus;
+  status?: import('@prisma/client').UserStatus;
   lastLoginAt?: Date;
   emailVerifiedAt?: Date;
 }
@@ -22,7 +23,7 @@ export interface UpdateUserData {
   avatarUrl?: string | null;
   phoneNumber?: string | null;
   jobTitle?: string | null;
-  status?: UserStatus;
+  status?: import('@prisma/client').UserStatus;
   lastLoginAt?: Date | null;
   emailVerifiedAt?: Date | null;
 }
@@ -30,7 +31,7 @@ export interface UpdateUserData {
 export interface FindAllUsersParams {
   page: number;
   limit: number;
-  status?: UserStatus;
+  status?: import('@prisma/client').UserStatus;
   search?: string;
 }
 
@@ -44,10 +45,13 @@ export interface PaginatedUsers {
 
 @Injectable()
 export class UsersRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async create(data: CreateUserData): Promise<UserEntity> {
-    const record = await this.prisma.user.create({
+    const record = await this.prisma.system.user.create({
       data: {
         email: data.email.toLowerCase(),
         firstName: data.firstName,
@@ -73,32 +77,46 @@ export class UsersRepository {
   }
 
   async findByEmail(email: string): Promise<UserEntity | null> {
-    const record = await this.prisma.user.findFirst({
+    const record = await this.prisma.system.user.findFirst({
       where: { email: email.toLowerCase(), deletedAt: null },
     });
 
     return record ? toUserEntity(record) : null;
   }
 
+  async existsInAnotherTenant(userId: string): Promise<boolean> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const membership = await this.prisma.system.membership.findFirst({
+      where: {
+        userId,
+        status: MembershipStatus.ACTIVE,
+        organizationId: { not: tenant.organizationId },
+      },
+      select: { id: true },
+    });
+
+    return membership !== null;
+  }
+
   async findAll(params: FindAllUsersParams): Promise<PaginatedUsers> {
     const { page, limit, status, search } = params;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.UserWhereInput = {
+    const where = {
       deletedAt: null,
       ...(status ? { status } : {}),
       ...(search
         ? {
             OR: [
-              { email: { contains: search, mode: 'insensitive' } },
-              { firstName: { contains: search, mode: 'insensitive' } },
-              { lastName: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' as const } },
+              { firstName: { contains: search, mode: 'insensitive' as const } },
+              { lastName: { contains: search, mode: 'insensitive' as const } },
             ],
           }
         : {}),
     };
 
-    const [records, total] = await this.prisma.$transaction([
+    const [records, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
         skip,
@@ -123,36 +141,9 @@ export class UsersRepository {
       return null;
     }
 
-    const updateData: Prisma.UserUpdateInput = {};
-
-    if (data.firstName !== undefined) {
-      updateData.firstName = data.firstName;
-    }
-    if (data.lastName !== undefined) {
-      updateData.lastName = data.lastName;
-    }
-    if (data.avatarUrl !== undefined) {
-      updateData.avatarUrl = data.avatarUrl;
-    }
-    if (data.phoneNumber !== undefined) {
-      updateData.phoneNumber = data.phoneNumber;
-    }
-    if (data.jobTitle !== undefined) {
-      updateData.jobTitle = data.jobTitle;
-    }
-    if (data.status !== undefined) {
-      updateData.status = data.status;
-    }
-    if (data.lastLoginAt !== undefined) {
-      updateData.lastLoginAt = data.lastLoginAt;
-    }
-    if (data.emailVerifiedAt !== undefined) {
-      updateData.emailVerifiedAt = data.emailVerifiedAt;
-    }
-
-    const record = await this.prisma.user.update({
+    const record = await this.prisma.system.user.update({
       where: { id },
-      data: updateData,
+      data,
     });
 
     return toUserEntity(record);
@@ -164,7 +155,7 @@ export class UsersRepository {
       return null;
     }
 
-    const record = await this.prisma.user.update({
+    const record = await this.prisma.system.user.update({
       where: { id },
       data: { deletedAt: new Date() },
     });

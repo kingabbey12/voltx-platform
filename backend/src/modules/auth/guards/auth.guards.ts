@@ -1,8 +1,4 @@
-import { JwtAuthGuard } from './jwt-auth.guard';
-import { UserContextGuard } from './user-context.guard';
-
 /**
- * Authenticated route guards. JwtAuthGuard validates Bearer access tokens;
- * UserContextGuard resolves organization membership and RBAC permissions.
+ * @deprecated Import AUTH_GUARDS from '../../common/guards/protected.guards'
  */
-export const AUTH_GUARDS = [JwtAuthGuard, UserContextGuard] as const;
+export { AUTH_GUARDS } from '../../../common/guards/protected.guards';

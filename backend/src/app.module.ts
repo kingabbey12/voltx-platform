@@ -9,6 +9,8 @@ import { validate } from './config/env.validation';
 import { createPinoConfig } from './config/pino-logger.config';
 import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './database/database.module';
+import { TenantModule } from './common/tenant/tenant.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { HealthModule } from './modules/health/health.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
@@ -32,6 +34,8 @@ import { UsersModule } from './modules/users/users.module';
       useFactory: (configService: ConfigService) => createPinoConfig(configService),
     }),
     DatabaseModule,
+    TenantModule,
+    AuditModule,
     AuthModule,
     HealthModule,
     OrganizationModule,

@@ -1,5 +1,12 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import {
   ListOrganizationsQueryDto,
@@ -12,7 +19,11 @@ import { generateUniqueOrganizationSlug } from './utils/organization-slug.util';
 
 @Injectable()
 export class OrganizationService {
-  constructor(private readonly organizationRepository: OrganizationRepository) {}
+  constructor(
+    private readonly organizationRepository: OrganizationRepository,
+    private readonly tenantContextService: TenantContextService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async create(dto: CreateOrganizationDto): Promise<OrganizationResponseDto> {
     const slug = await generateUniqueOrganizationSlug(dto.name, (candidate) =>
@@ -39,7 +50,9 @@ export class OrganizationService {
   }
 
   async findOne(id: string): Promise<OrganizationResponseDto> {
-    const entity = await this.organizationRepository.findById(id);
+    this.tenantContextService.assertOrganizationAccess(id);
+
+    const entity = await this.organizationRepository.findById();
     if (!entity) {
       throw new NotFoundException(`Organization with id "${id}" not found`);
     }
@@ -68,15 +81,24 @@ export class OrganizationService {
   }
 
   async update(id: string, dto: UpdateOrganizationDto): Promise<OrganizationResponseDto> {
+    this.tenantContextService.assertOrganizationAccess(id);
+
     try {
-      const entity = await this.organizationRepository.update(id, dto);
+      const entity = await this.organizationRepository.update(dto);
       if (!entity) {
         throw new NotFoundException(`Organization with id "${id}" not found`);
       }
 
+      await this.auditService.record({
+        action: 'update',
+        resource: 'organization',
+        resourceId: entity.id,
+        metadata: dto as Record<string, unknown>,
+      });
+
       return OrganizationResponseDto.fromEntity(entity);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
         throw error;
       }
       this.handlePrismaError(error);
@@ -85,10 +107,18 @@ export class OrganizationService {
   }
 
   async remove(id: string): Promise<OrganizationResponseDto> {
-    const entity = await this.organizationRepository.softDelete(id);
+    this.tenantContextService.assertOrganizationAccess(id);
+
+    const entity = await this.organizationRepository.softDelete();
     if (!entity) {
       throw new NotFoundException(`Organization with id "${id}" not found`);
     }
+
+    await this.auditService.record({
+      action: 'delete',
+      resource: 'organization',
+      resourceId: entity.id,
+    });
 
     return OrganizationResponseDto.fromEntity(entity);
   }

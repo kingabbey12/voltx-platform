@@ -14,7 +14,7 @@ export class AuthRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async findUserByEmail(email: string): Promise<AuthUserRecord | null> {
-    const record = await this.prisma.user.findFirst({
+    const record = await this.prisma.system.user.findFirst({
       where: { email: email.toLowerCase(), deletedAt: null },
       select: {
         id: true,
@@ -28,21 +28,21 @@ export class AuthRepository {
   }
 
   async updateLastLoginAt(userId: string): Promise<void> {
-    await this.prisma.user.update({
+    await this.prisma.system.user.update({
       where: { id: userId },
       data: { lastLoginAt: new Date() },
     });
   }
 
   async setPasswordHash(userId: string, passwordHash: string): Promise<void> {
-    await this.prisma.user.update({
+    await this.prisma.system.user.update({
       where: { id: userId },
       data: { passwordHash },
     });
   }
 
   async findUserIdByEmail(email: string): Promise<string | null> {
-    const record = await this.prisma.user.findFirst({
+    const record = await this.prisma.system.user.findFirst({
       where: { email: email.toLowerCase(), deletedAt: null },
       select: { id: true },
     });
@@ -52,7 +52,7 @@ export class AuthRepository {
 
   async markEmailVerified(userId: string): Promise<Date> {
     const emailVerifiedAt = new Date();
-    await this.prisma.user.update({
+    await this.prisma.system.user.update({
       where: { id: userId },
       data: { emailVerifiedAt },
     });

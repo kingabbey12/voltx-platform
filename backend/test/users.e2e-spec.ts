@@ -11,6 +11,7 @@ import {
   authenticateContext,
   bearerAuthHeaders,
   createUserPayload,
+  DEFAULT_TEST_PASSWORD,
   resetAndSeedAuthTestData,
   seedAuthContext,
 } from './helpers/users-test.helper';
@@ -101,12 +102,19 @@ describe('UsersController (e2e)', () => {
   });
 
   it('GET /api/v1/users returns paginated users', async () => {
-    const { accessToken } = await authenticateContext(app, prisma, usersRepository);
-    await seedAuthContext(prisma, usersRepository, 'admin', {
-      email: 'john.doe@example.com',
-      firstName: 'John',
-      lastName: 'Doe',
-    });
+    const { accessToken, organization } = await authenticateContext(app, prisma, usersRepository);
+    await seedAuthContext(
+      prisma,
+      usersRepository,
+      'admin',
+      {
+        email: 'john.doe@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      },
+      DEFAULT_TEST_PASSWORD,
+      { organizationId: organization.id },
+    );
 
     const response = await request(app.getHttpServer())
       .get('/api/v1/users')
@@ -126,12 +134,19 @@ describe('UsersController (e2e)', () => {
   });
 
   it('GET /api/v1/users supports search filtering', async () => {
-    const { accessToken } = await authenticateContext(app, prisma, usersRepository);
-    await seedAuthContext(prisma, usersRepository, 'admin', {
-      email: 'john.doe@example.com',
-      firstName: 'John',
-      lastName: 'Doe',
-    });
+    const { accessToken, organization } = await authenticateContext(app, prisma, usersRepository);
+    await seedAuthContext(
+      prisma,
+      usersRepository,
+      'admin',
+      {
+        email: 'john.doe@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      },
+      DEFAULT_TEST_PASSWORD,
+      { organizationId: organization.id },
+    );
 
     const response = await request(app.getHttpServer())
       .get('/api/v1/users')

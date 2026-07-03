@@ -19,7 +19,7 @@ export class AuthContextRepository {
     userId: string,
     organizationId?: string,
   ): Promise<MembershipAuthContext | null> {
-    const membership = await this.prisma.membership.findFirst({
+    const membership = await this.prisma.system.membership.findFirst({
       where: {
         userId,
         status: MembershipStatus.ACTIVE,
@@ -46,7 +46,7 @@ export class AuthContextRepository {
   }
 
   async userExists(userId: string): Promise<boolean> {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.system.user.findFirst({
       where: { id: userId, deletedAt: null },
       select: { id: true },
     });

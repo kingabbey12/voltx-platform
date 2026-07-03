@@ -20,9 +20,13 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, JWT_ACCESS_STR
       throw new UnauthorizedException('Invalid access token');
     }
 
+    if (typeof payload.org !== 'string') {
+      throw new UnauthorizedException('Access token is missing organization context');
+    }
+
     return {
       userId: payload.sub,
-      organizationId: typeof payload.org === 'string' ? payload.org : undefined,
+      organizationId: payload.org,
     };
   }
 }

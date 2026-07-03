@@ -1,6 +1,8 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserStatus } from '@prisma/client';
 import { Test, TestingModule } from '@nestjs/testing';
+import { AuditService } from '../src/modules/audit/audit.service';
+import { TenantContextService } from '../src/common/tenant/tenant-context.service';
 import { UpdateCurrentUserDto } from '../src/modules/users/dto/update-user.dto';
 import { UserEntity } from '../src/modules/users/entities/user.entity';
 import { UsersRepository } from '../src/modules/users/users.repository';
@@ -9,9 +11,18 @@ import { UsersService } from '../src/modules/users/users.service';
 describe('UsersService', () => {
   let service: UsersService;
   let repository: jest.Mocked<UsersRepository>;
+  let tenantContextService: jest.Mocked<TenantContextService>;
+  let auditService: jest.Mocked<AuditService>;
+
+  const tenant = {
+    organizationId: 'org-id',
+    userId: '550e8400-e29b-41d4-a716-446655440000',
+    membershipId: 'membership-id',
+    requestId: 'request-id',
+  };
 
   const userEntity: UserEntity = {
-    id: '550e8400-e29b-41d4-a716-446655440000',
+    id: tenant.userId,
     email: 'jane.doe@example.com',
     firstName: 'Jane',
     lastName: 'Doe',
@@ -39,6 +50,19 @@ describe('UsersService', () => {
             findAll: jest.fn(),
             update: jest.fn(),
             softDelete: jest.fn(),
+            existsInAnotherTenant: jest.fn(),
+          },
+        },
+        {
+          provide: TenantContextService,
+          useValue: {
+            getOrThrow: jest.fn().mockReturnValue(tenant),
+          },
+        },
+        {
+          provide: AuditService,
+          useValue: {
+            record: jest.fn(),
           },
         },
       ],
@@ -46,24 +70,24 @@ describe('UsersService', () => {
 
     service = module.get(UsersService);
     repository = module.get(UsersRepository);
+    tenantContextService = module.get(TenantContextService);
+    auditService = module.get(AuditService);
   });
 
   describe('getMe', () => {
     it('returns the current user profile', async () => {
       repository.findById.mockResolvedValue(userEntity);
 
-      const result = await service.getMe(userEntity.id);
+      const result = await service.getMe();
 
       expect(result.email).toBe(userEntity.email);
-      expect(result.firstName).toBe('Jane');
+      expect(tenantContextService.getOrThrow).toHaveBeenCalled();
     });
 
     it('throws NotFoundException when user does not exist', async () => {
       repository.findById.mockResolvedValue(null);
 
-      await expect(service.getMe('00000000-0000-0000-0000-000000000000')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.getMe()).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -72,19 +96,11 @@ describe('UsersService', () => {
       const dto: UpdateCurrentUserDto = { firstName: 'Janet', jobTitle: 'Director' };
       repository.update.mockResolvedValue({ ...userEntity, ...dto });
 
-      const result = await service.updateMe(userEntity.id, dto);
+      const result = await service.updateMe(dto);
 
       expect(result.firstName).toBe('Janet');
-      expect(result.jobTitle).toBe('Director');
-      expect(repository.update).toHaveBeenCalledWith(userEntity.id, dto);
-    });
-
-    it('throws NotFoundException when user does not exist', async () => {
-      repository.update.mockResolvedValue(null);
-
-      await expect(
-        service.updateMe('00000000-0000-0000-0000-000000000000', { firstName: 'Missing' }),
-      ).rejects.toThrow(NotFoundException);
+      expect(repository.update).toHaveBeenCalledWith(tenant.userId, dto);
+      expect(auditService.record).toHaveBeenCalled();
     });
   });
 
@@ -97,8 +113,18 @@ describe('UsersService', () => {
       expect(result.id).toBe(userEntity.id);
     });
 
+    it('throws ForbiddenException for cross-tenant user access', async () => {
+      repository.findById.mockResolvedValue(null);
+      repository.existsInAnotherTenant.mockResolvedValue(true);
+
+      await expect(service.findOne('00000000-0000-0000-0000-000000000001')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
     it('throws NotFoundException when user does not exist', async () => {
       repository.findById.mockResolvedValue(null);
+      repository.existsInAnotherTenant.mockResolvedValue(false);
 
       await expect(service.findOne('00000000-0000-0000-0000-000000000000')).rejects.toThrow(
         NotFoundException,

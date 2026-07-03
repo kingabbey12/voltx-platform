@@ -18,6 +18,7 @@ describe('OrganizationController (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let usersRepository: UsersRepository;
+  let tenantOrganizationId: string;
   let adminAccessToken: string;
 
   beforeAll(async () => {
@@ -30,6 +31,7 @@ describe('OrganizationController (e2e)', () => {
     await resetAndSeedAuthTestData(prisma);
     const auth = await authenticateContext(app, prisma, usersRepository, 'admin');
     adminAccessToken = auth.accessToken;
+    tenantOrganizationId = auth.organization.id;
   });
 
   afterAll(async () => {
@@ -74,39 +76,26 @@ describe('OrganizationController (e2e)', () => {
   });
 
   it('GET /api/v1/organizations/:id returns organization', async () => {
-    const createResponse = await request(app.getHttpServer())
-      .post('/api/v1/organizations')
-      .send(createOrganizationPayload)
-      .expect(201);
-
-    const created = createResponse.body as ApiSuccessResponse<OrganizationResponseDto>;
-
     const response = await request(app.getHttpServer())
-      .get(`/api/v1/organizations/${created.data.id}`)
+      .get(`/api/v1/organizations/${tenantOrganizationId}`)
       .set(bearerAuthHeaders(adminAccessToken))
       .expect(200);
 
     const body = response.body as ApiSuccessResponse<OrganizationResponseDto>;
-    expect(body.data.id).toBe(created.data.id);
-    expect(body.data.slug).toBe('acme-corporation');
+    expect(body.data.id).toBe(tenantOrganizationId);
   });
 
   it('GET /api/v1/organizations/:id returns 404 for missing organization', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/organizations/00000000-0000-0000-0000-000000000000')
       .set(bearerAuthHeaders(adminAccessToken))
-      .expect(404);
+      .expect(403);
   });
 
-  it('GET /api/v1/organizations returns paginated list', async () => {
+  it('GET /api/v1/organizations returns paginated list for current tenant only', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/organizations')
       .send(createOrganizationPayload)
-      .expect(201);
-
-    await request(app.getHttpServer())
-      .post('/api/v1/organizations')
-      .send({ ...createOrganizationPayload, name: 'Beta Corp' })
       .expect(201);
 
     const response = await request(app.getHttpServer())
@@ -122,22 +111,14 @@ describe('OrganizationController (e2e)', () => {
       totalPages: number;
     }>;
 
-    const slugs = body.data.items.map((item) => item.slug);
-    expect(slugs).toContain('acme-corporation');
-    expect(slugs).toContain('beta-corp');
+    expect(body.data.total).toBe(1);
+    expect(body.data.items[0]?.id).toBe(tenantOrganizationId);
     expect(body.data.page).toBe(1);
   });
 
   it('PATCH /api/v1/organizations/:id updates organization', async () => {
-    const createResponse = await request(app.getHttpServer())
-      .post('/api/v1/organizations')
-      .send(createOrganizationPayload)
-      .expect(201);
-
-    const created = createResponse.body as ApiSuccessResponse<OrganizationResponseDto>;
-
     const response = await request(app.getHttpServer())
-      .patch(`/api/v1/organizations/${created.data.id}`)
+      .patch(`/api/v1/organizations/${tenantOrganizationId}`)
       .set(bearerAuthHeaders(adminAccessToken))
       .send({ name: 'Acme Inc.', industry: 'Software' })
       .expect(200);
@@ -145,37 +126,30 @@ describe('OrganizationController (e2e)', () => {
     const body = response.body as ApiSuccessResponse<OrganizationResponseDto>;
     expect(body.data.name).toBe('Acme Inc.');
     expect(body.data.industry).toBe('Software');
-    expect(body.data.slug).toBe('acme-corporation');
   });
 
   it('DELETE /api/v1/organizations/:id soft deletes organization', async () => {
-    const createResponse = await request(app.getHttpServer())
-      .post('/api/v1/organizations')
-      .send(createOrganizationPayload)
-      .expect(201);
-
-    const created = createResponse.body as ApiSuccessResponse<OrganizationResponseDto>;
-
-    await request(app.getHttpServer())
-      .delete(`/api/v1/organizations/${created.data.id}`)
+    const deleteResponse = await request(app.getHttpServer())
+      .delete(`/api/v1/organizations/${tenantOrganizationId}`)
       .set(bearerAuthHeaders(adminAccessToken))
       .expect(200);
 
-    await request(app.getHttpServer())
-      .get(`/api/v1/organizations/${created.data.id}`)
-      .set(bearerAuthHeaders(adminAccessToken))
-      .expect(404);
+    const deleteBody = deleteResponse.body as ApiSuccessResponse<OrganizationResponseDto>;
+    expect(deleteBody.data.id).toBe(tenantOrganizationId);
 
-    const listResponse = await request(app.getHttpServer())
+    const deleted = await prisma.system.organization.findUnique({
+      where: { id: tenantOrganizationId },
+    });
+    expect(deleted?.deletedAt).not.toBeNull();
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/organizations/${tenantOrganizationId}`)
+      .set(bearerAuthHeaders(adminAccessToken))
+      .expect(401);
+
+    await request(app.getHttpServer())
       .get('/api/v1/organizations')
-      .query({ search: created.data.slug })
       .set(bearerAuthHeaders(adminAccessToken))
-      .expect(200);
-
-    const listBody = listResponse.body as ApiSuccessResponse<{
-      items: OrganizationResponseDto[];
-      total: number;
-    }>;
-    expect(listBody.data.total).toBe(0);
+      .expect(401);
   });
 });

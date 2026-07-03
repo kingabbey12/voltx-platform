@@ -16,9 +16,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { AUTH_GUARDS } from '../auth/guards/auth.guards';
-import { CurrentUser as CurrentUserInterface } from '../auth/interfaces/current-user.interface';
+import { AUTH_GUARDS } from '../../common/guards/protected.guards';
 import { ApiSuccessResponseDto } from '../../common/dto/api-response.dto';
 import { Permissions } from '../permissions/decorators/permissions.decorator';
 import { PermissionGuard } from '../permissions/guards/permission.guard';
@@ -43,8 +41,8 @@ export class UsersController {
   @ApiOkResponse({ description: 'Current user profile', type: UserSuccessResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
   @ApiNotFoundResponse({ description: 'User not found' })
-  getMe(@CurrentUser() user: CurrentUserInterface): Promise<UserResponseDto> {
-    return this.usersService.getMe(user.id);
+  getMe(): Promise<UserResponseDto> {
+    return this.usersService.getMe();
   }
 
   @Patch('me')
@@ -54,17 +52,14 @@ export class UsersController {
   @ApiOkResponse({ description: 'Updated user profile', type: UserSuccessResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
   @ApiNotFoundResponse({ description: 'User not found' })
-  updateMe(
-    @CurrentUser() user: CurrentUserInterface,
-    @Body() dto: UpdateCurrentUserDto,
-  ): Promise<UserResponseDto> {
-    return this.usersService.updateMe(user.id, dto);
+  updateMe(@Body() dto: UpdateCurrentUserDto): Promise<UserResponseDto> {
+    return this.usersService.updateMe(dto);
   }
 
   @Get()
   @UseGuards(...AUTH_GUARDS, PermissionGuard)
   @Permissions('user.read')
-  @ApiOperation({ summary: 'List users' })
+  @ApiOperation({ summary: 'List users in the current organization' })
   @ApiOkResponse({
     description: 'Paginated list of users',
     type: PaginatedUsersSuccessResponseDto,
@@ -77,7 +72,7 @@ export class UsersController {
   @Get(':id')
   @UseGuards(...AUTH_GUARDS, PermissionGuard)
   @Permissions('user.read')
-  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiOperation({ summary: 'Get user by ID within the current organization' })
   @ApiOkResponse({ description: 'User details', type: UserSuccessResponseDto })
   @ApiNotFoundResponse({ description: 'User not found' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })

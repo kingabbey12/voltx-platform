@@ -173,7 +173,7 @@ describe('AuthController (e2e)', () => {
     expect(body.data.message).toBe('Email verified successfully');
     expect(body.data.emailVerifiedAt).toEqual(expect.any(String));
 
-    const updatedUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    const updatedUser = await prisma.system.user.findUniqueOrThrow({ where: { id: user.id } });
     expect(updatedUser.emailVerifiedAt).not.toBeNull();
 
     await request(app.getHttpServer())
@@ -205,7 +205,7 @@ describe('AuthController (e2e)', () => {
       'If the account exists, a password reset email has been sent.',
     );
 
-    const tokenCount = await prisma.verificationToken.count({
+    const tokenCount = await prisma.system.verificationToken.count({
       where: {
         userId: user.id,
         type: VerificationTokenType.PASSWORD_RESET,

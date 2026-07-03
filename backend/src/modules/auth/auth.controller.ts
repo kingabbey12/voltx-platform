@@ -21,7 +21,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
-import { AUTH_GUARDS } from './guards/auth.guards';
+import { AUTH_GUARDS } from '../../common/guards/protected.guards';
 import { CurrentUser as CurrentUserInterface } from './interfaces/current-user.interface';
 import { AuthService } from './auth.service';
 

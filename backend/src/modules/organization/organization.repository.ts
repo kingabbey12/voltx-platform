@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OrganizationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { OrganizationEntity } from './entities/organization.entity';
 import { toJsonValue, toOrganizationEntity } from './entities/organization.mapper';
 
@@ -42,10 +43,13 @@ export interface PaginatedOrganizations {
 
 @Injectable()
 export class OrganizationRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async create(data: CreateOrganizationData): Promise<OrganizationEntity> {
-    const record = await this.prisma.organization.create({
+    const record = await this.prisma.system.organization.create({
       data: {
         name: data.name,
         slug: data.slug,
@@ -61,16 +65,17 @@ export class OrganizationRepository {
     return toOrganizationEntity(record);
   }
 
-  async findById(id: string): Promise<OrganizationEntity | null> {
+  async findById(): Promise<OrganizationEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
     const record = await this.prisma.organization.findFirst({
-      where: { id, deletedAt: null },
+      where: { id: tenant.organizationId, deletedAt: null },
     });
 
     return record ? toOrganizationEntity(record) : null;
   }
 
   async findBySlug(slug: string): Promise<OrganizationEntity | null> {
-    const record = await this.prisma.organization.findFirst({
+    const record = await this.prisma.system.organization.findFirst({
       where: { slug, deletedAt: null },
     });
 
@@ -78,7 +83,7 @@ export class OrganizationRepository {
   }
 
   async isSlugTaken(slug: string): Promise<boolean> {
-    const record = await this.prisma.organization.findUnique({
+    const record = await this.prisma.system.organization.findUnique({
       where: { slug },
       select: { id: true },
     });
@@ -103,7 +108,7 @@ export class OrganizationRepository {
         : {}),
     };
 
-    const [records, total] = await this.prisma.$transaction([
+    const [records, total] = await Promise.all([
       this.prisma.organization.findMany({
         where,
         skip,
@@ -122,8 +127,9 @@ export class OrganizationRepository {
     };
   }
 
-  async update(id: string, data: UpdateOrganizationData): Promise<OrganizationEntity | null> {
-    const existing = await this.findById(id);
+  async update(data: UpdateOrganizationData): Promise<OrganizationEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const existing = await this.findById();
     if (!existing) {
       return null;
     }
@@ -152,22 +158,23 @@ export class OrganizationRepository {
       updateData.settings = toJsonValue(data.settings);
     }
 
-    const record = await this.prisma.organization.update({
-      where: { id },
+    const record = await this.prisma.system.organization.update({
+      where: { id: tenant.organizationId },
       data: updateData,
     });
 
     return toOrganizationEntity(record);
   }
 
-  async softDelete(id: string): Promise<OrganizationEntity | null> {
-    const existing = await this.findById(id);
+  async softDelete(): Promise<OrganizationEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const existing = await this.findById();
     if (!existing) {
       return null;
     }
 
-    const record = await this.prisma.organization.update({
-      where: { id },
+    const record = await this.prisma.system.organization.update({
+      where: { id: tenant.organizationId },
       data: { deletedAt: new Date() },
     });
 

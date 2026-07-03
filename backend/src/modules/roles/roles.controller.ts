@@ -7,7 +7,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { AUTH_GUARDS } from '../auth/guards/auth.guards';
+import { AUTH_GUARDS } from '../../common/guards/protected.guards';
 import { ApiSuccessResponseDto } from '../../common/dto/api-response.dto';
 import { Permissions } from '../permissions/decorators/permissions.decorator';
 import { PermissionGuard } from '../permissions/guards/permission.guard';
