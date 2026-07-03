@@ -1,3 +1,4 @@
+import { RequestMethod } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { IncomingMessage, ServerResponse } from 'node:http';
@@ -10,6 +11,7 @@ export function createPinoConfig(configService: ConfigService): Params {
   const isProduction = nodeEnv === 'production';
 
   return {
+    forRoutes: [{ path: '*path', method: RequestMethod.ALL }],
     pinoHttp: {
       level: logLevel,
       transport: isProduction
