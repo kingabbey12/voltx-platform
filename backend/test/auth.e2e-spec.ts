@@ -79,6 +79,37 @@ describe('AuthController (e2e)', () => {
       .expect(401);
   });
 
+  it('POST /api/v1/auth/register creates user, organization, and tokens', async () => {
+    const email = 'register.user@example.com';
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        email,
+        password: 'Password123!',
+        firstName: 'Register',
+        lastName: 'User',
+        organizationName: 'Register Org',
+      })
+      .expect(201);
+
+    const body = response.body as ApiSuccessResponse<LoginResponseDto>;
+    expect(body.success).toBe(true);
+    expect(body.data.accessToken).toEqual(expect.any(String));
+    expect(body.data.refreshToken).toEqual(expect.any(String));
+    expect(body.data.user.email).toBe(email);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        email,
+        password: 'Password123!',
+        firstName: 'Register',
+        lastName: 'User',
+      })
+      .expect(409);
+  });
+
   it('POST /api/v1/auth/refresh rotates refresh tokens', async () => {
     const { accessToken: initialAccessToken, refreshToken: initialRefreshToken } =
       await authenticateContext(app, prisma, usersRepository, 'admin');

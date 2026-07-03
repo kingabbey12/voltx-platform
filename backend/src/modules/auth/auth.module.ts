@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { OrganizationModule } from '../organization/organization.module';
 import { UsersModule } from '../users/users.module';
 import { AuthContextRepository } from './auth-context.repository';
 import { AuthContextService } from './auth-context.service';
@@ -35,6 +36,7 @@ import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
       }),
     }),
     UsersModule,
+    OrganizationModule,
   ],
   controllers: [AuthController],
   providers: [

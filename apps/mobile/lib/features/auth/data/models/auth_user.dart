@@ -6,23 +6,63 @@ class AuthUser {
     required this.firstName,
     required this.lastName,
     required this.emailVerified,
+    this.organizationId,
+    this.roles = const [],
+    this.permissions = const [],
+    this.avatarUrl,
   });
+
+  factory AuthUser.fromJson(Map<String, dynamic> json) {
+    return AuthUser(
+      id: json['id'] as String,
+      email: json['email'] as String,
+      firstName: json['firstName'] as String,
+      lastName: json['lastName'] as String,
+      emailVerified: json['emailVerifiedAt'] != null,
+      organizationId: json['organizationId'] as String?,
+      roles: (json['roles'] as List<dynamic>?)
+              ?.map((role) => role.toString())
+              .toList() ??
+          const [],
+      permissions: (json['permissions'] as List<dynamic>?)
+              ?.map((permission) => permission.toString())
+              .toList() ??
+          const [],
+      avatarUrl: json['avatarUrl'] as String?,
+    );
+  }
 
   final String id;
   final String email;
   final String firstName;
   final String lastName;
   final bool emailVerified;
+  final String? organizationId;
+  final List<String> roles;
+  final List<String> permissions;
+  final String? avatarUrl;
 
   String get displayName => '$firstName $lastName'.trim();
 
-  AuthUser copyWith({bool? emailVerified}) {
+  AuthUser copyWith({
+    bool? emailVerified,
+    String? organizationId,
+    List<String>? roles,
+    List<String>? permissions,
+    String? avatarUrl,
+    String? firstName,
+    String? lastName,
+  }) {
     return AuthUser(
       id: id,
       email: email,
-      firstName: firstName,
-      lastName: lastName,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
       emailVerified: emailVerified ?? this.emailVerified,
+      organizationId: organizationId ?? this.organizationId,
+      roles: roles ?? this.roles,
+      permissions: permissions ?? this.permissions,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
     );
   }
 }

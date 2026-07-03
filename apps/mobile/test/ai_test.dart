@@ -45,7 +45,7 @@ void main() {
       addTearDown(container.dispose);
 
       final convId = MockAiData.conversations.first.id;
-      container.listen(aiChatProvider(convId), (_, __) {});
+      container.listen(aiChatProvider(convId), (_, _) {});
       final notifier = container.read(aiChatProvider(convId).notifier);
       final future = notifier.sendMessage('Another test');
       await Future<void>.delayed(const Duration(milliseconds: 80));

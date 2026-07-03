@@ -10,7 +10,9 @@ class NetworkException implements Exception {
 
   factory NetworkException.fromDioException(DioException error) {
     return NetworkException(
-      message: error.message ?? 'Network request failed',
+      message: _extractMessage(error.response?.data) ??
+          error.message ??
+          'Network request failed',
       statusCode: error.response?.statusCode,
       type: switch (error.type) {
         DioExceptionType.connectionTimeout ||
@@ -23,6 +25,38 @@ class NetworkException implements Exception {
         _ => NetworkExceptionType.unknown,
       },
     );
+  }
+
+  static String? _extractMessage(dynamic data) {
+    if (data is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final message = data['message'];
+    if (message is String && message.isNotEmpty) {
+      return message;
+    }
+
+    if (message is List) {
+      return message.map((item) => item.toString()).join(', ');
+    }
+
+    if (message is Map) {
+      final parts = <String>[];
+      for (final entry in message.entries) {
+        final value = entry.value;
+        if (value is List) {
+          parts.addAll(value.map((item) => item.toString()));
+        } else {
+          parts.add(value.toString());
+        }
+      }
+      if (parts.isNotEmpty) {
+        return parts.join(', ');
+      }
+    }
+
+    return null;
   }
 
   final String message;

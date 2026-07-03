@@ -10,6 +10,11 @@ class MockAuthRepository implements AuthRepository {
   AuthUser? get currentUser => _currentUser;
 
   @override
+  Future<AuthUser?> restoreSession() async {
+    return _currentUser;
+  }
+
+  @override
   Future<AuthUser> signIn({
     required String email,
     required String password,

@@ -8,6 +8,8 @@ import { AuthRepository } from '../src/modules/auth/auth.repository';
 import { AuthService } from '../src/modules/auth/auth.service';
 import { RefreshTokenRepository } from '../src/modules/auth/refresh-token.repository';
 import { VerificationTokenService } from '../src/modules/auth/verification-token.service';
+import { OrganizationRepository } from '../src/modules/organization/organization.repository';
+import { PrismaService } from '../src/database/prisma.service';
 import { UsersRepository } from '../src/modules/users/users.repository';
 import * as passwordUtil from '../src/modules/auth/utils/password.util';
 import * as refreshTokenUtil from '../src/modules/auth/utils/refresh-token.util';
@@ -50,6 +52,7 @@ describe('AuthService', () => {
             consumeEmailVerificationToken: jest.fn(),
             consumePasswordResetToken: jest.fn(),
             issuePasswordResetToken: jest.fn(),
+            issueEmailVerificationToken: jest.fn(),
           },
         },
         {
@@ -62,6 +65,23 @@ describe('AuthService', () => {
           provide: UsersRepository,
           useValue: {
             findById: jest.fn(),
+          },
+        },
+        {
+          provide: OrganizationRepository,
+          useValue: {
+            isSlugTaken: jest.fn(),
+          },
+        },
+        {
+          provide: PrismaService,
+          useValue: {
+            system: {
+              role: {
+                findUniqueOrThrow: jest.fn(),
+              },
+              $transaction: jest.fn(),
+            },
           },
         },
         {

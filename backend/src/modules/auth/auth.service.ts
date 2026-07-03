@@ -1,7 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { UserStatus } from '@prisma/client';
+import { MembershipStatus, OrganizationStatus, UserStatus } from '@prisma/client';
+import { PrismaService } from '../../database/prisma.service';
+import { OrganizationRepository } from '../organization/organization.repository';
+import { generateUniqueOrganizationSlug } from '../organization/utils/organization-slug.util';
 import { UsersRepository } from '../users/users.repository';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { AuthContextRepository } from './auth-context.repository';
@@ -15,6 +18,7 @@ import {
   VerifyEmailResponseDto,
 } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CurrentUser } from './interfaces/current-user.interface';
@@ -36,6 +40,8 @@ export class AuthService {
     private readonly verificationTokenService: VerificationTokenService,
     private readonly authContextRepository: AuthContextRepository,
     private readonly usersRepository: UsersRepository,
+    private readonly organizationRepository: OrganizationRepository,
+    private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -71,6 +77,67 @@ export class AuthService {
     const profile = await this.usersRepository.findById(user.id);
     if (!profile) {
       throw new UnauthorizedException('Authenticated user not found');
+    }
+
+    return {
+      ...tokens,
+      user: UserResponseDto.fromEntity(profile),
+    };
+  }
+
+  async register(dto: RegisterDto): Promise<LoginResponseDto> {
+    const existing = await this.authRepository.findUserByEmail(dto.email);
+    if (existing) {
+      throw new ConflictException('An account with this email already exists');
+    }
+
+    const organizationName =
+      dto.organizationName?.trim() || `${dto.firstName.trim()} ${dto.lastName.trim()}`.trim();
+    const slug = await generateUniqueOrganizationSlug(organizationName, (candidate) =>
+      this.organizationRepository.isSlugTaken(candidate),
+    );
+    const passwordHash = await hashPassword(dto.password);
+    const ownerRole = await this.prisma.system.role.findUniqueOrThrow({
+      where: { key: 'owner' },
+    });
+
+    const { organization, user } = await this.prisma.system.$transaction(async (tx) => {
+      const createdOrganization = await tx.organization.create({
+        data: {
+          name: organizationName,
+          slug,
+          status: OrganizationStatus.ACTIVE,
+        },
+      });
+
+      const createdUser = await tx.user.create({
+        data: {
+          email: dto.email.toLowerCase(),
+          firstName: dto.firstName.trim(),
+          lastName: dto.lastName.trim(),
+          passwordHash,
+          status: UserStatus.ACTIVE,
+        },
+      });
+
+      await tx.membership.create({
+        data: {
+          userId: createdUser.id,
+          organizationId: createdOrganization.id,
+          roleId: ownerRole.id,
+          status: MembershipStatus.ACTIVE,
+        },
+      });
+
+      return { organization: createdOrganization, user: createdUser };
+    });
+
+    await this.verificationTokenService.issueEmailVerificationToken(user.id);
+    const tokens = await this.issueTokens(user.id, organization.id);
+    const profile = await this.usersRepository.findById(user.id);
+
+    if (!profile) {
+      throw new UnauthorizedException('Registered user not found');
     }
 
     return {

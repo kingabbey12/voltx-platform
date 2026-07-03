@@ -16,6 +16,7 @@ import {
   VerifyEmailResponseDto,
 } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
@@ -49,6 +50,14 @@ export class AuthController {
   @ApiUnauthorizedResponse({ description: 'Invalid credentials or inactive account' })
   login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
     return this.authService.login(dto);
+  }
+
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register a new user and organization workspace' })
+  @ApiOkResponse({ description: 'Account created and tokens issued', type: LoginSuccessResponseDto })
+  register(@Body() dto: RegisterDto): Promise<LoginResponseDto> {
+    return this.authService.register(dto);
   }
 
   @Post('refresh')

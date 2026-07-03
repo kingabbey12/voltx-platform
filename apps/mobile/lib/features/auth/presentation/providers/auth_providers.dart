@@ -1,17 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/network_providers.dart';
-import '../../data/repositories/auth_repository.dart';
-import '../../data/repositories/mock_auth_repository.dart';
-import '../../data/services/auth_api_service.dart';
 import '../../data/models/auth_user.dart';
-
-final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  return MockAuthRepository();
-});
+import '../../data/repositories/api_auth_repository.dart';
+import '../../data/repositories/auth_repository.dart';
+import '../../data/services/auth_api_service.dart';
 
 final authApiServiceProvider = Provider<AuthApiService>((ref) {
-  return AuthApiService(ref.watch(dioProvider));
+  return AuthApiService(ref.watch(apiClientProvider));
+});
+
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  return ApiAuthRepository(
+    apiService: ref.watch(authApiServiceProvider),
+    tokenStorage: ref.watch(tokenStorageProvider),
+  );
 });
 
 final authSessionProvider =
@@ -23,6 +26,13 @@ class AuthSessionNotifier extends StateNotifier<AuthUser?> {
   AuthSessionNotifier(this._repository) : super(_repository.currentUser);
 
   final AuthRepository _repository;
+
+  Future<void> restoreSession() async {
+    final user = await _repository.restoreSession();
+    if (user != null) {
+      state = user;
+    }
+  }
 
   void setUser(AuthUser? user) => state = user;
 
