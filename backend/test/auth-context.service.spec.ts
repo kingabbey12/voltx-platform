@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthContextRepository } from '../src/modules/auth/auth-context.repository';
 import { AuthContextService } from '../src/modules/auth/auth-context.service';
+import { PermissionService } from '../src/modules/permissions/permission.service';
 
 describe('AuthContextService', () => {
   let service: AuthContextService;
   let repository: jest.Mocked<AuthContextRepository>;
+  let permissionService: jest.Mocked<Pick<PermissionService, 'getPermissionKeysForRole'>>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -16,20 +18,33 @@ describe('AuthContextService', () => {
             findActiveMembershipContext: jest.fn(),
           },
         },
+        {
+          provide: PermissionService,
+          useValue: {
+            getPermissionKeysForRole: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get(AuthContextService);
     repository = module.get(AuthContextRepository);
+    permissionService = module.get(PermissionService);
   });
 
-  it('resolves current user from active membership', async () => {
+  it('resolves current user from active membership and role permissions', async () => {
     repository.findActiveMembershipContext.mockResolvedValue({
       id: 'membership-id',
       organizationId: 'org-id',
       userId: 'user-id',
-      roleName: 'admin',
+      roleId: 'role-id',
+      roleKey: 'admin',
+      roleName: 'Admin',
     });
+    permissionService.getPermissionKeysForRole.mockResolvedValue([
+      'organization.read',
+      'user.read',
+    ]);
 
     const result = await service.resolveCurrentUser('user-id', 'org-id');
 
@@ -38,7 +53,7 @@ describe('AuthContextService', () => {
       organizationId: 'org-id',
       membershipId: 'membership-id',
       roles: ['admin'],
-      permissions: ['users:read', 'users:write', 'organizations:read', 'organizations:write'],
+      permissions: ['organization.read', 'user.read'],
     });
   });
 

@@ -5,27 +5,35 @@ import { App } from 'supertest/types';
 import { ApiSuccessResponse } from '../src/common/interceptors/response.interceptor';
 import { PrismaService } from '../src/database/prisma.service';
 import { OrganizationResponseDto } from '../src/modules/organization/dto/organization-response.dto';
+import { UsersRepository } from '../src/modules/users/users.repository';
 import { createTestApp } from './create-test-app';
+import { createOrganizationPayload } from './helpers/organization-test.helper';
 import {
-  createOrganizationPayload,
-  resetOrganizationsTable,
-} from './helpers/organization-test.helper';
+  authHeaders,
+  resetAndSeedAuthTestData,
+  seedAuthContext,
+} from './helpers/users-test.helper';
 
 describe('OrganizationController (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
+  let usersRepository: UsersRepository;
+  let adminUserId: string;
 
   beforeAll(async () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
+    usersRepository = app.get(UsersRepository);
   });
 
   beforeEach(async () => {
-    await resetOrganizationsTable(prisma);
+    await resetAndSeedAuthTestData(prisma);
+    const { user } = await seedAuthContext(prisma, usersRepository, 'admin');
+    adminUserId = user.id;
   });
 
   afterAll(async () => {
-    await resetOrganizationsTable(prisma);
+    await resetAndSeedAuthTestData(prisma);
     await app.close();
   });
 
@@ -75,6 +83,7 @@ describe('OrganizationController (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .get(`/api/v1/organizations/${created.data.id}`)
+      .set(authHeaders(adminUserId))
       .expect(200);
 
     const body = response.body as ApiSuccessResponse<OrganizationResponseDto>;
@@ -85,6 +94,7 @@ describe('OrganizationController (e2e)', () => {
   it('GET /api/v1/organizations/:id returns 404 for missing organization', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/organizations/00000000-0000-0000-0000-000000000000')
+      .set(authHeaders(adminUserId))
       .expect(404);
   });
 
@@ -99,7 +109,10 @@ describe('OrganizationController (e2e)', () => {
       .send({ ...createOrganizationPayload, name: 'Beta Corp' })
       .expect(201);
 
-    const response = await request(app.getHttpServer()).get('/api/v1/organizations').expect(200);
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/organizations')
+      .set(authHeaders(adminUserId))
+      .expect(200);
 
     const body = response.body as ApiSuccessResponse<{
       items: OrganizationResponseDto[];
@@ -109,8 +122,9 @@ describe('OrganizationController (e2e)', () => {
       totalPages: number;
     }>;
 
-    expect(body.data.items).toHaveLength(2);
-    expect(body.data.total).toBe(2);
+    const slugs = body.data.items.map((item) => item.slug);
+    expect(slugs).toContain('acme-corporation');
+    expect(slugs).toContain('beta-corp');
     expect(body.data.page).toBe(1);
   });
 
@@ -124,6 +138,7 @@ describe('OrganizationController (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .patch(`/api/v1/organizations/${created.data.id}`)
+      .set(authHeaders(adminUserId))
       .send({ name: 'Acme Inc.', industry: 'Software' })
       .expect(200);
 
@@ -143,12 +158,18 @@ describe('OrganizationController (e2e)', () => {
 
     await request(app.getHttpServer())
       .delete(`/api/v1/organizations/${created.data.id}`)
+      .set(authHeaders(adminUserId))
       .expect(200);
 
-    await request(app.getHttpServer()).get(`/api/v1/organizations/${created.data.id}`).expect(404);
+    await request(app.getHttpServer())
+      .get(`/api/v1/organizations/${created.data.id}`)
+      .set(authHeaders(adminUserId))
+      .expect(404);
 
     const listResponse = await request(app.getHttpServer())
       .get('/api/v1/organizations')
+      .query({ search: created.data.slug })
+      .set(authHeaders(adminUserId))
       .expect(200);
 
     const listBody = listResponse.body as ApiSuccessResponse<{

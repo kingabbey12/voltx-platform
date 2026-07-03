@@ -11,6 +11,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './modules/health/health.module';
 import { OrganizationModule } from './modules/organization/organization.module';
+import { PermissionsModule } from './modules/permissions/permissions.module';
+import { RolesModule } from './modules/roles/roles.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -33,6 +35,8 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     HealthModule,
     OrganizationModule,
+    PermissionsModule,
+    RolesModule,
     UsersModule,
   ],
   providers: [LoggingInterceptor, ResponseInterceptor, TimeoutInterceptor],

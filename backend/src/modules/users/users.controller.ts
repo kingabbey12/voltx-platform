@@ -20,6 +20,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AUTH_GUARDS } from '../auth/guards/auth.guards';
 import { CurrentUser as CurrentUserInterface } from '../auth/interfaces/current-user.interface';
 import { ApiSuccessResponseDto } from '../../common/dto/api-response.dto';
+import { Permissions } from '../permissions/decorators/permissions.decorator';
+import { PermissionGuard } from '../permissions/guards/permission.guard';
 import { ListUsersQueryDto, PaginatedUsersDto, UserResponseDto } from './dto/user-response.dto';
 import { UpdateCurrentUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
@@ -35,7 +37,8 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('me')
-  @UseGuards(...AUTH_GUARDS)
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('user.read')
   @ApiOperation({ summary: 'Get the current authenticated user profile' })
   @ApiOkResponse({ description: 'Current user profile', type: UserSuccessResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
@@ -45,7 +48,8 @@ export class UsersController {
   }
 
   @Patch('me')
-  @UseGuards(...AUTH_GUARDS)
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('user.update')
   @ApiOperation({ summary: 'Update the current authenticated user profile' })
   @ApiOkResponse({ description: 'Updated user profile', type: UserSuccessResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
@@ -58,19 +62,25 @@ export class UsersController {
   }
 
   @Get()
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('user.read')
   @ApiOperation({ summary: 'List users' })
   @ApiOkResponse({
     description: 'Paginated list of users',
     type: PaginatedUsersSuccessResponseDto,
   })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
   findAll(@Query() query: ListUsersQueryDto): Promise<PaginatedUsersDto> {
     return this.usersService.findAll(query);
   }
 
   @Get(':id')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('user.read')
   @ApiOperation({ summary: 'Get user by ID' })
   @ApiOkResponse({ description: 'User details', type: UserSuccessResponseDto })
   @ApiNotFoundResponse({ description: 'User not found' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
   findOne(@Param('id', ParseUUIDPipe) id: string): Promise<UserResponseDto> {
     return this.usersService.findOne(id);
   }

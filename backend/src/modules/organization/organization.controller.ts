@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -19,8 +20,12 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { AUTH_GUARDS } from '../auth/guards/auth.guards';
 import { ApiSuccessResponseDto } from '../../common/dto/api-response.dto';
+import { Permissions } from '../permissions/decorators/permissions.decorator';
+import { PermissionGuard } from '../permissions/guards/permission.guard';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import {
   ListOrganizationsQueryDto,
@@ -55,33 +60,42 @@ export class OrganizationController {
   }
 
   @Get()
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('organization.read')
   @ApiOperation({ summary: 'List organizations' })
   @ApiOkResponse({
     description: 'Paginated list of organizations',
     type: PaginatedOrganizationsSuccessResponseDto,
   })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
   findAll(@Query() query: ListOrganizationsQueryDto): Promise<PaginatedOrganizationsDto> {
     return this.organizationService.findAll(query);
   }
 
   @Get(':id')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('organization.read')
   @ApiOperation({ summary: 'Get organization by ID' })
   @ApiOkResponse({
     description: 'Organization details',
     type: OrganizationSuccessResponseDto,
   })
   @ApiNotFoundResponse({ description: 'Organization not found' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
   findOne(@Param('id', ParseUUIDPipe) id: string): Promise<OrganizationResponseDto> {
     return this.organizationService.findOne(id);
   }
 
   @Patch(':id')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('organization.update')
   @ApiOperation({ summary: 'Update an organization' })
   @ApiOkResponse({
     description: 'Organization updated successfully',
     type: OrganizationSuccessResponseDto,
   })
   @ApiNotFoundResponse({ description: 'Organization not found' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateOrganizationDto,
@@ -91,12 +105,15 @@ export class OrganizationController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('organization.delete')
   @ApiOperation({ summary: 'Soft delete an organization' })
   @ApiOkResponse({
     description: 'Organization soft deleted successfully',
     type: OrganizationSuccessResponseDto,
   })
   @ApiNotFoundResponse({ description: 'Organization not found' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
   remove(@Param('id', ParseUUIDPipe) id: string): Promise<OrganizationResponseDto> {
     return this.organizationService.remove(id);
   }

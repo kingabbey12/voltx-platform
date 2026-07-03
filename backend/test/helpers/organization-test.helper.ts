@@ -1,6 +1,7 @@
 import { PrismaService } from '../../src/database/prisma.service';
 
 export async function resetOrganizationsTable(prisma: PrismaService): Promise<void> {
+  await prisma.membership.deleteMany();
   await prisma.organization.deleteMany();
 }
 

@@ -6,6 +6,8 @@ export interface MembershipAuthContext {
   id: string;
   organizationId: string;
   userId: string;
+  roleId: string;
+  roleKey: string;
   roleName: string;
 }
 
@@ -37,6 +39,8 @@ export class AuthContextRepository {
       id: membership.id,
       organizationId: membership.organizationId,
       userId: membership.userId,
+      roleId: membership.roleId,
+      roleKey: membership.role.key,
       roleName: membership.role.name,
     };
   }

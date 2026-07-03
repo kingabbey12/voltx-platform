@@ -5,12 +5,20 @@ import {
 } from '../../src/modules/auth/constants/development-auth.constants';
 import { PrismaService } from '../../src/database/prisma.service';
 import { UsersRepository } from '../../src/modules/users/users.repository';
+import { seedRbac } from '../../prisma/seed';
 
 export async function resetAuthTestData(prisma: PrismaService): Promise<void> {
   await prisma.membership.deleteMany();
+  await prisma.rolePermission.deleteMany();
   await prisma.user.deleteMany();
-  await prisma.role.deleteMany();
   await prisma.organization.deleteMany();
+  await prisma.role.deleteMany();
+  await prisma.permission.deleteMany();
+}
+
+export async function resetAndSeedAuthTestData(prisma: PrismaService): Promise<void> {
+  await resetAuthTestData(prisma);
+  await seedRbac(prisma);
 }
 
 export const createUserPayload = {
@@ -36,6 +44,7 @@ export async function seedUser(
 export async function seedAuthContext(
   prisma: PrismaService,
   usersRepository: UsersRepository,
+  roleKey = 'admin',
   overrides: Partial<typeof createUserPayload> = {},
 ) {
   const organization = await prisma.organization.create({
@@ -46,11 +55,7 @@ export async function seedAuthContext(
     },
   });
 
-  const role = await prisma.role.upsert({
-    where: { name: 'admin' },
-    create: { name: 'admin', description: 'Administrator' },
-    update: {},
-  });
+  const role = await prisma.role.findUniqueOrThrow({ where: { key: roleKey } });
 
   const user = await seedUser(usersRepository, overrides);
 

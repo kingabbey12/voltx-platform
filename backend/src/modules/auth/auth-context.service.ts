@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { PermissionService } from '../permissions/permission.service';
 import { AuthContextRepository } from './auth-context.repository';
 import { CurrentUser } from './interfaces/current-user.interface';
 
 @Injectable()
 export class AuthContextService {
-  constructor(private readonly authContextRepository: AuthContextRepository) {}
+  constructor(
+    private readonly authContextRepository: AuthContextRepository,
+    private readonly permissionService: PermissionService,
+  ) {}
 
   async resolveCurrentUser(userId: string, organizationId?: string): Promise<CurrentUser | null> {
     const membership = await this.authContextRepository.findActiveMembershipContext(
@@ -16,21 +20,14 @@ export class AuthContextService {
       return null;
     }
 
+    const permissions = await this.permissionService.getPermissionKeysForRole(membership.roleId);
+
     return {
       id: membership.userId,
       organizationId: membership.organizationId,
       membershipId: membership.id,
-      roles: [membership.roleName],
-      permissions: this.resolvePermissions(membership.roleName),
+      roles: [membership.roleKey],
+      permissions,
     };
-  }
-
-  private resolvePermissions(roleName: string): string[] {
-    const rolePermissions: Record<string, string[]> = {
-      admin: ['users:read', 'users:write', 'organizations:read', 'organizations:write'],
-      member: ['users:read', 'organizations:read'],
-    };
-
-    return rolePermissions[roleName] ?? [];
   }
 }

@@ -10,7 +10,7 @@ import { createTestApp } from './create-test-app';
 import {
   authHeaders,
   createUserPayload,
-  resetAuthTestData,
+  resetAndSeedAuthTestData,
   seedAuthContext,
   seedUser,
 } from './helpers/users-test.helper';
@@ -27,11 +27,11 @@ describe('UsersController (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await resetAuthTestData(prisma);
+    await resetAndSeedAuthTestData(prisma);
   });
 
   afterAll(async () => {
-    await resetAuthTestData(prisma);
+    await resetAndSeedAuthTestData(prisma);
     await app.close();
   });
 
@@ -83,7 +83,10 @@ describe('UsersController (e2e)', () => {
   it('GET /api/v1/users/:id returns user by id', async () => {
     const { user } = await seedAuthContext(prisma, usersRepository);
 
-    const response = await request(app.getHttpServer()).get(`/api/v1/users/${user.id}`).expect(200);
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/users/${user.id}`)
+      .set(authHeaders(user.id))
+      .expect(200);
 
     const body = response.body as ApiSuccessResponse<UserResponseDto>;
     expect(body.data.id).toBe(user.id);
@@ -91,20 +94,26 @@ describe('UsersController (e2e)', () => {
   });
 
   it('GET /api/v1/users/:id returns 404 for missing user', async () => {
+    const { user } = await seedAuthContext(prisma, usersRepository);
+
     await request(app.getHttpServer())
       .get('/api/v1/users/00000000-0000-0000-0000-000000000000')
+      .set(authHeaders(user.id))
       .expect(404);
   });
 
   it('GET /api/v1/users returns paginated users', async () => {
-    await seedAuthContext(prisma, usersRepository);
-    await seedAuthContext(prisma, usersRepository, {
+    const { user: admin } = await seedAuthContext(prisma, usersRepository);
+    await seedAuthContext(prisma, usersRepository, 'admin', {
       email: 'john.doe@example.com',
       firstName: 'John',
       lastName: 'Doe',
     });
 
-    const response = await request(app.getHttpServer()).get('/api/v1/users').expect(200);
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/users')
+      .set(authHeaders(admin.id))
+      .expect(200);
 
     const body = response.body as ApiSuccessResponse<{
       items: UserResponseDto[];
@@ -119,8 +128,8 @@ describe('UsersController (e2e)', () => {
   });
 
   it('GET /api/v1/users supports search filtering', async () => {
-    await seedAuthContext(prisma, usersRepository);
-    await seedAuthContext(prisma, usersRepository, {
+    const { user: admin } = await seedAuthContext(prisma, usersRepository);
+    await seedAuthContext(prisma, usersRepository, 'admin', {
       email: 'john.doe@example.com',
       firstName: 'John',
       lastName: 'Doe',
@@ -128,6 +137,7 @@ describe('UsersController (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .get('/api/v1/users')
+      .set(authHeaders(admin.id))
       .query({ search: 'john' })
       .expect(200);
 
