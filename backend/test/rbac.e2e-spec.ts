@@ -8,9 +8,9 @@ import { RoleListResponseDto } from '../src/modules/roles/dto/role-response.dto'
 import { UsersRepository } from '../src/modules/users/users.repository';
 import { createTestApp } from './create-test-app';
 import {
-  authHeaders,
+  authenticateContext,
+  bearerAuthHeaders,
   resetAndSeedAuthTestData,
-  seedAuthContext,
 } from './helpers/users-test.helper';
 
 describe('RBAC (e2e)', () => {
@@ -34,11 +34,11 @@ describe('RBAC (e2e)', () => {
   });
 
   it('allows admin to list permissions', async () => {
-    const { user } = await seedAuthContext(prisma, usersRepository, 'admin');
+    const { accessToken } = await authenticateContext(app, prisma, usersRepository, 'admin');
 
     const response = await request(app.getHttpServer())
       .get('/api/v1/permissions')
-      .set(authHeaders(user.id))
+      .set(bearerAuthHeaders(accessToken))
       .expect(200);
 
     const body = response.body as ApiSuccessResponse<PermissionResponseDto[]>;
@@ -47,20 +47,20 @@ describe('RBAC (e2e)', () => {
   });
 
   it('denies viewer from listing permissions', async () => {
-    const { user } = await seedAuthContext(prisma, usersRepository, 'viewer');
+    const { accessToken } = await authenticateContext(app, prisma, usersRepository, 'viewer');
 
     await request(app.getHttpServer())
       .get('/api/v1/permissions')
-      .set(authHeaders(user.id))
+      .set(bearerAuthHeaders(accessToken))
       .expect(403);
   });
 
   it('allows manager to list roles', async () => {
-    const { user } = await seedAuthContext(prisma, usersRepository, 'manager');
+    const { accessToken } = await authenticateContext(app, prisma, usersRepository, 'manager');
 
     const response = await request(app.getHttpServer())
       .get('/api/v1/roles')
-      .set(authHeaders(user.id))
+      .set(bearerAuthHeaders(accessToken))
       .expect(200);
 
     const body = response.body as ApiSuccessResponse<RoleListResponseDto>;
@@ -68,17 +68,25 @@ describe('RBAC (e2e)', () => {
   });
 
   it('denies viewer from listing roles', async () => {
-    const { user } = await seedAuthContext(prisma, usersRepository, 'viewer');
+    const { accessToken } = await authenticateContext(app, prisma, usersRepository, 'viewer');
 
-    await request(app.getHttpServer()).get('/api/v1/roles').set(authHeaders(user.id)).expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/roles')
+      .set(bearerAuthHeaders(accessToken))
+      .expect(403);
   });
 
   it('denies viewer from updating organizations', async () => {
-    const { user, organization } = await seedAuthContext(prisma, usersRepository, 'viewer');
+    const { accessToken, organization } = await authenticateContext(
+      app,
+      prisma,
+      usersRepository,
+      'viewer',
+    );
 
     await request(app.getHttpServer())
       .patch(`/api/v1/organizations/${organization.id}`)
-      .set(authHeaders(user.id))
+      .set(bearerAuthHeaders(accessToken))
       .send({ name: 'Updated Name' })
       .expect(403);
   });

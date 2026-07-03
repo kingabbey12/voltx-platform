@@ -118,12 +118,14 @@ async function main(): Promise<void> {
   await seedRbac();
 }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (error: unknown) => {
-    console.error(error);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(async () => {
+      await prisma.$disconnect();
+    })
+    .catch(async (error: unknown) => {
+      console.error(error);
+      await prisma.$disconnect();
+      process.exit(1);
+    });
+}

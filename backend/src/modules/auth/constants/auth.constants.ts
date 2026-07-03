@@ -1,0 +1,15 @@
+export const JWT_ACCESS_STRATEGY = 'jwt-access';
+
+export const ACCESS_TOKEN_EXPIRES_IN = '15m';
+
+export const REFRESH_TOKEN_EXPIRES_IN_DAYS = 30;
+
+export const REFRESH_TOKEN_BYTE_LENGTH = 48;
+
+export const BCRYPT_SALT_ROUNDS = 12;
+
+export const VERIFICATION_TOKEN_BYTE_LENGTH = 48;
+
+export const EMAIL_VERIFICATION_EXPIRES_IN_HOURS = 24;
+
+export const PASSWORD_RESET_EXPIRES_IN_HOURS = 1;

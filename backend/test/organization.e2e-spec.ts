@@ -9,16 +9,16 @@ import { UsersRepository } from '../src/modules/users/users.repository';
 import { createTestApp } from './create-test-app';
 import { createOrganizationPayload } from './helpers/organization-test.helper';
 import {
-  authHeaders,
+  authenticateContext,
+  bearerAuthHeaders,
   resetAndSeedAuthTestData,
-  seedAuthContext,
 } from './helpers/users-test.helper';
 
 describe('OrganizationController (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let usersRepository: UsersRepository;
-  let adminUserId: string;
+  let adminAccessToken: string;
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -28,8 +28,8 @@ describe('OrganizationController (e2e)', () => {
 
   beforeEach(async () => {
     await resetAndSeedAuthTestData(prisma);
-    const { user } = await seedAuthContext(prisma, usersRepository, 'admin');
-    adminUserId = user.id;
+    const auth = await authenticateContext(app, prisma, usersRepository, 'admin');
+    adminAccessToken = auth.accessToken;
   });
 
   afterAll(async () => {
@@ -83,7 +83,7 @@ describe('OrganizationController (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .get(`/api/v1/organizations/${created.data.id}`)
-      .set(authHeaders(adminUserId))
+      .set(bearerAuthHeaders(adminAccessToken))
       .expect(200);
 
     const body = response.body as ApiSuccessResponse<OrganizationResponseDto>;
@@ -94,7 +94,7 @@ describe('OrganizationController (e2e)', () => {
   it('GET /api/v1/organizations/:id returns 404 for missing organization', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/organizations/00000000-0000-0000-0000-000000000000')
-      .set(authHeaders(adminUserId))
+      .set(bearerAuthHeaders(adminAccessToken))
       .expect(404);
   });
 
@@ -111,7 +111,7 @@ describe('OrganizationController (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .get('/api/v1/organizations')
-      .set(authHeaders(adminUserId))
+      .set(bearerAuthHeaders(adminAccessToken))
       .expect(200);
 
     const body = response.body as ApiSuccessResponse<{
@@ -138,7 +138,7 @@ describe('OrganizationController (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .patch(`/api/v1/organizations/${created.data.id}`)
-      .set(authHeaders(adminUserId))
+      .set(bearerAuthHeaders(adminAccessToken))
       .send({ name: 'Acme Inc.', industry: 'Software' })
       .expect(200);
 
@@ -158,18 +158,18 @@ describe('OrganizationController (e2e)', () => {
 
     await request(app.getHttpServer())
       .delete(`/api/v1/organizations/${created.data.id}`)
-      .set(authHeaders(adminUserId))
+      .set(bearerAuthHeaders(adminAccessToken))
       .expect(200);
 
     await request(app.getHttpServer())
       .get(`/api/v1/organizations/${created.data.id}`)
-      .set(authHeaders(adminUserId))
+      .set(bearerAuthHeaders(adminAccessToken))
       .expect(404);
 
     const listResponse = await request(app.getHttpServer())
       .get('/api/v1/organizations')
       .query({ search: created.data.slug })
-      .set(authHeaders(adminUserId))
+      .set(bearerAuthHeaders(adminAccessToken))
       .expect(200);
 
     const listBody = listResponse.body as ApiSuccessResponse<{

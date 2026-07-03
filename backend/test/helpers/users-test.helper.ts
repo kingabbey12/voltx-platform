@@ -1,13 +1,18 @@
+import { INestApplication } from '@nestjs/common';
 import { MembershipStatus, OrganizationStatus, UserStatus } from '@prisma/client';
-import {
-  DEV_ORGANIZATION_ID_HEADER,
-  DEV_USER_ID_HEADER,
-} from '../../src/modules/auth/constants/development-auth.constants';
+import request from 'supertest';
+import { App } from 'supertest/types';
 import { PrismaService } from '../../src/database/prisma.service';
+import { hashPassword } from '../../src/modules/auth/utils/password.util';
+import { VerificationTokenService } from '../../src/modules/auth/verification-token.service';
 import { UsersRepository } from '../../src/modules/users/users.repository';
 import { seedRbac } from '../../prisma/seed';
 
+export const DEFAULT_TEST_PASSWORD = 'SecurePassword123!';
+
 export async function resetAuthTestData(prisma: PrismaService): Promise<void> {
+  await prisma.verificationToken.deleteMany();
+  await prisma.refreshToken.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.rolePermission.deleteMany();
   await prisma.user.deleteMany();
@@ -41,11 +46,24 @@ export async function seedUser(
   });
 }
 
+export async function setUserPassword(
+  prisma: PrismaService,
+  userId: string,
+  password = DEFAULT_TEST_PASSWORD,
+): Promise<void> {
+  const passwordHash = await hashPassword(password);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+}
+
 export async function seedAuthContext(
   prisma: PrismaService,
   usersRepository: UsersRepository,
   roleKey = 'admin',
   overrides: Partial<typeof createUserPayload> = {},
+  password = DEFAULT_TEST_PASSWORD,
 ) {
   const organization = await prisma.organization.create({
     data: {
@@ -58,6 +76,7 @@ export async function seedAuthContext(
   const role = await prisma.role.findUniqueOrThrow({ where: { key: roleKey } });
 
   const user = await seedUser(usersRepository, overrides);
+  await setUserPassword(prisma, user.id, password);
 
   const membership = await prisma.membership.create({
     data: {
@@ -68,19 +87,67 @@ export async function seedAuthContext(
     },
   });
 
-  return { user, organization, role, membership };
+  return { user, organization, role, membership, password };
 }
 
-export function authHeaders(userId: string, organizationId?: string): Record<string, string> {
-  const headers: Record<string, string> = {
-    [DEV_USER_ID_HEADER]: userId,
+export async function loginAs(
+  app: INestApplication<App>,
+  email: string,
+  password: string,
+  organizationId?: string,
+): Promise<{ accessToken: string; refreshToken: string }> {
+  const response = await request(app.getHttpServer())
+    .post('/api/v1/auth/login')
+    .send({ email, password, organizationId })
+    .expect(200);
+
+  const body = response.body as {
+    data: { accessToken: string; refreshToken: string };
   };
 
-  if (organizationId) {
-    headers[DEV_ORGANIZATION_ID_HEADER] = organizationId;
-  }
+  return body.data;
+}
 
-  return headers;
+export async function authenticateContext(
+  app: INestApplication<App>,
+  prisma: PrismaService,
+  usersRepository: UsersRepository,
+  roleKey = 'admin',
+  overrides: Partial<typeof createUserPayload> = {},
+) {
+  const context = await seedAuthContext(prisma, usersRepository, roleKey, overrides);
+  const tokens = await loginAs(app, context.user.email, context.password, context.organization.id);
+
+  return { ...context, ...tokens };
+}
+
+export function bearerAuthHeaders(accessToken: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+  };
+}
+
+export async function issueEmailVerificationToken(
+  app: INestApplication<App>,
+  userId: string,
+): Promise<string> {
+  const verificationTokenService = app.get(VerificationTokenService);
+  const { token } = await verificationTokenService.issueEmailVerificationToken(userId);
+  return token;
+}
+
+export async function issuePasswordResetToken(
+  app: INestApplication<App>,
+  userId: string,
+): Promise<string> {
+  const verificationTokenService = app.get(VerificationTokenService);
+  const { token } = await verificationTokenService.issuePasswordResetToken(userId);
+  return token;
+}
+
+/** @deprecated Use bearerAuthHeaders after JWT login */
+export function authHeaders(_userId: string, _organizationId?: string): Record<string, string> {
+  throw new Error('authHeaders is deprecated. Use authenticateContext and bearerAuthHeaders.');
 }
 
 /** @deprecated Use resetAuthTestData */

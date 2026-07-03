@@ -8,11 +8,11 @@ import { UserResponseDto } from '../src/modules/users/dto/user-response.dto';
 import { UsersRepository } from '../src/modules/users/users.repository';
 import { createTestApp } from './create-test-app';
 import {
-  authHeaders,
+  authenticateContext,
+  bearerAuthHeaders,
   createUserPayload,
   resetAndSeedAuthTestData,
   seedAuthContext,
-  seedUser,
 } from './helpers/users-test.helper';
 
 describe('UsersController (e2e)', () => {
@@ -36,11 +36,11 @@ describe('UsersController (e2e)', () => {
   });
 
   it('GET /api/v1/users/me returns the authenticated user profile', async () => {
-    const { user } = await seedAuthContext(prisma, usersRepository);
+    const { user, accessToken } = await authenticateContext(app, prisma, usersRepository);
 
     const response = await request(app.getHttpServer())
       .get('/api/v1/users/me')
-      .set(authHeaders(user.id))
+      .set(bearerAuthHeaders(accessToken))
       .expect(200);
 
     const body = response.body as ApiSuccessResponse<UserResponseDto>;
@@ -57,20 +57,18 @@ describe('UsersController (e2e)', () => {
   });
 
   it('GET /api/v1/users/me returns 401 when user has no active membership', async () => {
-    const user = await seedUser(usersRepository);
-
     await request(app.getHttpServer())
       .get('/api/v1/users/me')
-      .set(authHeaders(user.id))
+      .set(bearerAuthHeaders('invalid-access-token'))
       .expect(401);
   });
 
   it('PATCH /api/v1/users/me updates the authenticated user profile', async () => {
-    const { user } = await seedAuthContext(prisma, usersRepository);
+    const { accessToken } = await authenticateContext(app, prisma, usersRepository);
 
     const response = await request(app.getHttpServer())
       .patch('/api/v1/users/me')
-      .set(authHeaders(user.id))
+      .set(bearerAuthHeaders(accessToken))
       .send({ firstName: 'Janet', jobTitle: 'Director of Engineering' })
       .expect(200);
 
@@ -81,11 +79,11 @@ describe('UsersController (e2e)', () => {
   });
 
   it('GET /api/v1/users/:id returns user by id', async () => {
-    const { user } = await seedAuthContext(prisma, usersRepository);
+    const { user, accessToken } = await authenticateContext(app, prisma, usersRepository);
 
     const response = await request(app.getHttpServer())
       .get(`/api/v1/users/${user.id}`)
-      .set(authHeaders(user.id))
+      .set(bearerAuthHeaders(accessToken))
       .expect(200);
 
     const body = response.body as ApiSuccessResponse<UserResponseDto>;
@@ -94,16 +92,16 @@ describe('UsersController (e2e)', () => {
   });
 
   it('GET /api/v1/users/:id returns 404 for missing user', async () => {
-    const { user } = await seedAuthContext(prisma, usersRepository);
+    const { accessToken } = await authenticateContext(app, prisma, usersRepository);
 
     await request(app.getHttpServer())
       .get('/api/v1/users/00000000-0000-0000-0000-000000000000')
-      .set(authHeaders(user.id))
+      .set(bearerAuthHeaders(accessToken))
       .expect(404);
   });
 
   it('GET /api/v1/users returns paginated users', async () => {
-    const { user: admin } = await seedAuthContext(prisma, usersRepository);
+    const { accessToken } = await authenticateContext(app, prisma, usersRepository);
     await seedAuthContext(prisma, usersRepository, 'admin', {
       email: 'john.doe@example.com',
       firstName: 'John',
@@ -112,7 +110,7 @@ describe('UsersController (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .get('/api/v1/users')
-      .set(authHeaders(admin.id))
+      .set(bearerAuthHeaders(accessToken))
       .expect(200);
 
     const body = response.body as ApiSuccessResponse<{
@@ -128,7 +126,7 @@ describe('UsersController (e2e)', () => {
   });
 
   it('GET /api/v1/users supports search filtering', async () => {
-    const { user: admin } = await seedAuthContext(prisma, usersRepository);
+    const { accessToken } = await authenticateContext(app, prisma, usersRepository);
     await seedAuthContext(prisma, usersRepository, 'admin', {
       email: 'john.doe@example.com',
       firstName: 'John',
@@ -137,7 +135,7 @@ describe('UsersController (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .get('/api/v1/users')
-      .set(authHeaders(admin.id))
+      .set(bearerAuthHeaders(accessToken))
       .query({ search: 'john' })
       .expect(200);
 
