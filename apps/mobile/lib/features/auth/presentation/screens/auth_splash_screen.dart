@@ -27,7 +27,7 @@ class AuthSplashScreen extends HookConsumerWidget {
         }
         final session = ref.read(authSessionProvider);
         if (session != null) {
-          context.go(AppRoutes.home);
+          context.go(AppRoutes.dashboard);
         } else {
           context.go(AppRoutes.welcome);
         }

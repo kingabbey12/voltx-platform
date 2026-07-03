@@ -4,7 +4,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../router/routes.dart';
-import '../../../shared/widgets/responsive_layout.dart';
 import '../../../theme/components/voltx_navigation.dart';
 import '../../../theme/theme_providers.dart';
 import '../../../theme/tokens/spacing.dart';
@@ -18,16 +17,17 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ResponsiveLayout(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-          children: [
-            Text(
-              'Appearance',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Settings', style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Appearance',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
             const SizedBox(height: AppSpacing.xs),
             VoltxSegmentedControl<ThemeMode>(
               segments: const {
@@ -82,8 +82,7 @@ class SettingsScreen extends ConsumerWidget {
                 },
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

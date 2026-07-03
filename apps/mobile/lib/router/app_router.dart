@@ -11,13 +11,13 @@ import '../features/auth/presentation/screens/sign_up_screen.dart';
 import '../features/auth/presentation/screens/verify_email_screen.dart';
 import '../features/auth/presentation/screens/welcome_screen.dart';
 import '../features/auth/presentation/widgets/auth_page_transition.dart';
-import '../features/components/presentation/components_screen.dart';
-import '../features/components/presentation/empty_state_screen.dart';
-import '../features/components/presentation/error_state_screen.dart';
-import '../features/components/presentation/loading_state_screen.dart';
-import '../features/home/presentation/home_screen.dart';
+import '../features/dashboard/presentation/screens/ai_workspace_screen.dart';
+import '../features/dashboard/presentation/screens/executive_dashboard_screen.dart';
+import '../features/dashboard/presentation/screens/notifications_screen.dart';
+import '../features/dashboard/presentation/screens/profile_screen.dart';
+import '../features/dashboard/presentation/screens/search_screen.dart';
+import '../features/dashboard/presentation/shell/dashboard_shell.dart';
 import '../features/settings/presentation/settings_screen.dart';
-import '../shared/widgets/app_shell.dart';
 import 'routes.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -47,7 +47,11 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (session != null &&
           (location == AppRoutes.welcome || location == AppRoutes.signIn)) {
-        return AppRoutes.home;
+        return AppRoutes.dashboard;
+      }
+
+      if (location == AppRoutes.home) {
+        return AppRoutes.dashboard;
       }
 
       return null;
@@ -114,38 +118,42 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
-        builder: (context, state, child) => AppShell(child: child),
+        builder: (context, state, child) => DashboardShell(child: child),
         routes: [
           GoRoute(
-            path: AppRoutes.home,
-            name: 'home',
+            path: AppRoutes.dashboard,
+            name: 'dashboard',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: HomeScreen(),
+              child: ExecutiveDashboardScreen(),
             ),
           ),
           GoRoute(
-            path: AppRoutes.components,
-            name: 'components',
+            path: AppRoutes.dashboardAi,
+            name: 'dashboardAi',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: ComponentsScreen(),
+              child: AiWorkspaceScreen(),
             ),
-            routes: [
-              GoRoute(
-                path: 'loading',
-                name: 'loading',
-                builder: (context, state) => const LoadingStateScreen(),
-              ),
-              GoRoute(
-                path: 'error',
-                name: 'error',
-                builder: (context, state) => const ErrorStateScreen(),
-              ),
-              GoRoute(
-                path: 'empty',
-                name: 'empty',
-                builder: (context, state) => const EmptyStateScreen(),
-              ),
-            ],
+          ),
+          GoRoute(
+            path: AppRoutes.dashboardNotifications,
+            name: 'dashboardNotifications',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: NotificationsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.dashboardSearch,
+            name: 'dashboardSearch',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SearchScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.dashboardProfile,
+            name: 'dashboardProfile',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ProfileScreen(),
+            ),
           ),
           GoRoute(
             path: AppRoutes.settings,

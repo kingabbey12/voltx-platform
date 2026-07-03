@@ -8,11 +8,16 @@ abstract final class AppRoutes {
   static const String resetPassword = '/auth/reset-password';
   static const String verifyEmail = '/auth/verify-email';
   static const String home = '/home';
+  static const String dashboard = '/dashboard';
+  static const String dashboardAi = '/dashboard/ai';
+  static const String dashboardNotifications = '/dashboard/notifications';
+  static const String dashboardSearch = '/dashboard/search';
+  static const String dashboardProfile = '/dashboard/profile';
+  static const String settings = '/settings';
   static const String components = '/components';
   static const String loading = '/components/loading';
   static const String error = '/components/error';
   static const String empty = '/components/empty';
-  static const String settings = '/settings';
 
   static const Set<String> publicAuthRoutes = {
     splash,
@@ -26,8 +31,13 @@ abstract final class AppRoutes {
 
   static const Set<String> protectedRoutes = {
     home,
-    components,
+    dashboard,
+    dashboardAi,
+    dashboardNotifications,
+    dashboardSearch,
+    dashboardProfile,
     settings,
+    components,
   };
 
   static bool isPublicAuthRoute(String location) {

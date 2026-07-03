@@ -28,7 +28,7 @@ class SignInScreen extends HookConsumerWidget {
       next.whenOrNull(
         data: (message) {
           if (message != null && context.mounted) {
-            context.go(AppRoutes.home);
+            context.go(AppRoutes.dashboard);
           }
         },
       );
