@@ -13,20 +13,84 @@ enum OrganizationStatus {
   SUSPENDED
 }
 
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SUSPENDED
+}
+
 model Organization {
-  id        String             @id @default(uuid()) @db.Uuid
-  name      String
-  slug      String             @unique
-  logoUrl   String?            @map("logo_url")
-  industry  String?
-  country   String?
-  timezone  String             @default("UTC")
-  status    OrganizationStatus @default(ACTIVE)
-  settings  Json               @default("{}")
-  createdAt DateTime           @default(now()) @map("created_at")
-  updatedAt DateTime           @updatedAt @map("updated_at")
-  deletedAt DateTime?          @map("deleted_at")
+  id          String             @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String             @unique
+  logoUrl     String?            @map("logo_url")
+  industry    String?
+  country     String?
+  timezone    String             @default("UTC")
+  status      OrganizationStatus @default(ACTIVE)
+  settings    Json               @default("{}")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  deletedAt   DateTime?          @map("deleted_at")
+  memberships Membership[]
 
   @@index([status])
   @@map("organizations")
+}
+
+model User {
+  id              String       @id @default(uuid()) @db.Uuid
+  email           String       @unique
+  firstName       String       @map("first_name")
+  lastName        String       @map("last_name")
+  avatarUrl       String?      @map("avatar_url")
+  phoneNumber     String?      @map("phone_number")
+  jobTitle        String?      @map("job_title")
+  status          UserStatus   @default(ACTIVE)
+  lastLoginAt     DateTime?    @map("last_login_at")
+  emailVerifiedAt DateTime?    @map("email_verified_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  deletedAt       DateTime?    @map("deleted_at")
+  memberships     Membership[]
+
+  @@index([status])
+  @@map("users")
+}
+
+model Role {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String       @unique
+  description String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  memberships Membership[]
+
+  @@map("roles")
+}
+
+model Membership {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  roleId         String           @map("role_id") @db.Uuid
+  joinedAt       DateTime         @default(now()) @map("joined_at")
+  status         MembershipStatus @default(ACTIVE)
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  user           User             @relation(fields: [userId], references: [id])
+  role           Role             @relation(fields: [roleId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+  @@map("memberships")
 }

@@ -7,9 +7,11 @@ import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
 import { createPinoConfig } from './config/pino-logger.config';
+import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './modules/health/health.module';
 import { OrganizationModule } from './modules/organization/organization.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -28,8 +30,10 @@ import { OrganizationModule } from './modules/organization/organization.module';
       useFactory: (configService: ConfigService) => createPinoConfig(configService),
     }),
     DatabaseModule,
+    AuthModule,
     HealthModule,
     OrganizationModule,
+    UsersModule,
   ],
   providers: [LoggingInterceptor, ResponseInterceptor, TimeoutInterceptor],
 })
