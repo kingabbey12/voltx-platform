@@ -19,6 +19,9 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   LOG_LEVEL?: string;
+
+  @IsString()
+  DATABASE_URL!: string;
 }
 
 export function validate(config: Record<string, unknown>): EnvironmentVariables {

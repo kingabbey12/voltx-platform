@@ -9,6 +9,7 @@ import { validate } from './config/env.validation';
 import { createPinoConfig } from './config/pino-logger.config';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './modules/health/health.module';
+import { OrganizationModule } from './modules/organization/organization.module';
 
 @Module({
   imports: [
@@ -16,7 +17,10 @@ import { HealthModule } from './modules/health/health.module';
       isGlobal: true,
       load: [configuration],
       validate,
-      envFilePath: ['.env.local', '.env'],
+      envFilePath:
+        process.env.NODE_ENV === 'test'
+          ? ['.env.test', '.env.local', '.env']
+          : ['.env.local', '.env'],
     }),
     LoggerModule.forRootAsync({
       imports: [ConfigModule],
@@ -25,6 +29,7 @@ import { HealthModule } from './modules/health/health.module';
     }),
     DatabaseModule,
     HealthModule,
+    OrganizationModule,
   ],
   providers: [LoggingInterceptor, ResponseInterceptor, TimeoutInterceptor],
 })
