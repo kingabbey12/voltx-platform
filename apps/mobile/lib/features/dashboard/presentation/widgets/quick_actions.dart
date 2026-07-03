@@ -11,7 +11,7 @@ class QuickActions extends StatelessWidget {
   const QuickActions({super.key});
 
   static const _actions = [
-    _QuickAction(Icons.auto_awesome_rounded, 'Ask AI', AppRoutes.dashboardAi),
+    _QuickAction(Icons.auto_awesome_rounded, 'Ask AI', AppRoutes.aiChat),
     _QuickAction(Icons.notifications_outlined, 'Alerts', AppRoutes.dashboardNotifications),
     _QuickAction(Icons.search_rounded, 'Search', AppRoutes.dashboardSearch),
     _QuickAction(Icons.assessment_outlined, 'Reports', AppRoutes.dashboard),

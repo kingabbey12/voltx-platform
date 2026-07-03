@@ -89,7 +89,7 @@ class DashboardShell extends ConsumerWidget {
             },
           ),
           floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => context.go(AppRoutes.dashboardAi),
+            onPressed: () => context.go(AppRoutes.aiChat),
             icon: const Icon(Icons.auto_awesome_rounded),
             label: const Text('AI'),
           ),

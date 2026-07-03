@@ -13,6 +13,12 @@ abstract final class AppRoutes {
   static const String dashboardNotifications = '/dashboard/notifications';
   static const String dashboardSearch = '/dashboard/search';
   static const String dashboardProfile = '/dashboard/profile';
+  static const String aiHome = '/ai';
+  static const String aiChat = '/ai/chat';
+  static const String aiAgents = '/ai/agents';
+  static const String aiKnowledge = '/ai/knowledge';
+  static const String aiAutomations = '/ai/automations';
+  static const String aiHistory = '/ai/history';
   static const String settings = '/settings';
   static const String components = '/components';
   static const String loading = '/components/loading';
@@ -36,6 +42,12 @@ abstract final class AppRoutes {
     dashboardNotifications,
     dashboardSearch,
     dashboardProfile,
+    aiHome,
+    aiChat,
+    aiAgents,
+    aiKnowledge,
+    aiAutomations,
+    aiHistory,
     settings,
     components,
   };

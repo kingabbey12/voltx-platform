@@ -36,7 +36,7 @@ class DashboardSidebar extends ConsumerWidget {
     ),
     DashboardNavItem(
       label: 'AI Workspace',
-      route: AppRoutes.dashboardAi,
+      route: AppRoutes.aiHome,
       icon: Icons.auto_awesome_outlined,
       selectedIcon: Icons.auto_awesome_rounded,
     ),
@@ -69,6 +69,9 @@ class DashboardSidebar extends ConsumerWidget {
   bool _isSelected(String location, String route) {
     if (route == AppRoutes.dashboard) {
       return location == route;
+    }
+    if (route == AppRoutes.aiHome) {
+      return location.startsWith('/ai');
     }
     return location.startsWith(route);
   }

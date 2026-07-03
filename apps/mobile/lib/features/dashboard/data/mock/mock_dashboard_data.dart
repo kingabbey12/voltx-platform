@@ -182,7 +182,7 @@ abstract final class MockDashboardData {
       title: 'AI Workspace',
       subtitle: 'Ask Voltx AI',
       category: 'Tools',
-      route: '/dashboard/ai',
+      route: '/ai/chat',
     ),
   ];
 
@@ -200,7 +200,7 @@ abstract final class MockDashboardData {
       label: 'Open AI Workspace',
       subtitle: 'Chat with Voltx AI',
       iconName: 'ai',
-      route: '/dashboard/ai',
+      route: '/ai/chat',
       keywords: ['assistant', 'chat', 'ai'],
     ),
     CommandPaletteItem(

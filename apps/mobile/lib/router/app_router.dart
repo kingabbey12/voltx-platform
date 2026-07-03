@@ -11,7 +11,12 @@ import '../features/auth/presentation/screens/sign_up_screen.dart';
 import '../features/auth/presentation/screens/verify_email_screen.dart';
 import '../features/auth/presentation/screens/welcome_screen.dart';
 import '../features/auth/presentation/widgets/auth_page_transition.dart';
-import '../features/dashboard/presentation/screens/ai_workspace_screen.dart';
+import '../features/ai/presentation/screens/ai_agents_screen.dart';
+import '../features/ai/presentation/screens/ai_automations_screen.dart';
+import '../features/ai/presentation/screens/ai_chat_screen.dart';
+import '../features/ai/presentation/screens/ai_history_screen.dart';
+import '../features/ai/presentation/screens/ai_home_screen.dart';
+import '../features/ai/presentation/screens/ai_knowledge_screen.dart';
 import '../features/dashboard/presentation/screens/executive_dashboard_screen.dart';
 import '../features/dashboard/presentation/screens/notifications_screen.dart';
 import '../features/dashboard/presentation/screens/profile_screen.dart';
@@ -52,6 +57,10 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (location == AppRoutes.home) {
         return AppRoutes.dashboard;
+      }
+
+      if (location == AppRoutes.dashboardAi) {
+        return AppRoutes.aiChat;
       }
 
       return null;
@@ -128,13 +137,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
-            path: AppRoutes.dashboardAi,
-            name: 'dashboardAi',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: AiWorkspaceScreen(),
-            ),
-          ),
-          GoRoute(
             path: AppRoutes.dashboardNotifications,
             name: 'dashboardNotifications',
             pageBuilder: (context, state) => const NoTransitionPage(
@@ -153,6 +155,48 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'dashboardProfile',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: ProfileScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.aiHome,
+            name: 'aiHome',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AiHomeScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.aiChat,
+            name: 'aiChat',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AiChatScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.aiAgents,
+            name: 'aiAgents',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AiAgentsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.aiKnowledge,
+            name: 'aiKnowledge',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AiKnowledgeScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.aiAutomations,
+            name: 'aiAutomations',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AiAutomationsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.aiHistory,
+            name: 'aiHistory',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AiHistoryScreen(),
             ),
           ),
           GoRoute(
