@@ -15,6 +15,16 @@ class AuthUser {
   final bool emailVerified;
 
   String get displayName => '$firstName $lastName'.trim();
+
+  AuthUser copyWith({bool? emailVerified}) {
+    return AuthUser(
+      id: id,
+      email: email,
+      firstName: firstName,
+      lastName: lastName,
+      emailVerified: emailVerified ?? this.emailVerified,
+    );
+  }
 }
 
 /// Thrown when auth operations fail in repositories.

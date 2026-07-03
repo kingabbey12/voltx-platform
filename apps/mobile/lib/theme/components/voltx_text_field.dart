@@ -19,6 +19,7 @@ class VoltxTextField extends StatelessWidget {
     this.autofocus = false,
     this.keyboardType,
     this.textInputAction,
+    this.validator,
     this.onChanged,
     this.onSubmitted,
     super.key,
@@ -36,6 +37,7 @@ class VoltxTextField extends StatelessWidget {
   final bool autofocus;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+  final FormFieldValidator<String>? validator;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
 
@@ -57,15 +59,16 @@ class VoltxTextField extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
         ],
-        TextField(
+        TextFormField(
           controller: controller,
           obscureText: obscureText,
           enabled: enabled,
           autofocus: autofocus,
           keyboardType: keyboardType,
           textInputAction: textInputAction,
+          validator: validator,
           onChanged: onChanged,
-          onSubmitted: onSubmitted,
+          onFieldSubmitted: onSubmitted,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: colors.textPrimary,
               ),

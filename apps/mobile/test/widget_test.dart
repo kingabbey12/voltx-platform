@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:voltx_mobile/config/app_config.dart';
 import 'package:voltx_mobile/app/voltx_app.dart';
 import 'package:voltx_mobile/shared/providers/connectivity_provider.dart';
 import 'package:voltx_mobile/shared/widgets/empty_state.dart';
@@ -157,6 +158,11 @@ void main() {
 
       expect(find.text('Voltx'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+      await tester.pump(AppConfig.splashDuration);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Power your operations\nwith Voltx'), findsOneWidget);
     });
   });
 }
