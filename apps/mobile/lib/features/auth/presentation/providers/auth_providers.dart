@@ -5,6 +5,7 @@ import '../../data/models/auth_user.dart';
 import '../../data/repositories/api_auth_repository.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/services/auth_api_service.dart';
+import '../../data/services/auth_error_mapper.dart';
 
 final authApiServiceProvider = Provider<AuthApiService>((ref) {
   return AuthApiService(ref.watch(apiClientProvider));
@@ -85,8 +86,5 @@ final verifyEmailFormProvider =
 );
 
 String authErrorMessage(Object error) {
-  if (error is AuthException) {
-    return error.message;
-  }
-  return 'Something went wrong. Please try again.';
+  return AuthErrorMapper.toUiModel(error).message;
 }

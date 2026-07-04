@@ -5,6 +5,8 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../../router/routes.dart';
 import '../../../../theme/tokens/spacing.dart';
+import '../../../../theme/voltx_theme.dart';
+import '../../data/services/auth_error_mapper.dart';
 import '../../utils/auth_validators.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_email_field.dart';
@@ -39,10 +41,28 @@ class SignUpScreen extends HookConsumerWidget {
       );
     });
 
-    final errorMessage = formState.maybeWhen(
-      error: (error, _) => authErrorMessage(error),
-      orElse: () => '',
+    final errorState = formState.maybeWhen(
+      error: (error, _) => AuthErrorMapper.toUiModel(error),
+      orElse: () => const AuthErrorUiModel(message: ''),
     );
+
+    final actionState = errorState.actions.isEmpty
+        ? const <AuthErrorUiAction>[]
+        : errorState.actions.map((action) {
+            if (action.label == 'Sign In') {
+              return AuthErrorUiAction(
+                label: action.label,
+                onPressed: () => context.go(AppRoutes.signIn),
+              );
+            }
+            return AuthErrorUiAction(
+              label: action.label,
+              onPressed: () {
+                emailController.clear();
+                ref.read(signUpFormProvider.notifier).reset();
+              },
+            );
+          }).toList();
 
     Future<void> submit() async {
       if (!(formKey.currentState?.validate() ?? false)) {
@@ -68,7 +88,7 @@ class SignUpScreen extends HookConsumerWidget {
             formKey: formKey,
             title: 'Create account',
             subtitle: 'Start your Voltx workspace in minutes.',
-            errorMessage: errorMessage,
+            errorMessage: errorState.message,
             children: [
               AuthNameFields(
                 firstNameController: firstNameController,
@@ -100,12 +120,54 @@ class SignUpScreen extends HookConsumerWidget {
                     AuthValidators.confirmPassword(v, passwordController.text),
                 onSubmitted: (_) => submit(),
               ),
+              if (actionState.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                _buildActionCard(context, actionState),
+              ],
               AuthSubmitButton(
                 label: 'Create Account',
                 formState: formState,
                 onPressed: submit,
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionCard(BuildContext context, List<AuthErrorUiAction> actions) {
+    final colors = context.voltxColors;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'What would you like to do?',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          ...actions.map(
+            (action) => Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: TextButton.icon(
+                onPressed: action.onPressed ?? () {},
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: Text(action.label),
+                style: TextButton.styleFrom(
+                  foregroundColor: colors.info,
+                  padding: const EdgeInsets.symmetric(horizontal: 0, vertical: AppSpacing.xs),
+                  alignment: Alignment.centerLeft,
+                ),
+              ),
+            ),
           ),
         ],
       ),
