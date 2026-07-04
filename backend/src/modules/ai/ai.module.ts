@@ -12,9 +12,10 @@ import { AnthropicProvider } from './providers/anthropic.provider';
 import { GoogleAIProvider } from './providers/google-ai.provider';
 import { OpenAIProvider } from './providers/openai.provider';
 import { AIRuntimeService } from './runtime/ai-runtime.service';
+import { ToolModule } from './tools/tool.module';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, ToolModule],
   controllers: [AIController, ConversationController],
   providers: [
     AIRuntimeService,

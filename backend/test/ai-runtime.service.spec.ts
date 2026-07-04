@@ -9,6 +9,7 @@ import { ModelRegistryService } from '../src/modules/ai/models/model-registry.se
 import { PromptBuilderService } from '../src/modules/ai/prompts/prompt-builder.service';
 import { AI_PROVIDERS, AIProviderError } from '../src/modules/ai/providers/ai-provider.interface';
 import { AIRuntimeService } from '../src/modules/ai/runtime/ai-runtime.service';
+import { ToolService } from '../src/modules/ai/tools/tool.service';
 
 describe('AIRuntimeService', () => {
   let service: AIRuntimeService;
@@ -70,6 +71,12 @@ describe('AIRuntimeService', () => {
 
               return fallback;
             }),
+          },
+        },
+        {
+          provide: ToolService,
+          useValue: {
+            executeTool: jest.fn(),
           },
         },
         {

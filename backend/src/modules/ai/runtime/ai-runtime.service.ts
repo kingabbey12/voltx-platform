@@ -11,6 +11,7 @@ import {
 } from '../models/ai-model.types';
 import { PromptBuilderService } from '../prompts/prompt-builder.service';
 import { AIProvider, AIProviderError, AI_PROVIDERS } from '../providers/ai-provider.interface';
+import { ExecuteToolRequest, ExecuteToolResponse, ToolService } from '../tools/tool.service';
 
 @Injectable()
 export class AIRuntimeService {
@@ -22,6 +23,7 @@ export class AIRuntimeService {
     @Inject(AI_PROVIDERS) private readonly providers: AIProvider[],
     private readonly modelRegistryService: ModelRegistryService,
     private readonly promptBuilderService: PromptBuilderService,
+    private readonly toolService: ToolService,
     private readonly configService: ConfigService,
   ) {
     this.maxRetries = configService.get<number>('ai.maxRetries', 2);
@@ -105,6 +107,10 @@ export class AIRuntimeService {
 
   async models(): Promise<AIModelDefinition[]> {
     return this.modelRegistryService.listModels();
+  }
+
+  async executeTool(request: ExecuteToolRequest): Promise<ExecuteToolResponse> {
+    return this.toolService.executeTool(request);
   }
 
   private async prepareChatRequest(input: AIRuntimeChatInput): Promise<{
