@@ -19,24 +19,57 @@ export async function resetAuthTestData(prisma: PrismaService): Promise<void> {
     memory: { deleteMany(): Promise<unknown> };
     agentRun: { deleteMany(): Promise<unknown> };
     agent: { deleteMany(): Promise<unknown> };
+    salesActivity: { deleteMany(): Promise<unknown> };
+    salesOpportunity: { deleteMany(): Promise<unknown> };
+    salesLead: { deleteMany(): Promise<unknown> };
+    salesContact: { deleteMany(): Promise<unknown> };
+    salesCompany: { deleteMany(): Promise<unknown> };
   };
 
-  await systemClient.message.deleteMany();
-  await systemClient.toolExecution.deleteMany();
-  await systemClient.memoryAccess.deleteMany();
-  await systemClient.memory.deleteMany();
-  await systemClient.agentRun.deleteMany();
-  await systemClient.agent.deleteMany();
-  await systemClient.conversation.deleteMany();
-  await prisma.system.auditLog.deleteMany();
-  await prisma.system.verificationToken.deleteMany();
-  await prisma.system.refreshToken.deleteMany();
-  await prisma.system.membership.deleteMany();
-  await prisma.system.rolePermission.deleteMany();
-  await prisma.system.user.deleteMany();
-  await prisma.system.organization.deleteMany();
-  await prisma.system.role.deleteMany();
-  await prisma.system.permission.deleteMany();
+  await ignoreMissingTable(() => systemClient.salesActivity.deleteMany());
+  await ignoreMissingTable(() => systemClient.salesOpportunity.deleteMany());
+  await ignoreMissingTable(() => systemClient.salesLead.deleteMany());
+  await ignoreMissingTable(() => systemClient.salesContact.deleteMany());
+  await ignoreMissingTable(() => systemClient.salesCompany.deleteMany());
+  await ignoreMissingTable(() => systemClient.message.deleteMany());
+  await ignoreMissingTable(() => systemClient.toolExecution.deleteMany());
+  await ignoreMissingTable(() => systemClient.memoryAccess.deleteMany());
+  await ignoreMissingTable(() => systemClient.memory.deleteMany());
+  await ignoreMissingTable(() => systemClient.agentRun.deleteMany());
+  await ignoreMissingTable(() => systemClient.agent.deleteMany());
+  await ignoreMissingTable(() => systemClient.conversation.deleteMany());
+  await ignoreMissingTable(() => prisma.system.auditLog.deleteMany());
+  await ignoreMissingTable(() => prisma.system.verificationToken.deleteMany());
+  await ignoreMissingTable(() => prisma.system.refreshToken.deleteMany());
+  await ignoreMissingTable(() => prisma.system.membership.deleteMany());
+  await ignoreMissingTable(() => prisma.system.rolePermission.deleteMany());
+  await ignoreMissingTable(() => prisma.system.user.deleteMany());
+  await ignoreMissingTable(() => prisma.system.organization.deleteMany());
+  await ignoreMissingTable(() => prisma.system.role.deleteMany());
+  await ignoreMissingTable(() => prisma.system.permission.deleteMany());
+}
+
+async function ignoreMissingTable(operation: () => Promise<unknown>): Promise<void> {
+  try {
+    await operation();
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      return;
+    }
+
+    throw error;
+  }
+}
+
+function isMissingTableError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('does not exist') || message.includes('does not exist in the current database')
+  );
 }
 
 export async function resetAndSeedAuthTestData(prisma: PrismaService): Promise<void> {

@@ -35,16 +35,12 @@ export class ConversationService {
   ) {}
 
   async createConversation(dto: CreateConversationDto): Promise<ConversationResponseDto> {
-    const { model, provider } = await this.modelRegistryService.resolveProviderAndModel(
-      dto.provider,
-      dto.model,
-      'chat',
-    );
+    const { model, provider } = await this.resolveConversationProviderAndModel(dto);
 
     const entity = await this.conversationRepository.createConversation({
       title: normalizeConversationTitle(dto.title),
-      model: model.id,
-      provider: provider.name,
+      model,
+      provider,
       pinned: dto.pinned,
       archived: dto.archived,
     });
@@ -250,6 +246,29 @@ export class ConversationService {
     }
 
     return entity;
+  }
+
+  private async resolveConversationProviderAndModel(dto: CreateConversationDto): Promise<{
+    provider: string;
+    model: string;
+  }> {
+    if (dto.provider && dto.model) {
+      return {
+        provider: dto.provider,
+        model: dto.model,
+      };
+    }
+
+    const { provider, model } = await this.modelRegistryService.resolveProviderAndModel(
+      dto.provider,
+      dto.model,
+      'chat',
+    );
+
+    return {
+      provider: provider.name,
+      model: model.id,
+    };
   }
 }
 

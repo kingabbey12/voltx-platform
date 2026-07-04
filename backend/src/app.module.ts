@@ -20,6 +20,7 @@ import { MetricsModule } from './modules/metrics/metrics.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { SalesModule } from './modules/sales/sales.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -61,6 +62,7 @@ import { UsersModule } from './modules/users/users.module';
     OrganizationModule,
     PermissionsModule,
     RolesModule,
+    SalesModule,
     UsersModule,
   ],
   providers: [

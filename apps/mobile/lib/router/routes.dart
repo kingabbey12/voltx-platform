@@ -19,6 +19,12 @@ abstract final class AppRoutes {
   static const String aiKnowledge = '/ai/knowledge';
   static const String aiAutomations = '/ai/automations';
   static const String aiHistory = '/ai/history';
+  static const String salesDashboard = '/sales';
+  static const String salesPipeline = '/sales/leads';
+  static const String salesCompanies = '/sales/companies';
+  static const String salesContacts = '/sales/contacts';
+  static const String salesOpportunityBoard = '/sales/opportunities';
+  static const String salesCopilot = '/sales/copilot';
   static const String settings = '/settings';
   static const String components = '/components';
   static const String loading = '/components/loading';
@@ -48,9 +54,21 @@ abstract final class AppRoutes {
     aiKnowledge,
     aiAutomations,
     aiHistory,
+    salesDashboard,
+    salesPipeline,
+    salesCompanies,
+    salesContacts,
+    salesOpportunityBoard,
+    salesCopilot,
     settings,
     components,
   };
+
+  static String salesLeadDetails(String id) => '$salesPipeline/$id';
+
+  static String salesCompanyDetails(String id) => '$salesCompanies/$id';
+
+  static String salesContactDetails(String id) => '$salesContacts/$id';
 
   static bool isPublicAuthRoute(String location) {
     return publicAuthRoutes.contains(location) ||

@@ -35,6 +35,12 @@ class DashboardSidebar extends ConsumerWidget {
       selectedIcon: Icons.dashboard_rounded,
     ),
     DashboardNavItem(
+      label: 'Sales Copilot',
+      route: AppRoutes.salesDashboard,
+      icon: Icons.insights_outlined,
+      selectedIcon: Icons.insights_rounded,
+    ),
+    DashboardNavItem(
       label: 'AI Workspace',
       route: AppRoutes.aiHome,
       icon: Icons.auto_awesome_outlined,
@@ -72,6 +78,9 @@ class DashboardSidebar extends ConsumerWidget {
     }
     if (route == AppRoutes.aiHome) {
       return location.startsWith('/ai');
+    }
+    if (route == AppRoutes.salesDashboard) {
+      return location.startsWith('/sales');
     }
     return location.startsWith(route);
   }

@@ -53,6 +53,37 @@ enum AgentRunStatus {
   TIMED_OUT
 }
 
+enum SalesCompanyStatus {
+  PROSPECT
+  ACTIVE
+  INACTIVE
+}
+
+enum SalesLeadStatus {
+  NEW
+  QUALIFIED
+  NURTURING
+  DISQUALIFIED
+  CONVERTED
+}
+
+enum SalesOpportunityStage {
+  DISCOVERY
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum SalesActivityType {
+  CALL
+  EMAIL
+  MEETING
+  TASK
+  NOTE
+}
+
 model Organization {
   id          String             @id @default(uuid()) @db.Uuid
   name        String
@@ -70,6 +101,11 @@ model Organization {
   conversations Conversation[]
   memories    Memory[]
   agents      Agent[]
+  salesCompanies    SalesCompany[]
+  salesContacts     SalesContact[]
+  salesLeads        SalesLead[]
+  salesOpportunities SalesOpportunity[]
+  salesActivities   SalesActivity[]
 
   @@index([status])
   @@map("organizations")
@@ -356,4 +392,158 @@ model Membership {
   @@index([userId])
   @@index([status])
   @@map("memberships")
+}
+
+model SalesCompany {
+  id            String             @id @default(uuid()) @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  name          String
+  domain        String?
+  website       String?
+  industry      String?
+  status        SalesCompanyStatus @default(PROSPECT)
+  notes         String?
+  metadata      Json               @default("{}")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  deletedAt     DateTime?          @map("deleted_at")
+  organization  Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts      SalesContact[]
+  leads         SalesLead[]
+  opportunities SalesOpportunity[]
+  activities    SalesActivity[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@map("sales_companies")
+}
+
+model SalesContact {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  companyId      String?       @map("company_id") @db.Uuid
+  firstName      String        @map("first_name")
+  lastName       String        @map("last_name")
+  email          String?
+  phone          String?
+  jobTitle       String?       @map("job_title")
+  notes          String?
+  metadata       Json          @default("{}")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company        SalesCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  leads          SalesLead[]
+  opportunities  SalesOpportunity[]
+  activities     SalesActivity[]
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@map("sales_contacts")
+}
+
+model SalesLead {
+  id                   String          @id @default(uuid()) @db.Uuid
+  organizationId       String          @map("organization_id") @db.Uuid
+  companyId            String?         @map("company_id") @db.Uuid
+  contactId            String?         @map("contact_id") @db.Uuid
+  title                String
+  source               String?
+  status               SalesLeadStatus @default(NEW)
+  qualificationScore   Int?            @map("qualification_score")
+  qualificationSummary String?         @map("qualification_summary")
+  notes                String?
+  metadata             Json            @default("{}")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+  deletedAt            DateTime?       @map("deleted_at")
+  organization         Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company              SalesCompany?   @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact              SalesContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  opportunities        SalesOpportunity[]
+  activities           SalesActivity[]
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@map("sales_leads")
+}
+
+model SalesOpportunity {
+  id              String                @id @default(uuid()) @db.Uuid
+  organizationId  String                @map("organization_id") @db.Uuid
+  companyId       String?               @map("company_id") @db.Uuid
+  contactId       String?               @map("contact_id") @db.Uuid
+  leadId          String?               @map("lead_id") @db.Uuid
+  title           String
+  stage           SalesOpportunityStage @default(DISCOVERY)
+  amount          Float?
+  currency        String                @default("USD")
+  probability     Int                   @default(0)
+  expectedCloseAt DateTime?             @map("expected_close_at")
+  insights        String?
+  nextBestAction  String?               @map("next_best_action")
+  notes           String?
+  metadata        Json                  @default("{}")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  deletedAt       DateTime?             @map("deleted_at")
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company         SalesCompany?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact         SalesContact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lead            SalesLead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  activities      SalesActivity[]
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([leadId])
+  @@index([stage])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@map("sales_opportunities")
+}
+
+model SalesActivity {
+  id               String            @id @default(uuid()) @db.Uuid
+  organizationId   String            @map("organization_id") @db.Uuid
+  companyId        String?           @map("company_id") @db.Uuid
+  contactId        String?           @map("contact_id") @db.Uuid
+  leadId           String?           @map("lead_id") @db.Uuid
+  opportunityId    String?           @map("opportunity_id") @db.Uuid
+  type             SalesActivityType
+  subject          String
+  description      String?
+  occurredAt       DateTime?         @map("occurred_at")
+  dueAt            DateTime?         @map("due_at")
+  completed        Boolean           @default(false)
+  meetingSummary   String?           @map("meeting_summary")
+  metadata         Json              @default("{}")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  deletedAt        DateTime?         @map("deleted_at")
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company          SalesCompany?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact          SalesContact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lead             SalesLead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  opportunity      SalesOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([leadId])
+  @@index([opportunityId])
+  @@index([type])
+  @@index([completed])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@map("sales_activities")
 }

@@ -37,6 +37,11 @@ export class AgentService {
     return agents.map((agent) => AgentResponseDto.fromEntity(agent));
   }
 
+  async findAgentByName(name: string): Promise<AgentEntity | null> {
+    await this.agentRegistry.ensureSystemAgents();
+    return this.agentRepository.findAgentByName(name);
+  }
+
   async createAgent(dto: CreateAgentDto): Promise<AgentResponseDto> {
     await this.assertUniqueName(dto.name);
     const { provider, model } = await this.modelRegistryService.resolveProviderAndModel(

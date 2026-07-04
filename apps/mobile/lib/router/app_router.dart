@@ -22,6 +22,13 @@ import '../features/dashboard/presentation/screens/notifications_screen.dart';
 import '../features/dashboard/presentation/screens/profile_screen.dart';
 import '../features/dashboard/presentation/screens/search_screen.dart';
 import '../features/dashboard/presentation/shell/dashboard_shell.dart';
+import '../features/sales/presentation/screens/company_details_screen.dart';
+import '../features/sales/presentation/screens/contact_details_screen.dart';
+import '../features/sales/presentation/screens/lead_details_screen.dart';
+import '../features/sales/presentation/screens/lead_pipeline_screen.dart';
+import '../features/sales/presentation/screens/opportunity_board_screen.dart';
+import '../features/sales/presentation/screens/sales_copilot_panel_screen.dart';
+import '../features/sales/presentation/screens/sales_dashboard_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import 'routes.dart';
 
@@ -197,6 +204,55 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'aiHistory',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: AiHistoryScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.salesDashboard,
+            name: 'salesDashboard',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SalesDashboardScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.salesPipeline,
+            name: 'salesPipeline',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: LeadPipelineScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '${AppRoutes.salesPipeline}/:id',
+            name: 'salesLeadDetails',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: LeadDetailsScreen(leadId: state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
+            path: '${AppRoutes.salesCompanies}/:id',
+            name: 'salesCompanyDetails',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: CompanyDetailsScreen(companyId: state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
+            path: '${AppRoutes.salesContacts}/:id',
+            name: 'salesContactDetails',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: ContactDetailsScreen(contactId: state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.salesOpportunityBoard,
+            name: 'salesOpportunityBoard',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: OpportunityBoardScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.salesCopilot,
+            name: 'salesCopilot',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SalesCopilotPanelScreen(),
             ),
           ),
           GoRoute(
