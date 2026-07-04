@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
-import '../../../../theme/components/voltx_card.dart';
-import '../../../../theme/components/voltx_chip.dart';
 import '../../../../theme/tokens/spacing.dart';
-import '../../../../theme/voltx_theme.dart';
 import '../providers/ai_providers.dart';
 import '../shell/ai_nav_bar.dart';
+import '../widgets/ai_workspace_components.dart';
 
 /// Browse and select AI agents.
 class AiAgentsScreen extends ConsumerWidget {
@@ -16,52 +14,41 @@ class AiAgentsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final agents = ref.watch(agentsProvider);
     final selected = ref.watch(selectedAgentProvider);
-    final colors = context.voltxColors;
 
     return Column(
       children: [
         const AiNavBar(),
         Expanded(
-          child: ListView.builder(
+          child: ListView(
             padding: const EdgeInsets.all(AppSpacing.md),
-            itemCount: agents.length,
-            itemBuilder: (context, index) {
-              final agent = agents[index];
-              final isSelected = agent.id == selected.id;
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: VoltxCard(
-                  variant: isSelected ? VoltxCardVariant.elevated : VoltxCardVariant.outlined,
-                  onTap: () => ref.read(selectedAgentProvider.notifier).state = agent,
-                  child: Row(
-                    children: [
-                      Icon(aiIcon(agent.iconName), color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              agent.name,
-                              style: Theme.of(context).textTheme.titleSmall,
-                            ),
-                            Text(
-                              agent.description,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: colors.textSecondary,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (isSelected)
-                        const VoltxChip(label: 'Active', variant: VoltxChipVariant.primary),
-                    ],
+            children: [
+              AiPanel(
+                header: Text(
+                  'Agent Operations',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                child: const Text(
+                  'Choose the active executive AI agent, inspect capabilities, review memory usage, and launch strategic runs.',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              for (final agent in agents)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: AiAgentCard(
+                    agent: agent,
+                    selected: agent.id == selected.id,
+                    onTap: () => ref.read(selectedAgentProvider.notifier).state = agent,
+                    status: agent.id == selected.id ? 'Active' : 'Idle',
+                    memoryUsage: agent.id == selected.id ? '72%' : '39%',
+                    toolCount: agent.id == selected.id ? 8 : 5,
+                    recentActivity: agent.id == selected.id
+                        ? 'Processed executive brief 1m ago'
+                        : 'Awaiting activation',
+                    onRun: () => ref.read(selectedAgentProvider.notifier).state = agent,
                   ),
                 ),
-              );
-            },
+            ],
           ),
         ),
       ],

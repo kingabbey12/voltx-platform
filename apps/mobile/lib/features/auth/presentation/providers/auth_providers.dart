@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/network_providers.dart';
@@ -29,13 +30,20 @@ class AuthSessionNotifier extends StateNotifier<AuthUser?> {
   final AuthRepository _repository;
 
   Future<void> restoreSession() async {
+    debugPrint('[AUTH][SESSION][restoreSession] start');
     final user = await _repository.restoreSession();
     if (user != null) {
+      debugPrint('[AUTH][SESSION][restoreSession] restored user=${user.email}');
       state = user;
+      return;
     }
+    debugPrint('[AUTH][SESSION][restoreSession] no_session');
   }
 
-  void setUser(AuthUser? user) => state = user;
+  void setUser(AuthUser? user) {
+    debugPrint('[AUTH][SESSION][setUser] user=${user?.email ?? 'null'}');
+    state = user;
+  }
 
   Future<void> signOut() async {
     await _repository.signOut();
@@ -49,49 +57,76 @@ class AuthFormController extends StateNotifier<AsyncValue<String?>> {
 
   bool _isSubmitting = false;
 
+  String debugLabel = 'auth_form';
+
   void reset() => state = const AsyncData(null);
 
   Future<void> submit(Future<void> Function() action, {String? successMessage}) async {
     if (_isSubmitting) {
+      debugPrint('[AUTH][FORM][$debugLabel] submit_ignored reason=inflight');
       return;
     }
 
+    debugPrint('[AUTH][FORM][$debugLabel] submit_start');
     _isSubmitting = true;
     state = const AsyncLoading();
     try {
       await action();
       state = AsyncData(successMessage);
+      debugPrint('[AUTH][FORM][$debugLabel] submit_success message=$successMessage');
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
+      debugPrint('[AUTH][FORM][$debugLabel] submit_error error=$error');
     } finally {
       _isSubmitting = false;
+      debugPrint('[AUTH][FORM][$debugLabel] submit_end');
     }
   }
 }
 
 final signInFormProvider =
     StateNotifierProvider.autoDispose<AuthFormController, AsyncValue<String?>>(
-  (ref) => AuthFormController(),
+  (ref) {
+    final controller = AuthFormController();
+    controller.debugLabel = 'sign_in';
+    return controller;
+  },
 );
 
 final signUpFormProvider =
     StateNotifierProvider.autoDispose<AuthFormController, AsyncValue<String?>>(
-  (ref) => AuthFormController(),
+  (ref) {
+    final controller = AuthFormController();
+    controller.debugLabel = 'sign_up';
+    return controller;
+  },
 );
 
 final forgotPasswordFormProvider =
     StateNotifierProvider.autoDispose<AuthFormController, AsyncValue<String?>>(
-  (ref) => AuthFormController(),
+  (ref) {
+    final controller = AuthFormController();
+    controller.debugLabel = 'forgot_password';
+    return controller;
+  },
 );
 
 final resetPasswordFormProvider =
     StateNotifierProvider.autoDispose<AuthFormController, AsyncValue<String?>>(
-  (ref) => AuthFormController(),
+  (ref) {
+    final controller = AuthFormController();
+    controller.debugLabel = 'reset_password';
+    return controller;
+  },
 );
 
 final verifyEmailFormProvider =
     StateNotifierProvider.autoDispose<AuthFormController, AsyncValue<String?>>(
-  (ref) => AuthFormController(),
+  (ref) {
+    final controller = AuthFormController();
+    controller.debugLabel = 'verify_email';
+    return controller;
+  },
 );
 
 String authErrorMessage(Object error) {

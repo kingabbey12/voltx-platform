@@ -3,10 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../../theme/tokens/spacing.dart';
-import '../../../../theme/voltx_theme.dart';
 import '../../data/models/ai_models.dart';
+import 'ai_workspace_components.dart';
 import 'markdown_message.dart';
-import 'typing_indicator.dart';
 
 /// Individual chat message bubble with actions.
 class ChatMessageBubble extends ConsumerWidget {
@@ -25,63 +24,16 @@ class ChatMessageBubble extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.voltxColors;
-    final scheme = Theme.of(context).colorScheme;
     final isUser = message.isUser;
     final content = message.displayContent;
 
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.82),
-        child: Column(
-          crossAxisAlignment:
-              isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: isUser
-                    ? scheme.primary.withValues(alpha: 0.12)
-                    : colors.surfaceMuted,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: colors.borderSubtle),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (message.attachments.isNotEmpty) ...[
-                    Wrap(
-                      spacing: AppSpacing.xs,
-                      children: [
-                        for (final a in message.attachments)
-                          Chip(
-                            avatar: Icon(
-                              a.type == AiAttachmentType.image
-                                  ? Icons.image_outlined
-                                  : Icons.insert_drive_file_outlined,
-                              size: 16,
-                            ),
-                            label: Text(a.name),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                  ],
-                  if (isUser)
-                    Text(content, style: Theme.of(context).textTheme.bodyMedium)
-                  else if (content.isEmpty && message.isStreaming)
-                    const TypingIndicator()
-                  else if (content.isNotEmpty)
-                    MarkdownMessage(content: content)
-                  else
-                    const TypingIndicator(),
-                ],
-              ),
-            ),
-            if (!isUser && content.isNotEmpty && !message.isStreaming) ...[
-              const SizedBox(height: AppSpacing.xxs),
-              Row(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: AiMessageBubble(
+        isUser: isUser,
+        timestamp: message.timestamp,
+        actions: !isUser && content.isNotEmpty && !message.isStreaming
+            ? Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _ActionButton(
@@ -98,8 +50,34 @@ class ChatMessageBubble extends ConsumerWidget {
                     ),
                   ],
                 ],
+              )
+            : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (message.attachments.isNotEmpty) ...[
+              Wrap(
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.xs,
+                children: [
+                  for (final a in message.attachments)
+                    AiArtifactCard(
+                      title: a.name,
+                      type: a.type == AiAttachmentType.image ? 'Image' : 'File',
+                      summary: a.sizeLabel,
+                    ),
+                ],
               ),
+              const SizedBox(height: AppSpacing.xs),
             ],
+            if (isUser)
+              Text(content, style: Theme.of(context).textTheme.bodyMedium)
+            else if (content.isEmpty && message.isStreaming)
+              const AiStreamingIndicator()
+            else if (content.isNotEmpty)
+              MarkdownMessage(content: content)
+            else
+              const AiStreamingIndicator(),
           ],
         ),
       ),
@@ -120,8 +98,6 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.voltxColors;
-
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -130,13 +106,11 @@ class _ActionButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: colors.textTertiary),
+            Icon(icon, size: 14),
             const SizedBox(width: 4),
             Text(
               label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.textTertiary,
-                  ),
+              style: Theme.of(context).textTheme.labelSmall,
             ),
           ],
         ),

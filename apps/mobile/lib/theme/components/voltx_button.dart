@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../tokens/icon_tokens.dart';
 import '../tokens/spacing.dart';
 import '../voltx_theme.dart';
 
@@ -8,7 +9,7 @@ enum VoltxButtonVariant { primary, secondary, ghost, destructive }
 enum VoltxButtonSize { medium, large }
 
 /// Voltx button system with Apple touch targets and Linear minimal styling.
-class VoltxButton extends StatelessWidget {
+class VoltxButton extends StatefulWidget {
   const VoltxButton({
     required this.label,
     required this.onPressed,
@@ -29,35 +30,45 @@ class VoltxButton extends StatelessWidget {
   final bool isLoading;
 
   @override
+  State<VoltxButton> createState() => _VoltxButtonState();
+}
+
+class _VoltxButtonState extends State<VoltxButton> {
+  bool _hovered = false;
+  bool _focused = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.voltxColors;
     final radii = context.voltxRadii;
     final scheme = Theme.of(context).colorScheme;
-    final height = size == VoltxButtonSize.large
+    final shadows = context.voltxShadows;
+    final height = widget.size == VoltxButtonSize.large
         ? AppSpacing.buttonHeightLg
         : AppSpacing.buttonHeight;
+    final enabled = widget.onPressed != null && !widget.isLoading;
 
-    final background = switch (variant) {
+    final background = switch (widget.variant) {
       VoltxButtonVariant.primary => scheme.primary,
       VoltxButtonVariant.secondary => colors.surfaceMuted,
       VoltxButtonVariant.ghost => Colors.transparent,
       VoltxButtonVariant.destructive => colors.error,
     };
 
-    final foreground = switch (variant) {
+    final foreground = switch (widget.variant) {
       VoltxButtonVariant.primary => colors.textInverse,
       VoltxButtonVariant.secondary => colors.textPrimary,
       VoltxButtonVariant.ghost => scheme.primary,
       VoltxButtonVariant.destructive => colors.textInverse,
     };
 
-    final border = switch (variant) {
+    final border = switch (widget.variant) {
       VoltxButtonVariant.secondary => Border.all(color: colors.borderSubtle),
       VoltxButtonVariant.ghost => Border.all(color: colors.borderSubtle),
       _ => null,
     };
 
-    final child = isLoading
+    final child = widget.isLoading
         ? SizedBox(
             width: 20,
             height: 20,
@@ -70,12 +81,12 @@ class VoltxButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (icon != null) ...[
-                Icon(icon, size: 18, color: foreground),
+              if (widget.icon != null) ...[
+                Icon(widget.icon, size: IconTokens.button, color: foreground),
                 const SizedBox(width: AppSpacing.xs),
               ],
               Text(
-                label,
+                widget.label,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: foreground,
                     ),
@@ -83,34 +94,72 @@ class VoltxButton extends StatelessWidget {
             ],
           );
 
-    final button = AnimatedContainer(
-      duration: context.voltxMotion.fast,
-      curve: context.voltxMotion.standardCurve,
-      height: height,
-      constraints: BoxConstraints(
-        minWidth: isExpanded ? double.infinity : AppSpacing.minTouchTarget,
-      ),
-      decoration: BoxDecoration(
-        color: onPressed == null ? background.withValues(alpha: 0.5) : background,
-        borderRadius: radii.mdBorder,
-        border: border,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isLoading ? null : onPressed,
-          borderRadius: radii.mdBorder,
-          splashColor: foreground.withValues(alpha: 0.08),
-          highlightColor: foreground.withValues(alpha: 0.04),
-          child: Center(child: child),
+    final decoration = BoxDecoration(
+      gradient: widget.variant == VoltxButtonVariant.primary
+          ? LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                scheme.primary.withValues(alpha: enabled ? 1 : 0.55),
+                scheme.primary.withValues(alpha: enabled ? 0.85 : 0.45),
+              ],
+            )
+          : widget.variant == VoltxButtonVariant.destructive
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colors.error.withValues(alpha: enabled ? 0.98 : 0.54),
+                    colors.error.withValues(alpha: enabled ? 0.86 : 0.46),
+                  ],
+                )
+              : null,
+      color: widget.variant == VoltxButtonVariant.primary || widget.variant == VoltxButtonVariant.destructive
+          ? null
+          : enabled
+              ? background
+              : background.withValues(alpha: 0.5),
+      borderRadius: radii.mdBorder,
+      border: _focused
+          ? Border.all(color: scheme.primary.withValues(alpha: 0.62), width: 1.3)
+          : border,
+      boxShadow: widget.variant == VoltxButtonVariant.primary && (_hovered || _focused)
+          ? shadows.card
+          : null,
+    );
+
+    final button = FocusableActionDetector(
+      onShowFocusHighlight: (value) => setState(() => _focused = value),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: AnimatedContainer(
+          duration: context.voltxMotion.fast,
+          curve: context.voltxMotion.standardCurve,
+          height: height,
+          constraints: BoxConstraints(
+            minWidth: widget.isExpanded ? double.infinity : AppSpacing.minTouchTarget,
+          ),
+          decoration: decoration,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: enabled ? widget.onPressed : null,
+              borderRadius: radii.mdBorder,
+              splashColor: foreground.withValues(alpha: 0.1),
+              highlightColor: foreground.withValues(alpha: 0.06),
+              hoverColor: foreground.withValues(alpha: 0.05),
+              child: Center(child: child),
+            ),
+          ),
         ),
       ),
     );
 
     return Semantics(
       button: true,
-      enabled: onPressed != null && !isLoading,
-      label: label,
+      enabled: enabled,
+      label: widget.label,
       child: button,
     );
   }

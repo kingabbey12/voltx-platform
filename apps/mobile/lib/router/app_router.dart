@@ -39,6 +39,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = ValueNotifier<int>(0);
 
   ref.listen(authSessionProvider, (previous, next) {
+    debugPrint('[AUTH][ROUTER][session_change] previous=${previous?.email ?? 'null'} next=${next?.email ?? 'null'}');
     refreshNotifier.value++;
   });
 
@@ -52,8 +53,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final session = ref.read(authSessionProvider);
       final location = state.matchedLocation;
+      debugPrint('[AUTH][ROUTER][redirect] location=$location hasSession=${session != null}');
 
       if (AppRoutes.isProtectedRoute(location) && session == null) {
+        debugPrint('[AUTH][ROUTER][redirect] -> ${AppRoutes.welcome} reason=protected_without_session');
         return AppRoutes.welcome;
       }
 
@@ -64,14 +67,17 @@ final routerProvider = Provider<GoRouter>((ref) {
               location == AppRoutes.verifyEmail ||
               location == AppRoutes.forgotPassword ||
               location == AppRoutes.resetPassword)) {
+        debugPrint('[AUTH][ROUTER][redirect] -> ${AppRoutes.dashboard} reason=session_on_auth_route');
         return AppRoutes.dashboard;
       }
 
       if (location == AppRoutes.home) {
+        debugPrint('[AUTH][ROUTER][redirect] -> ${AppRoutes.dashboard} reason=home_alias');
         return AppRoutes.dashboard;
       }
 
       if (location == AppRoutes.dashboardAi) {
+        debugPrint('[AUTH][ROUTER][redirect] -> ${AppRoutes.aiChat} reason=dashboard_ai_alias');
         return AppRoutes.aiChat;
       }
 

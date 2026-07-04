@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "mobile-analyze-gate",
+			"type": "shell",
+			"command": "flutter analyze",
+			"isBackground": false
+		}
+	]
+}

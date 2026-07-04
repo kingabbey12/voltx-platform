@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../router/routes.dart';
 import '../../../../theme/tokens/spacing.dart';
-import '../../../../theme/voltx_theme.dart';
+import '../widgets/ai_workspace_components.dart';
 
 /// AI section sub-navigation bar.
 class AiNavBar extends StatelessWidget {
@@ -29,44 +29,24 @@ class AiNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.voltxColors;
     final location = GoRouterState.of(context).uri.toString();
 
-    return Container(
-      height: compact ? 48 : 52,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: colors.surfaceElevated,
-        border: Border(bottom: BorderSide(color: colors.borderSubtle)),
-      ),
+    return SizedBox(
+      height: compact ? 56 : 64,
       child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         scrollDirection: Axis.horizontal,
         children: [
           for (final item in _items)
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.xxs),
-              child: TextButton(
-                onPressed: () => context.go(item.route),
-                style: TextButton.styleFrom(
-                  foregroundColor: _isSelected(location, item.route)
-                      ? Theme.of(context).colorScheme.primary
-                      : colors.textSecondary,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _isSelected(location, item.route)
-                          ? item.selectedIcon
-                          : item.icon,
-                      size: 18,
-                    ),
-                    if (!compact) ...[
-                      const SizedBox(width: 6),
-                      Text(item.label),
-                    ],
-                  ],
-                ),
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: AiSuggestionChip(
+                label: item.label,
+                icon: _isSelected(location, item.route) ? item.selectedIcon : item.icon,
+                onTap: () => context.go(item.route),
+                color: _isSelected(location, item.route)
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
               ),
             ),
         ],

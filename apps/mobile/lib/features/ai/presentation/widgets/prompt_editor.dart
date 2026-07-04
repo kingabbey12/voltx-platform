@@ -4,10 +4,10 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../../theme/components/voltx_button.dart';
 import '../../../../theme/tokens/spacing.dart';
-import '../../../../theme/voltx_theme.dart';
 import '../../data/models/ai_models.dart';
 import '../providers/ai_providers.dart';
 import 'attachment_picker_ui.dart';
+import 'ai_workspace_components.dart';
 
 /// Prompt input editor with attachments and send/stop controls.
 class PromptEditor extends HookConsumerWidget {
@@ -27,88 +27,84 @@ class PromptEditor extends HookConsumerWidget {
     final controller = useTextEditingController();
     final conversationId = ref.watch(activeConversationIdProvider);
     final chatState = ref.watch(aiChatProvider(conversationId));
-    final colors = context.voltxColors;
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: colors.surfaceElevated,
-        border: Border(top: BorderSide(color: colors.borderSubtle)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    void sendCurrent() {
+      final text = controller.text.trim();
+      if (text.isEmpty) {
+        return;
+      }
+
+      onSend(text);
+      controller.clear();
+    }
+
+    return AiComposer(
+      header: Row(
         children: [
-          if (chatState.pendingAttachments.isNotEmpty)
-            AttachmentPickerUi(
+          Text(
+            'Prompt Composer',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          AiSuggestionChip(
+            label: isStreaming ? 'Streaming' : 'Ready',
+            icon: isStreaming ? Icons.stream_rounded : Icons.check_circle_outline_rounded,
+          ),
+          const Spacer(),
+          const AiSuggestionChip(label: 'Attachments', icon: Icons.attach_file_rounded),
+        ],
+      ),
+      attachments: chatState.pendingAttachments.isNotEmpty
+          ? AttachmentPickerUi(
               attachments: chatState.pendingAttachments,
               onRemove: (id) => ref
                   .read(aiChatProvider(conversationId).notifier)
                   .removePendingAttachment(id),
+            )
+          : null,
+      leading: AttachmentPickerUi.addButtons(
+        onAddFile: () => ref
+            .read(aiChatProvider(conversationId).notifier)
+            .addPendingAttachment(
+              AiAttachment(
+                id: 'file-${DateTime.now().millisecondsSinceEpoch}',
+                name: 'grid_report_q3.pdf',
+                type: AiAttachmentType.file,
+                sizeLabel: '2.4 MB',
+              ),
             ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              AttachmentPickerUi.addButtons(
-                onAddFile: () => ref
-                    .read(aiChatProvider(conversationId).notifier)
-                    .addPendingAttachment(
-                      AiAttachment(
-                        id: 'file-${DateTime.now().millisecondsSinceEpoch}',
-                        name: 'grid_report_q3.pdf',
-                        type: AiAttachmentType.file,
-                        sizeLabel: '2.4 MB',
-                      ),
-                    ),
-                onAddImage: () => ref
-                    .read(aiChatProvider(conversationId).notifier)
-                    .addPendingAttachment(
-                      AiAttachment(
-                        id: 'img-${DateTime.now().millisecondsSinceEpoch}',
-                        name: 'substation_photo.jpg',
-                        type: AiAttachmentType.image,
-                        sizeLabel: '840 KB',
-                      ),
-                    ),
+        onAddImage: () => ref
+            .read(aiChatProvider(conversationId).notifier)
+            .addPendingAttachment(
+              AiAttachment(
+                id: 'img-${DateTime.now().millisecondsSinceEpoch}',
+                name: 'substation_photo.jpg',
+                type: AiAttachmentType.image,
+                sizeLabel: '840 KB',
               ),
-              const SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  maxLines: 4,
-                  minLines: 1,
-                  decoration: InputDecoration(
-                    hintText: 'Message Voltx AI…',
-                    filled: true,
-                    fillColor: colors.surfaceMuted,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: colors.borderSubtle),
-                    ),
-                  ),
-                  onSubmitted: isStreaming ? null : onSend,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              if (isStreaming)
-                VoltxButton(
-                  label: 'Stop',
-                  variant: VoltxButtonVariant.destructive,
-                  icon: Icons.stop_rounded,
-                  onPressed: onStop,
-                )
-              else
-                VoltxButton(
-                  label: 'Send',
-                  icon: Icons.arrow_upward_rounded,
-                  onPressed: () {
-                    onSend(controller.text);
-                    controller.clear();
-                  },
-                ),
-            ],
-          ),
-        ],
+            ),
       ),
+      textField: TextField(
+        controller: controller,
+        maxLines: 4,
+        minLines: 1,
+        decoration: const InputDecoration(
+          hintText: 'Ask AI to reason with tools, memory, and knowledge context...',
+        ),
+        onSubmitted: isStreaming ? null : (_) => sendCurrent(),
+      ),
+      trailing: isStreaming
+          ? VoltxButton(
+              label: 'Stop',
+              variant: VoltxButtonVariant.destructive,
+              icon: Icons.stop_rounded,
+              onPressed: onStop,
+            )
+          : VoltxButton(
+              label: 'Send',
+              icon: Icons.arrow_upward_rounded,
+              onPressed: sendCurrent,
+            ),
     );
   }
 }

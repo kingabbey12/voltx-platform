@@ -191,7 +191,7 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Sales Copilot'), findsOneWidget);
+      expect(find.text('Sales Command Center'), findsOneWidget);
       expect(find.text('Recent Leads'), findsOneWidget);
       expect(find.text('Acme Energy expansion'), findsOneWidget);
     });

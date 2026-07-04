@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../config/app_config.dart';
+import '../../theme/components/voltx_motion.dart';
 import '../../theme/tokens/color_tokens.dart';
 import '../../theme/tokens/radius_tokens.dart';
 import '../../theme/tokens/spacing.dart';
@@ -20,26 +21,30 @@ class LoadingScreen extends StatelessWidget {
 
     return Scaffold(
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: AppSpacing.xxxl,
-                height: AppSpacing.xxxl,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  color: colorScheme.primary,
+        child: VoltxFadeIn(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: AppSpacing.xxxl,
+                  height: AppSpacing.xxxl,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: colorScheme.primary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text(
-                message,
-                style: Theme.of(context).textTheme.bodyLarge,
-                textAlign: TextAlign.center,
-              ),
-            ],
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                const VoltxLoadingSkeleton(width: 180, height: 10),
+              ],
+            ),
           ),
         ),
       ),
@@ -56,46 +61,51 @@ class SplashLoadingContent extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 88,
-          height: 88,
-          decoration: BoxDecoration(
-            color: colorScheme.primary,
-            borderRadius: BorderRadius.circular(RadiusTokens.lg),
-            boxShadow: [
-              BoxShadow(
-                color: ColorTokens.brandPrimary.withValues(alpha: 0.35),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
+    return VoltxScaleIn(
+      begin: 0.94,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+              borderRadius: BorderRadius.circular(RadiusTokens.lg),
+              boxShadow: [
+                BoxShadow(
+                  color: ColorTokens.brandPrimary.withValues(alpha: 0.35),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.bolt_rounded,
+              color: Colors.white,
+              size: 48,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            AppConfig.appName,
+            style: textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          SizedBox(
+            width: AppSpacing.xxxl,
+            child: VoltxShimmer(
+              child: LinearProgressIndicator(
+                borderRadius: BorderRadius.circular(AppSpacing.xxs),
+                backgroundColor: colorScheme.surfaceContainerHighest,
+                color: colorScheme.primary,
               ),
-            ],
+            ),
           ),
-          child: const Icon(
-            Icons.bolt_rounded,
-            color: Colors.white,
-            size: 48,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        Text(
-          AppConfig.appName,
-          style: textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        SizedBox(
-          width: AppSpacing.xxxl,
-          child: LinearProgressIndicator(
-            borderRadius: BorderRadius.circular(AppSpacing.xxs),
-            backgroundColor: colorScheme.surfaceContainerHighest,
-            color: colorScheme.primary,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

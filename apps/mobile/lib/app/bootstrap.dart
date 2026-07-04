@@ -9,7 +9,9 @@ Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final container = ProviderContainer();
+  debugPrint('[AUTH][BOOTSTRAP] restoreSession_begin');
   await container.read(authSessionProvider.notifier).restoreSession();
+  debugPrint('[AUTH][BOOTSTRAP] restoreSession_end');
 
   runApp(
     UncontrolledProviderScope(

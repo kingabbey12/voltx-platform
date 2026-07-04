@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
-import '../../../../theme/components/voltx_card.dart';
 import '../../../../theme/tokens/spacing.dart';
-import '../../../../theme/voltx_theme.dart';
 import '../../data/models/dashboard_models.dart';
 import '../providers/dashboard_providers.dart';
+import 'dashboard_v2_components.dart';
+import 'dashboard_v2_tokens.dart';
 
 /// Recent activity timeline feed.
 class ActivityFeed extends ConsumerWidget {
@@ -14,29 +14,66 @@ class ActivityFeed extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final activities = ref.watch(dashboardActivitiesProvider);
+    final grouped = _grouped(activities);
 
-    return VoltxCard(
-      padding: const EdgeInsets.all(AppSpacing.sm),
+    return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Recent Activity', style: Theme.of(context).textTheme.titleMedium),
+          const DashboardSectionHeader(
+            title: 'Recent Activity',
+            subtitle: 'Operational events and decisions',
+          ),
           const SizedBox(height: AppSpacing.sm),
-          for (var i = 0; i < activities.length; i++) ...[
-            _ActivityTile(activity: activities[i]),
-            if (i < activities.length - 1)
-              Divider(height: AppSpacing.lg, color: context.voltxColors.borderSubtle),
+          if (activities.isEmpty)
+            const DashboardEmptyState(
+              title: 'No activity yet',
+              subtitle: 'When events arrive, they will appear here in timeline order.',
+              suggestion: 'Ask AI to summarize today\'s operations',
+              icon: Icons.history_toggle_off_rounded,
+            ),
+          for (final entry in grouped.entries) ...[
+            DashboardStatusBadge(
+              label: entry.key,
+              color: DashboardV2Tokens.of(context).primary,
+              icon: Icons.schedule_rounded,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            for (var i = 0; i < entry.value.length; i++) ...[
+              _ActivityTile(
+                activity: entry.value[i],
+                isLastInGroup: i == entry.value.length - 1,
+              ),
+              if (i < entry.value.length - 1) const SizedBox(height: AppSpacing.xs),
+            ],
+            const SizedBox(height: AppSpacing.sm),
           ],
         ],
       ),
     );
   }
+
+  Map<String, List<DashboardActivity>> _grouped(List<DashboardActivity> activities) {
+    final now = DateTime.now();
+    final map = <String, List<DashboardActivity>>{};
+    for (final activity in activities) {
+      final diff = now.difference(activity.timestamp);
+      final key = diff.inHours < 1
+          ? 'Now'
+          : diff.inHours < 4
+              ? 'Earlier today'
+              : 'Today';
+      map.putIfAbsent(key, () => []).add(activity);
+    }
+    return map;
+  }
 }
 
 class _ActivityTile extends StatelessWidget {
-  const _ActivityTile({required this.activity});
+  const _ActivityTile({required this.activity, required this.isLastInGroup});
 
   final DashboardActivity activity;
+  final bool isLastInGroup;
 
   IconData _icon(ActivityType type) {
     return switch (type) {
@@ -48,12 +85,12 @@ class _ActivityTile extends StatelessWidget {
   }
 
   Color _iconColor(BuildContext context, ActivityType type) {
-    final colors = context.voltxColors;
+    final t = DashboardV2Tokens.of(context);
     return switch (type) {
-      ActivityType.alert => colors.warning,
-      ActivityType.update => colors.info,
-      ActivityType.approval => colors.success,
-      ActivityType.insight => Theme.of(context).colorScheme.primary,
+      ActivityType.alert => t.warning,
+      ActivityType.update => t.primary,
+      ActivityType.approval => t.success,
+      ActivityType.insight => t.primary,
     };
   }
 
@@ -70,39 +107,69 @@ class _ActivityTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.voltxColors;
+    final t = DashboardV2Tokens.of(context);
+    final iconTone = _iconColor(context, activity.type);
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: _iconColor(context, activity.type).withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: t.panelStrong.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(t.radiusLg),
+        border: Border.all(color: t.border.withValues(alpha: 0.8)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DashboardTimelineDot(
+            color: iconTone,
+            showConnector: !isLastInGroup,
           ),
-          child: Icon(_icon(activity.type), size: 18, color: _iconColor(context, activity.type)),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(activity.title, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 2),
-              Text(
-                activity.subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
-              ),
-            ],
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: iconTone.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(_icon(activity.type), size: 16, color: iconTone),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        activity.title,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: t.textPrimary,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  activity.subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: t.textSecondary),
+                ),
+              ],
+            ),
           ),
-        ),
-        Text(
-          _timeAgo(activity.timestamp),
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.textTertiary),
-        ),
-      ],
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            _timeAgo(activity.timestamp),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: t.textTertiary,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -32,7 +32,13 @@ class SalesPageQuery {
   }
 
   @override
-  int get hashCode => Object.hash(page, limit, search, Object.hashAll(filters.entries));
+  int get hashCode {
+    final sortedKeys = filters.keys.toList()..sort();
+    final filterHash = Object.hashAll(
+      sortedKeys.map((key) => Object.hash(key, filters[key])),
+    );
+    return Object.hash(page, limit, search, filterHash);
+  }
 }
 
 bool _mapsEqual(Map<String, Object?> a, Map<String, Object?> b) {

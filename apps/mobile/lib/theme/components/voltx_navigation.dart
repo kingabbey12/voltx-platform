@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../tokens/icon_tokens.dart';
@@ -35,30 +37,42 @@ class VoltxNavigationBar extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: colors.surfaceElevated,
-        border: Border(top: BorderSide(color: colors.borderSubtle)),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            colors.surfaceElevated.withValues(alpha: 0.95),
+            colors.surfaceMuted.withValues(alpha: 0.82),
+          ],
+        ),
+        border: Border(top: BorderSide(color: colors.borderStrong.withValues(alpha: 0.8))),
       ),
       child: SafeArea(
         top: false,
-        child: NavigationBar(
-          height: 64,
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          indicatorColor: scheme.primary.withValues(alpha: 0.12),
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          selectedIndex: selectedIndex,
-          onDestinationSelected: onDestinationSelected,
-          destinations: [
-            for (final destination in destinations)
-              NavigationDestination(
-                icon: Icon(destination.icon, size: IconTokens.navigation),
-                selectedIcon: Icon(
-                  destination.selectedIcon,
-                  size: IconTokens.navigation,
-                ),
-                label: destination.label,
-              ),
-          ],
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: NavigationBar(
+              height: 68,
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              indicatorColor: scheme.primary.withValues(alpha: 0.16),
+              labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+              selectedIndex: selectedIndex,
+              onDestinationSelected: onDestinationSelected,
+              destinations: [
+                for (final destination in destinations)
+                  NavigationDestination(
+                    icon: Icon(destination.icon, size: IconTokens.navigation),
+                    selectedIcon: Icon(
+                      destination.selectedIcon,
+                      size: IconTokens.navigation,
+                    ),
+                    label: destination.label,
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -94,7 +108,7 @@ class VoltxAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: actions,
       elevation: 0,
       scrolledUnderElevation: 0,
-      backgroundColor: colors.surfaceElevated,
+      backgroundColor: colors.surfaceElevated.withValues(alpha: 0.92),
       foregroundColor: colors.textPrimary,
       surfaceTintColor: Colors.transparent,
       bottom: PreferredSize(

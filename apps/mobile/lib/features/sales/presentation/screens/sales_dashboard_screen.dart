@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../router/routes.dart';
 import '../../../../theme/tokens/spacing.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../data/models/sales_models.dart';
 import '../providers/sales_providers.dart';
 import '../widgets/sales_widgets.dart';
@@ -14,6 +15,11 @@ class SalesDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(authSessionProvider);
+    if (!_hasSalesReadAccess(session)) {
+      return const _SalesAccessRequired();
+    }
+
     final companies = ref.watch(companiesProvider(const SalesPageQuery(limit: 6)));
     final contacts = ref.watch(contactsProvider(const SalesPageQuery(limit: 6)));
     final leads = ref.watch(leadsProvider(const SalesPageQuery(limit: 50)));
@@ -21,26 +27,63 @@ class SalesDashboardScreen extends ConsumerWidget {
     final activities = ref.watch(activitiesProvider(const SalesPageQuery(limit: 6)));
     final copilotState = ref.watch(salesCopilotControllerProvider);
     final isWide = currentBreakpoint(context) != AppBreakpoint.compact;
+    final forecast = _forecastLabel(opportunities);
+    final weighted = _weightedPipelineLabel(opportunities);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: ResponsiveLayout(
-        maxContentWidth: 1200,
+        maxContentWidth: 1320,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Sales Copilot',
+              'Sales Command Center',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Track pipeline health, focus the team, and run targeted AI actions from the same workspace.',
+              'AI-native pipeline intelligence with revenue forecast, deal risk, and next-best-action guidance in one operating view.',
               style: Theme.of(context).textTheme.bodyLarge,
             ),
             const SizedBox(height: AppSpacing.lg),
+            SalesSectionCard(
+              title: 'Executive Revenue Overview',
+              subtitle: 'Quarter momentum and forecast confidence',
+              child: Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.md,
+                children: [
+                  SalesMetricCard(
+                    label: 'Pipeline Value',
+                    value: _totalAmountLabel(opportunities),
+                    icon: Icons.payments_rounded,
+                    footnote: weighted,
+                  ),
+                  SalesMetricCard(
+                    label: 'Forecast',
+                    value: forecast,
+                    icon: Icons.query_stats_rounded,
+                    footnote: _confidenceLabel(opportunities),
+                  ),
+                  SalesMetricCard(
+                    label: 'High Risk Deals',
+                    value: _riskCountLabel(opportunities),
+                    icon: Icons.warning_amber_rounded,
+                    footnote: 'Probability under 40%',
+                  ),
+                  SalesMetricCard(
+                    label: 'Next Actions Pending',
+                    value: _actionGapLabel(opportunities),
+                    icon: Icons.bolt_rounded,
+                    footnote: 'Needs AI playbook',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
             Wrap(
               spacing: AppSpacing.md,
               runSpacing: AppSpacing.md,
@@ -99,6 +142,12 @@ class SalesDashboardScreen extends ConsumerWidget {
               onClear: () => ref.read(salesCopilotControllerProvider.notifier).clear(),
             ),
             const SizedBox(height: AppSpacing.lg),
+            SalesSectionCard(
+              title: 'AI Recommendations',
+              subtitle: 'Prioritized interventions to protect forecast',
+              child: _buildAiRecommendations(opportunities),
+            ),
+            const SizedBox(height: AppSpacing.md),
             if (isWide)
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,6 +184,43 @@ class SalesDashboardScreen extends ConsumerWidget {
   }
 }
 
+class _SalesAccessRequired extends StatelessWidget {
+  const _SalesAccessRequired();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: const ResponsiveLayout(
+        maxContentWidth: 980,
+        child: SalesSectionCard(
+          title: 'Sales Access Required',
+          subtitle: 'Your current account does not have sales read permissions.',
+          child: SalesEmptyState(
+            title: 'Unable to load sales workspace',
+            subtitle:
+                'Ask an administrator to grant sales permissions such as sales.company.read, sales.contact.read, sales.lead.read, sales.opportunity.read, and sales.activity.read.',
+            icon: Icons.lock_outline_rounded,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+bool _hasSalesReadAccess(dynamic session) {
+  if (session == null) {
+    return true;
+  }
+
+  final permissions = session?.permissions;
+  if (permissions is! List<String>) {
+    return false;
+  }
+
+  return permissions.any((permission) => permission.startsWith('sales.'));
+}
+
 class _RecentLeadsCard extends StatelessWidget {
   const _RecentLeadsCard({required this.leads});
 
@@ -144,22 +230,47 @@ class _RecentLeadsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SalesSectionCard(
       title: 'Recent Leads',
-      subtitle: 'Latest pipeline signals',
+      subtitle: 'Qualification momentum and conversion readiness',
       trailing: TextButton(
         onPressed: () => context.go(AppRoutes.salesPipeline),
         child: const Text('View all'),
       ),
       child: leads.when(
         data: (page) => Column(
-          children: page.items.take(5).map((lead) {
-            return SalesLinkTile(
-              title: lead.title,
-              subtitle: '${lead.status}${lead.source != null ? ' · ${lead.source}' : ''}',
-              route: AppRoutes.salesLeadDetails(lead.id),
-            );
-          }).toList(),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (page.items.isEmpty)
+              const SalesEmptyState(
+                title: 'No leads in motion',
+                subtitle: 'When leads arrive, AI qualification signals will appear here.',
+                icon: Icons.group_add_rounded,
+              )
+            else
+              for (final lead in page.items.take(5))
+                SalesRecommendationCard(
+                  title: lead.title,
+                  body:
+                      '${lead.status}${lead.source != null ? ' · ${lead.source}' : ''}${lead.qualificationScore != null ? ' · score ${lead.qualificationScore}' : ''}',
+                  icon: Icons.flag_rounded,
+                  action: Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: () => context.push(AppRoutes.salesLeadDetails(lead.id)),
+                      child: const Text('Open lead'),
+                    ),
+                  ),
+                ),
+          ],
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Column(
+          children: [
+            SalesSkeletonLine(),
+            SizedBox(height: AppSpacing.sm),
+            SalesSkeletonLine(),
+            SizedBox(height: AppSpacing.sm),
+            SalesSkeletonLine(),
+          ],
+        ),
         error: (error, _) => Text(error.toString()),
       ),
     );
@@ -175,22 +286,37 @@ class _RecentActivitiesCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SalesSectionCard(
       title: 'Recent Activities',
-      subtitle: 'Latest customer interactions',
+      subtitle: 'Customer interaction timeline',
       trailing: TextButton(
         onPressed: () => context.go(AppRoutes.salesCopilot),
         child: const Text('Summarize'),
       ),
       child: activities.when(
-        data: (page) => Column(
-          children: page.items.map((activity) {
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(activity.subject),
-              subtitle: Text('${activity.type} · ${activity.completed ? 'Completed' : 'Open'}'),
-            );
-          }).toList(),
+        data: (page) => page.items.isEmpty
+            ? const SalesEmptyState(
+                title: 'No activity events',
+                subtitle: 'Live interactions will populate this timeline automatically.',
+                icon: Icons.history_rounded,
+              )
+            : Column(
+                children: page.items.map((activity) {
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      activity.completed ? Icons.check_circle : Icons.pending_actions,
+                    ),
+                    title: Text(activity.subject),
+                    subtitle: Text('${activity.type} · ${activity.completed ? 'Completed' : 'Open'}'),
+                  );
+                }).toList(),
+              ),
+        loading: () => const Column(
+          children: [
+            SalesSkeletonLine(),
+            SizedBox(height: AppSpacing.sm),
+            SalesSkeletonLine(),
+          ],
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Text(error.toString()),
       ),
     );
@@ -208,16 +334,22 @@ class _CompanySnapshotCard extends StatelessWidget {
       title: 'Companies',
       subtitle: 'Account coverage',
       child: companies.when(
-        data: (page) => Column(
-          children: page.items.map((company) {
-            return SalesLinkTile(
-              title: company.name,
-              subtitle: company.industry ?? company.status,
-              route: AppRoutes.salesCompanyDetails(company.id),
-            );
-          }).toList(),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
+        data: (page) => page.items.isEmpty
+            ? const SalesEmptyState(
+                title: 'No account data',
+                subtitle: 'Add accounts to unlock territory-level intelligence.',
+                icon: Icons.apartment_rounded,
+              )
+            : Column(
+                children: page.items.map((company) {
+                  return SalesLinkTile(
+                    title: company.name,
+                    subtitle: company.industry ?? company.status,
+                    route: AppRoutes.salesCompanyDetails(company.id),
+                  );
+                }).toList(),
+              ),
+        loading: () => const SalesSkeletonLine(),
         error: (error, _) => Text(error.toString()),
       ),
     );
@@ -235,16 +367,22 @@ class _ContactsSnapshotCard extends StatelessWidget {
       title: 'Contacts',
       subtitle: 'People closest to the deal',
       child: contacts.when(
-        data: (page) => Column(
-          children: page.items.map((contact) {
-            return SalesLinkTile(
-              title: contact.fullName,
-              subtitle: contact.jobTitle ?? contact.email ?? 'Contact',
-              route: AppRoutes.salesContactDetails(contact.id),
-            );
-          }).toList(),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
+        data: (page) => page.items.isEmpty
+            ? const SalesEmptyState(
+                title: 'No stakeholder records',
+                subtitle: 'Stakeholder mapping appears once contacts are linked.',
+                icon: Icons.contact_page_rounded,
+              )
+            : Column(
+                children: page.items.map((contact) {
+                  return SalesLinkTile(
+                    title: contact.fullName,
+                    subtitle: contact.jobTitle ?? contact.email ?? 'Contact',
+                    route: AppRoutes.salesContactDetails(contact.id),
+                  );
+                }).toList(),
+              ),
+        loading: () => const SalesSkeletonLine(),
         error: (error, _) => Text(error.toString()),
       ),
     );
@@ -275,5 +413,114 @@ String _activeOpportunityStage(AsyncValue<PaginatedSalesResult<SalesOpportunity>
       return '$open active deals';
     },
     orElse: () => 'Board loading',
+  );
+}
+
+String _totalAmountLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+  return opportunities.maybeWhen(
+    data: (page) {
+      final total = page.items.fold<double>(0, (sum, item) => sum + (item.amount ?? 0));
+      if (total == 0) {
+        return '--';
+      }
+      final k = total / 1000;
+      return '\$${k.toStringAsFixed(0)}k';
+    },
+    orElse: () => '--',
+  );
+}
+
+String _weightedPipelineLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+  return opportunities.maybeWhen(
+    data: (page) {
+      final weighted = page.items.fold<double>(
+        0,
+        (sum, item) => sum + ((item.amount ?? 0) * (item.probability / 100)),
+      );
+      return 'Weighted: \$${(weighted / 1000).toStringAsFixed(0)}k';
+    },
+    orElse: () => 'Weighted: --',
+  );
+}
+
+String _forecastLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+  return opportunities.maybeWhen(
+    data: (page) {
+      final open = page.items.where((item) => !item.stage.startsWith('CLOSED')).toList();
+      if (open.isEmpty) {
+        return '--';
+      }
+      final avgProb = open.fold<int>(0, (sum, item) => sum + item.probability) / open.length;
+      return avgProb >= 70
+          ? 'Strong'
+          : avgProb >= 45
+              ? 'Balanced'
+              : 'At Risk';
+    },
+    orElse: () => '--',
+  );
+}
+
+String _confidenceLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+  return opportunities.maybeWhen(
+    data: (page) {
+      final confident = page.items.where((item) => item.probability >= 70).length;
+      return '$confident high-confidence deals';
+    },
+    orElse: () => 'Computing confidence',
+  );
+}
+
+String _riskCountLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+  return opportunities.maybeWhen(
+    data: (page) => '${page.items.where((item) => item.probability < 40).length}',
+    orElse: () => '--',
+  );
+}
+
+String _actionGapLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+  return opportunities.maybeWhen(
+    data: (page) => '${page.items.where((item) => item.nextBestAction == null).length}',
+    orElse: () => '--',
+  );
+}
+
+Widget _buildAiRecommendations(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+  return opportunities.when(
+    data: (page) {
+      if (page.items.isEmpty) {
+        return const SalesEmptyState(
+          title: 'No opportunities yet',
+          subtitle: 'Recommendations appear once opportunities enter the pipeline.',
+          icon: Icons.lightbulb_outline_rounded,
+        );
+      }
+
+      final risky = page.items.where((item) => item.probability < 50).take(3).toList();
+      final source = risky.isEmpty ? page.items.take(2).toList() : risky;
+
+      return Column(
+        children: source.map((item) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: SalesRecommendationCard(
+              title: item.title,
+              body: item.nextBestAction ??
+                  'Run executive alignment and reinforce value narrative before ${item.stage.replaceAll('_', ' ')}.',
+              icon: Icons.psychology_alt_rounded,
+              action: SalesProbabilityBar(value: item.probability),
+            ),
+          );
+        }).toList(),
+      );
+    },
+    loading: () => const Column(
+      children: [
+        SalesSkeletonLine(),
+        SizedBox(height: AppSpacing.sm),
+        SalesSkeletonLine(),
+      ],
+    ),
+    error: (error, _) => Text(error.toString()),
   );
 }

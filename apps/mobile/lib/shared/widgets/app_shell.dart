@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../router/routes.dart';
+import '../../theme/components/voltx_motion.dart';
 import '../../theme/components/voltx_navigation.dart';
 import 'offline_banner.dart';
 
@@ -57,7 +58,12 @@ class AppShell extends StatelessWidget {
       body: Column(
         children: [
           const OfflineBanner(),
-          Expanded(child: child),
+          Expanded(
+            child: VoltxNavigationTransition(
+              transitionKey: location,
+              child: child,
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: VoltxNavigationBar(

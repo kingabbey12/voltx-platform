@@ -22,35 +22,50 @@ class SignInScreen extends HookConsumerWidget {
     final emailController = useTextEditingController();
     final passwordController = useTextEditingController();
     final obscurePassword = useState(true);
+    final isSubmitting = useState(false);
+    final hasCompletedSignIn = useState(false);
     final formState = ref.watch(signInFormProvider);
-
-    ref.listen(signInFormProvider, (previous, next) {
-      next.whenOrNull(
-        data: (message) {
-          if (message != null && context.mounted) {
-            context.go(AppRoutes.dashboard);
-          }
-        },
-      );
-    });
 
     final errorMessage = formState.maybeWhen(
       error: (error, _) => authErrorMessage(error),
       orElse: () => '',
     );
 
-    Future<void> submit() async {
-      if (!(formKey.currentState?.validate() ?? false)) {
+    Future<void> submit({required String source}) async {
+      debugPrint('[AUTH][SIGN_IN][submit] source=$source isSubmitting=${isSubmitting.value} hasCompleted=${hasCompletedSignIn.value} formLoading=${formState.isLoading}');
+
+      if (isSubmitting.value || hasCompletedSignIn.value) {
+        debugPrint('[AUTH][SIGN_IN][submit] ignored source=$source reason=inflight_or_completed');
         return;
       }
 
-      await ref.read(signInFormProvider.notifier).submit(() async {
-        final user = await ref.read(authRepositoryProvider).signIn(
-              email: emailController.text,
-              password: passwordController.text,
-            );
-        ref.read(authSessionProvider.notifier).setUser(user);
-      }, successMessage: 'signed_in');
+      if (!(formKey.currentState?.validate() ?? false)) {
+        debugPrint('[AUTH][SIGN_IN][submit] ignored source=$source reason=validation_failed');
+        return;
+      }
+
+      isSubmitting.value = true;
+      try {
+        await ref.read(signInFormProvider.notifier).submit(() async {
+          debugPrint('[AUTH][SIGN_IN][submit] executing source=$source email=${emailController.text.trim()}');
+          final user = await ref.read(authRepositoryProvider).signIn(
+                email: emailController.text,
+                password: passwordController.text,
+              );
+          ref.read(authSessionProvider.notifier).setUser(user);
+        }, successMessage: 'signed_in');
+
+        final isSuccess = ref.read(signInFormProvider).valueOrNull == 'signed_in';
+        debugPrint('[AUTH][SIGN_IN][submit] completed source=$source success=$isSuccess');
+        if (isSuccess && context.mounted) {
+          hasCompletedSignIn.value = true;
+          context.go(AppRoutes.dashboard);
+        }
+      } finally {
+        if (context.mounted) {
+          isSubmitting.value = false;
+        }
+      }
     }
 
     return AuthScaffold(
@@ -70,7 +85,6 @@ class SignInScreen extends HookConsumerWidget {
                 obscureText: obscurePassword.value,
                 onToggleVisibility: () =>
                     obscurePassword.value = !obscurePassword.value,
-                onSubmitted: (_) => submit(),
               ),
               Align(
                 alignment: Alignment.centerRight,
@@ -82,8 +96,9 @@ class SignInScreen extends HookConsumerWidget {
               AuthSubmitButton(
                 label: 'Sign In',
                 formState: formState,
+                isSubmitting: isSubmitting.value,
                 topSpacing: AppSpacing.sm,
-                onPressed: submit,
+                onPressed: () => submit(source: 'button'),
               ),
               const SizedBox(height: AppSpacing.md),
               Wrap(
