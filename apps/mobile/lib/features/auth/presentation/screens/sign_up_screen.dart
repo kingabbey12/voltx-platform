@@ -29,13 +29,14 @@ class SignUpScreen extends HookConsumerWidget {
     final passwordController = useTextEditingController();
     final confirmController = useTextEditingController();
     final obscurePassword = useState(true);
+    final isSubmitting = useState(false);
     final formState = ref.watch(signUpFormProvider);
 
     ref.listen(signUpFormProvider, (previous, next) {
       next.whenOrNull(
         data: (message) {
           if (message != null && context.mounted) {
-            context.go(AppRoutes.verifyEmail);
+            context.go(AppRoutes.dashboard);
           }
         },
       );
@@ -65,19 +66,30 @@ class SignUpScreen extends HookConsumerWidget {
           }).toList();
 
     Future<void> submit() async {
+      if (isSubmitting.value) {
+        return;
+      }
+
       if (!(formKey.currentState?.validate() ?? false)) {
         return;
       }
 
-      await ref.read(signUpFormProvider.notifier).submit(() async {
-        final user = await ref.read(authRepositoryProvider).signUp(
-              email: emailController.text,
-              password: passwordController.text,
-              firstName: firstNameController.text,
-              lastName: lastNameController.text,
-            );
-        ref.read(authSessionProvider.notifier).setUser(user);
-      }, successMessage: 'signed_up');
+      isSubmitting.value = true;
+      try {
+        await ref.read(signUpFormProvider.notifier).submit(() async {
+          final user = await ref.read(authRepositoryProvider).signUp(
+                email: emailController.text,
+                password: passwordController.text,
+                firstName: firstNameController.text,
+                lastName: lastNameController.text,
+              );
+          ref.read(authSessionProvider.notifier).setUser(user);
+        }, successMessage: 'signed_up');
+      } finally {
+        if (context.mounted) {
+          isSubmitting.value = false;
+        }
+      }
     }
 
     return AuthScaffold(
@@ -127,6 +139,7 @@ class SignUpScreen extends HookConsumerWidget {
               AuthSubmitButton(
                 label: 'Create Account',
                 formState: formState,
+                isSubmitting: isSubmitting.value,
                 onPressed: submit,
               ),
             ],

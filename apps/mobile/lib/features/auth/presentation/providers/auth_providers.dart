@@ -47,15 +47,24 @@ class AuthSessionNotifier extends StateNotifier<AuthUser?> {
 class AuthFormController extends StateNotifier<AsyncValue<String?>> {
   AuthFormController() : super(const AsyncData(null));
 
+  bool _isSubmitting = false;
+
   void reset() => state = const AsyncData(null);
 
   Future<void> submit(Future<void> Function() action, {String? successMessage}) async {
+    if (_isSubmitting) {
+      return;
+    }
+
+    _isSubmitting = true;
     state = const AsyncLoading();
     try {
       await action();
       state = AsyncData(successMessage);
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
+    } finally {
+      _isSubmitting = false;
     }
   }
 }

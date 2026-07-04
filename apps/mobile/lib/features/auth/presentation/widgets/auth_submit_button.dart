@@ -11,6 +11,7 @@ class AuthSubmitButton extends StatelessWidget {
     required this.formState,
     required this.onPressed,
     this.topSpacing = AppSpacing.md,
+    this.isSubmitting = false,
     super.key,
   });
 
@@ -18,10 +19,11 @@ class AuthSubmitButton extends StatelessWidget {
   final AsyncValue<String?> formState;
   final VoidCallback? onPressed;
   final double topSpacing;
+  final bool isSubmitting;
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = formState.isLoading;
+    final isLoading = formState.isLoading || isSubmitting;
 
     return Padding(
       padding: EdgeInsets.only(top: topSpacing),

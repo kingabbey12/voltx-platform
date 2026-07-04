@@ -58,7 +58,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (session != null &&
-          (location == AppRoutes.welcome || location == AppRoutes.signIn)) {
+          (location == AppRoutes.welcome ||
+              location == AppRoutes.signIn ||
+              location == AppRoutes.signUp ||
+              location == AppRoutes.verifyEmail ||
+              location == AppRoutes.forgotPassword ||
+              location == AppRoutes.resetPassword)) {
         return AppRoutes.dashboard;
       }
 
