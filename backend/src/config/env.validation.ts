@@ -88,6 +88,60 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT?: string;
+
+  @IsOptional()
+  @IsString()
+  AI_DEFAULT_PROVIDER?: string;
+
+  @IsOptional()
+  @IsString()
+  AI_DEFAULT_MODEL?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  AI_MAX_RETRIES?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  AI_RETRY_BASE_DELAY_MS?: number;
+
+  @IsOptional()
+  @IsString()
+  OPENAI_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  OPENAI_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  OPENAI_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  ANTHROPIC_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  ANTHROPIC_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  ANTHROPIC_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  GOOGLE_AI_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  GOOGLE_AI_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  GOOGLE_AI_BASE_URL?: string;
 }
 
 export function validate(config: Record<string, unknown>): EnvironmentVariables {

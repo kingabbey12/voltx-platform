@@ -1,0 +1,234 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
+import {
+  AIChatResponse,
+  AIEmbeddingRequest,
+  AIEmbeddingResponse,
+  AIMessage,
+  AIModelDefinition,
+  AIProviderChatRequest,
+  AIStreamEvent,
+} from '../models/ai-model.types';
+import { parseSseStream } from '../streaming/sse-parser';
+import { AIProvider, AIProviderError } from './ai-provider.interface';
+import {
+  createStreamingResponse,
+  extractTextContent,
+  fetchJsonObject,
+  getNumber,
+  getRecord,
+  getString,
+  isRecord,
+} from './provider-http.utils';
+
+const ANTHROPIC_MODELS: AIModelDefinition[] = [
+  {
+    id: 'claude-opus-4-1',
+    provider: 'anthropic',
+    family: 'claude',
+    displayName: 'Claude Opus 4.1',
+    supportsStreaming: true,
+    supportsEmbeddings: false,
+  },
+  {
+    id: 'claude-sonnet-4-5',
+    provider: 'anthropic',
+    family: 'claude',
+    displayName: 'Claude Sonnet 4.5',
+    supportsStreaming: true,
+    supportsEmbeddings: false,
+  },
+  {
+    id: 'claude-haiku-4',
+    provider: 'anthropic',
+    family: 'claude',
+    displayName: 'Claude Haiku 4',
+    supportsStreaming: true,
+    supportsEmbeddings: false,
+  },
+];
+
+@Injectable()
+export class AnthropicProvider implements AIProvider {
+  readonly name = 'anthropic' as const;
+
+  private readonly enabled: boolean;
+  private readonly apiKey: string;
+  private readonly baseUrl: string;
+
+  constructor(private readonly configService: ConfigService) {
+    this.enabled = configService.get<boolean>('ai.providers.anthropic.enabled', false);
+    this.apiKey = configService.get<string>('ai.providers.anthropic.apiKey', '');
+    this.baseUrl = configService.get<string>(
+      'ai.providers.anthropic.baseUrl',
+      'https://api.anthropic.com/v1',
+    );
+  }
+
+  async chat(request: AIProviderChatRequest): Promise<AIChatResponse> {
+    this.assertConfigured();
+
+    const payload = await fetchJsonObject(`${this.baseUrl}/messages`, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify({
+        model: request.model,
+        messages: toAnthropicMessages(request.messages),
+        system: extractSystemPrompt(request.messages),
+        max_tokens: request.maxOutputTokens ?? 1024,
+        ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+      }),
+      signal: request.signal,
+    });
+
+    const usageRecord = getRecord(payload, 'usage');
+
+    return {
+      id: getString(payload, 'id') ?? randomUUID(),
+      provider: this.name,
+      model: getString(payload, 'model') ?? request.model,
+      outputText: extractTextContent(payload.content),
+      finishReason: getString(payload, 'stop_reason') ?? getString(payload, 'type'),
+      usage: usageRecord
+        ? {
+            inputTokens: getNumber(usageRecord, 'input_tokens'),
+            outputTokens: getNumber(usageRecord, 'output_tokens'),
+            totalTokens: sumNumbers(
+              getNumber(usageRecord, 'input_tokens'),
+              getNumber(usageRecord, 'output_tokens'),
+            ),
+          }
+        : undefined,
+    };
+  }
+
+  async *stream(request: AIProviderChatRequest): AsyncIterable<AIStreamEvent> {
+    this.assertConfigured();
+
+    const messageId = randomUUID();
+    let outputText = '';
+
+    yield {
+      type: 'message_start',
+      provider: this.name,
+      model: request.model,
+      messageId,
+    };
+
+    const stream = await createStreamingResponse(`${this.baseUrl}/messages`, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify({
+        model: request.model,
+        messages: toAnthropicMessages(request.messages),
+        system: extractSystemPrompt(request.messages),
+        max_tokens: request.maxOutputTokens ?? 1024,
+        stream: true,
+        ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+      }),
+      signal: request.signal,
+    });
+
+    for await (const event of parseSseStream(stream)) {
+      const payload = parseJsonRecord(event.data);
+      const delta = getString(getRecord(payload, 'delta') ?? {}, 'text');
+      if (delta && delta.length > 0) {
+        outputText += delta;
+        yield {
+          type: 'content_delta',
+          provider: this.name,
+          model: request.model,
+          delta,
+        };
+      }
+
+      if (event.event === 'message_stop') {
+        yield {
+          type: 'message_end',
+          provider: this.name,
+          model: request.model,
+          finishReason: getString(payload, 'type'),
+          outputText,
+        };
+        return;
+      }
+    }
+
+    yield {
+      type: 'message_end',
+      provider: this.name,
+      model: request.model,
+      outputText,
+    };
+  }
+
+  embeddings(_request: AIEmbeddingRequest): Promise<AIEmbeddingResponse> {
+    return Promise.reject(
+      new AIProviderError(
+        'Anthropic provider does not support embeddings in this runtime',
+        'embeddings_not_supported',
+      ),
+    );
+  }
+
+  models(): Promise<AIModelDefinition[]> {
+    if (!this.enabled) {
+      return Promise.resolve([]);
+    }
+
+    return Promise.resolve(ANTHROPIC_MODELS);
+  }
+
+  private buildHeaders(): Record<string, string> {
+    return {
+      'x-api-key': this.apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    };
+  }
+
+  private assertConfigured(): void {
+    if (!this.enabled || this.apiKey.length === 0) {
+      throw new AIProviderError(
+        'Anthropic provider is not enabled or configured',
+        'provider_not_configured',
+      );
+    }
+  }
+}
+
+function toAnthropicMessages(messages: AIMessage[]): Array<Record<string, unknown>> {
+  return messages
+    .filter((message) => message.role !== 'system')
+    .map((message) => ({
+      role: message.role === 'tool' ? 'assistant' : message.role,
+      content: message.content,
+    }));
+}
+
+function extractSystemPrompt(messages: AIMessage[]): string | undefined {
+  const prompts = messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content.trim())
+    .filter((message) => message.length > 0);
+
+  return prompts.length > 0 ? prompts.join('\n\n') : undefined;
+}
+
+function parseJsonRecord(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function sumNumbers(a?: number, b?: number): number | undefined {
+  if (a === undefined && b === undefined) {
+    return undefined;
+  }
+
+  return (a ?? 0) + (b ?? 0);
+}

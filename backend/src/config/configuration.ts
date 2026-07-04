@@ -28,4 +28,28 @@ export default () => ({
       process.env.OTEL_EXPORTER_OTLP_ENDPOINT ??
       '',
   },
+  ai: {
+    defaultProvider: process.env.AI_DEFAULT_PROVIDER ?? 'openai',
+    defaultModel: process.env.AI_DEFAULT_MODEL ?? 'gpt-5-mini',
+    maxRetries: parseInt(process.env.AI_MAX_RETRIES ?? '2', 10),
+    retryBaseDelayMs: parseInt(process.env.AI_RETRY_BASE_DELAY_MS ?? '250', 10),
+    providers: {
+      openai: {
+        enabled: process.env.OPENAI_ENABLED === 'true',
+        apiKey: process.env.OPENAI_API_KEY ?? '',
+        baseUrl: process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
+      },
+      anthropic: {
+        enabled: process.env.ANTHROPIC_ENABLED === 'true',
+        apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+        baseUrl: process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com/v1',
+      },
+      google: {
+        enabled: process.env.GOOGLE_AI_ENABLED === 'true',
+        apiKey: process.env.GOOGLE_AI_API_KEY ?? '',
+        baseUrl:
+          process.env.GOOGLE_AI_BASE_URL ?? 'https://generativelanguage.googleapis.com/v1beta',
+      },
+    },
+  },
 });

@@ -13,6 +13,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { TenantModule } from './common/tenant/tenant.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { AIModule } from './modules/ai/ai.module';
 import { HealthModule } from './modules/health/health.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { OrganizationModule } from './modules/organization/organization.module';
@@ -52,6 +53,7 @@ import { UsersModule } from './modules/users/users.module';
     MetricsModule,
     TenantModule,
     AuditModule,
+    AIModule,
     AuthModule,
     HealthModule,
     OrganizationModule,
