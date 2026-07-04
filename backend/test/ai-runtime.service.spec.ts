@@ -5,6 +5,7 @@ import {
   AIModelDefinition,
   AIStreamEvent,
 } from '../src/modules/ai/models/ai-model.types';
+import { MemoryService } from '../src/modules/ai/memory/memory.service';
 import { ModelRegistryService } from '../src/modules/ai/models/model-registry.service';
 import { PromptBuilderService } from '../src/modules/ai/prompts/prompt-builder.service';
 import { AI_PROVIDERS, AIProviderError } from '../src/modules/ai/providers/ai-provider.interface';
@@ -43,7 +44,11 @@ describe('AIRuntimeService', () => {
     };
 
     const promptBuilderMock = {
-      build: jest.fn().mockReturnValue([{ role: 'user', content: 'Hello world' }]),
+      build: jest.fn().mockResolvedValue([{ role: 'user', content: 'Hello world' }]),
+    };
+
+    const memoryServiceMock = {
+      selectRelevantMemoriesForCompletion: jest.fn().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -56,6 +61,10 @@ describe('AIRuntimeService', () => {
         {
           provide: PromptBuilderService,
           useValue: promptBuilderMock,
+        },
+        {
+          provide: MemoryService,
+          useValue: memoryServiceMock,
         },
         {
           provide: ConfigService,

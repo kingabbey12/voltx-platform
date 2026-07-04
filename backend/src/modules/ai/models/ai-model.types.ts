@@ -83,6 +83,7 @@ export type AIStreamEvent =
     });
 
 export interface AIRuntimeChatInput {
+  conversationId?: string;
   provider?: AIProviderName;
   model?: string;
   systemPrompt?: string;

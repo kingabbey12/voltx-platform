@@ -4,7 +4,7 @@ import { AIController } from './ai.controller';
 import { ConversationController } from './conversations/conversation.controller';
 import { ConversationRepository } from './conversations/conversation.repository';
 import { ConversationService } from './conversations/conversation.service';
-import { ConversationMemoryService } from './memory/conversation-memory.service';
+import { MemoryModule } from './memory/memory.module';
 import { ModelRegistryService } from './models/model-registry.service';
 import { PromptBuilderService } from './prompts/prompt-builder.service';
 import { AI_PROVIDERS } from './providers/ai-provider.interface';
@@ -15,13 +15,12 @@ import { AIRuntimeService } from './runtime/ai-runtime.service';
 import { ToolModule } from './tools/tool.module';
 
 @Module({
-  imports: [ConfigModule, ToolModule],
+  imports: [ConfigModule, ToolModule, MemoryModule],
   controllers: [AIController, ConversationController],
   providers: [
     AIRuntimeService,
     ConversationRepository,
     ConversationService,
-    ConversationMemoryService,
     PromptBuilderService,
     ModelRegistryService,
     OpenAIProvider,

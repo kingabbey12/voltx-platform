@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
+import { MemoryService } from '../memory/memory.service';
 import { AIMessage, AIProviderName } from '../models/ai-model.types';
 import { ModelRegistryService } from '../models/model-registry.service';
 import { AIRuntimeService } from '../runtime/ai-runtime.service';
@@ -29,6 +30,7 @@ export class ConversationService {
     private readonly conversationRepository: ConversationRepository,
     private readonly modelRegistryService: ModelRegistryService,
     private readonly aiRuntimeService: AIRuntimeService,
+    private readonly memoryService: MemoryService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -159,6 +161,7 @@ export class ConversationService {
     let modelUsed = conversation.model;
 
     for await (const event of this.aiRuntimeService.streamChat({
+      conversationId,
       provider: conversation.provider as AIProviderName,
       model: conversation.model,
       conversationHistory: history.map(toAIMessage),
@@ -200,6 +203,17 @@ export class ConversationService {
       : null;
 
     if (assistantMessage) {
+      await this.memoryService.captureConversationMemories({
+        conversationId,
+        userContent: dto.content,
+        assistantContent: assistantMessage.content,
+        assistantMetadata: {
+          provider: providerUsed,
+          model: modelUsed,
+          ...(finishReason ? { finishReason } : {}),
+        },
+      });
+
       await this.auditService.record({
         action: 'create',
         resource: 'ai_message',

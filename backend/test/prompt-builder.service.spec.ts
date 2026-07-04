@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConversationMemoryService } from '../src/modules/ai/memory/conversation-memory.service';
 import { PromptBuilderService } from '../src/modules/ai/prompts/prompt-builder.service';
 
 describe('PromptBuilderService', () => {
@@ -7,16 +6,32 @@ describe('PromptBuilderService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [PromptBuilderService, ConversationMemoryService],
+      providers: [PromptBuilderService],
     }).compile();
 
     service = module.get(PromptBuilderService);
   });
 
-  it('builds a normalized prompt with system, history, tools, and user prompt', () => {
-    const messages = service.build({
+  it('builds a normalized prompt with system, memories, history, tools, and user prompt', async () => {
+    const messages = await service.build({
       systemPrompt: 'Custom system prompt',
       workspaceContext: ['Workspace: Voltx', 'Region: us-east-1'],
+      relevantMemories: [
+        {
+          id: 'memory-1',
+          organizationId: 'org-1',
+          userId: 'user-1',
+          conversationId: 'conversation-1',
+          category: 'preference',
+          importance: 0.9,
+          content: 'User prefers deployment windows at 02:00 UTC.',
+          embeddingId: null,
+          metadata: {},
+          createdAt: new Date('2026-07-04T00:00:00.000Z'),
+          updatedAt: new Date('2026-07-04T00:00:00.000Z'),
+          deletedAt: null,
+        },
+      ],
       conversationHistory: [
         { role: 'user', content: '  Earlier question  ' },
         { role: 'assistant', content: 'Previous answer' },
@@ -33,6 +48,7 @@ describe('PromptBuilderService', () => {
     expect(messages[0].role).toBe('system');
     expect(messages[0].content).toContain('Custom system prompt');
     expect(messages[0].content).toContain('Workspace Context:');
+    expect(messages[0].content).toContain('Relevant Memories:');
     expect(messages[1]).toEqual({
       role: 'user',
       content: 'Earlier question',

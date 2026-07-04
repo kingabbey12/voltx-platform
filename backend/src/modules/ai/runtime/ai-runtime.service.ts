@@ -11,6 +11,7 @@ import {
 } from '../models/ai-model.types';
 import { PromptBuilderService } from '../prompts/prompt-builder.service';
 import { AIProvider, AIProviderError, AI_PROVIDERS } from '../providers/ai-provider.interface';
+import { MemoryService } from '../memory/memory.service';
 import { ExecuteToolRequest, ExecuteToolResponse, ToolService } from '../tools/tool.service';
 
 @Injectable()
@@ -23,6 +24,7 @@ export class AIRuntimeService {
     @Inject(AI_PROVIDERS) private readonly providers: AIProvider[],
     private readonly modelRegistryService: ModelRegistryService,
     private readonly promptBuilderService: PromptBuilderService,
+    private readonly memoryService: MemoryService,
     private readonly toolService: ToolService,
     private readonly configService: ConfigService,
   ) {
@@ -123,16 +125,23 @@ export class AIRuntimeService {
       input.model,
       'chat',
     );
+    const relevantMemories = await this.memoryService.selectRelevantMemoriesForCompletion({
+      conversationId: input.conversationId,
+      userPrompt: input.userPrompt,
+      workspaceContext: input.workspaceContext,
+      conversationHistory: input.conversationHistory,
+    });
 
     return {
       provider,
       model,
       request: {
         model: model.id,
-        messages: this.promptBuilderService.build({
+        messages: await this.promptBuilderService.build({
           systemPrompt: input.systemPrompt,
           workspaceContext: input.workspaceContext,
           conversationHistory: input.conversationHistory,
+          relevantMemories,
           userPrompt: input.userPrompt,
           toolResults: input.toolResults,
         }),

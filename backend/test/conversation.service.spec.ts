@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { ConversationRepository } from '../src/modules/ai/conversations/conversation.repository';
 import { ConversationService } from '../src/modules/ai/conversations/conversation.service';
+import { MemoryService } from '../src/modules/ai/memory/memory.service';
 import { ModelRegistryService } from '../src/modules/ai/models/model-registry.service';
 import { AIRuntimeService } from '../src/modules/ai/runtime/ai-runtime.service';
 
@@ -11,6 +12,7 @@ describe('ConversationService', () => {
   let repository: jest.Mocked<ConversationRepository>;
   let runtimeService: jest.Mocked<AIRuntimeService>;
   let modelRegistryService: jest.Mocked<ModelRegistryService>;
+  let memoryService: jest.Mocked<MemoryService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -42,6 +44,12 @@ describe('ConversationService', () => {
           },
         },
         {
+          provide: MemoryService,
+          useValue: {
+            captureConversationMemories: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
           provide: AuditService,
           useValue: {
             record: jest.fn(),
@@ -54,6 +62,7 @@ describe('ConversationService', () => {
     repository = module.get(ConversationRepository);
     runtimeService = module.get(AIRuntimeService);
     modelRegistryService = module.get(ModelRegistryService);
+    memoryService = module.get(MemoryService);
   });
 
   it('creates a conversation using the resolved default model and provider', async () => {
@@ -159,6 +168,12 @@ describe('ConversationService', () => {
     expect(repository.updateConversation).toHaveBeenCalledWith('conversation-1', {
       title: 'Summarize the incident mitigation plan',
     });
+    expect(memoryService.captureConversationMemories).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: 'conversation-1',
+        userContent: 'Summarize the incident mitigation plan',
+      }),
+    );
     expect(result.assistantMessage?.tokenUsage.totalTokens).toBe(25);
   });
 

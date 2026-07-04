@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -54,6 +55,11 @@ export class AIToolResultDto {
 }
 
 export class AIChatRequestDto {
+  @ApiPropertyOptional({ example: '550e8400-e29b-41d4-a716-446655440000' })
+  @IsOptional()
+  @IsUUID()
+  conversationId?: string;
+
   @ApiPropertyOptional({ enum: ['openai', 'anthropic', 'google'] })
   @IsOptional()
   @IsIn(['openai', 'anthropic', 'google'])

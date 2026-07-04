@@ -61,6 +61,7 @@ model Organization {
   deletedAt   DateTime?          @map("deleted_at")
   memberships Membership[]
   conversations Conversation[]
+  memories    Memory[]
 
   @@index([status])
   @@map("organizations")
@@ -85,6 +86,7 @@ model User {
   refreshTokens     RefreshToken[]
   verificationTokens VerificationToken[]
   conversations      Conversation[]
+  memories           Memory[]
 
   @@index([status])
   @@map("users")
@@ -106,6 +108,8 @@ model Conversation {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages       Message[]
   toolExecutions ToolExecution[]
+  memories       Memory[]
+  memoryAccesses MemoryAccess[]
 
   @@index([organizationId])
   @@index([userId])
@@ -150,6 +154,48 @@ model ToolExecution {
   @@index([status])
   @@index([createdAt])
   @@map("tool_executions")
+}
+
+model Memory {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  conversationId String       @map("conversation_id") @db.Uuid
+  category       String
+  importance     Float
+  content        String
+  embeddingId    String?      @map("embedding_id")
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  accesses       MemoryAccess[]
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([conversationId])
+  @@index([category])
+  @@index([importance])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@map("memories")
+}
+
+model MemoryAccess {
+  id             String       @id @default(uuid()) @db.Uuid
+  memoryId       String       @map("memory_id") @db.Uuid
+  conversationId String       @map("conversation_id") @db.Uuid
+  accessedAt     DateTime     @default(now()) @map("accessed_at")
+  memory         Memory       @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([memoryId])
+  @@index([conversationId])
+  @@index([accessedAt])
+  @@map("memory_accesses")
 }
 
 model VerificationToken {

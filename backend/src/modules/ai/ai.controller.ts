@@ -29,6 +29,7 @@ export class AIController {
 
     try {
       for await (const event of this.aiRuntimeService.streamChat({
+        conversationId: dto.conversationId,
         provider: dto.provider,
         model: dto.model,
         systemPrompt: dto.systemPrompt,
