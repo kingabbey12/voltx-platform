@@ -1,14 +1,44 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { createTenantPrismaExtension } from './tenant-prisma.extension';
 
+type PrismaTransactionClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'
+>;
+
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
-  private readonly baseClient = new PrismaClient();
+  private readonly baseClient: PrismaClient;
   private readonly scopedClient: PrismaClient;
+  private readonly transactionOptions: {
+    maxWait: number;
+    timeout: number;
+    isolationLevel: Prisma.TransactionIsolationLevel;
+  };
 
-  constructor(tenantContextService: TenantContextService) {
+  constructor(tenantContextService: TenantContextService, configService: ConfigService) {
+    this.transactionOptions = {
+      maxWait: configService.get<number>('database.transactionMaxWaitMs', 5000),
+      timeout: configService.get<number>('database.transactionTimeoutMs', 10000),
+      isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+    };
+
+    const prismaLogLevels: Prisma.LogLevel[] = ['warn', 'error'];
+    if (configService.get<boolean>('database.queryLoggingEnabled', false)) {
+      prismaLogLevels.push('query');
+    }
+
+    this.baseClient = new PrismaClient({
+      datasourceUrl: buildDatabaseConnectionUrl(
+        configService.getOrThrow<string>('databaseUrl'),
+        configService.get<number>('database.connectionLimit', 10),
+        configService.get<number>('database.poolTimeoutSeconds', 10),
+      ),
+      log: prismaLogLevels,
+    });
     this.scopedClient = this.baseClient.$extends(
       createTenantPrismaExtension(tenantContextService),
     ) as unknown as PrismaClient;
@@ -55,12 +85,16 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.verificationToken;
   }
 
-  $transaction<T>(
-    fn: (
-      tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'>,
-    ) => Promise<T>,
-  ): Promise<T> {
-    return this.baseClient.$transaction(fn);
+  $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
+    return this.runInTransaction(fn);
+  }
+
+  runInTransaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
+    return this.baseClient.$transaction(fn, this.transactionOptions);
+  }
+
+  runInSystemTransaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
+    return this.baseClient.$transaction(fn, this.transactionOptions);
   }
 
   async onModuleInit(): Promise<void> {
@@ -70,4 +104,22 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     await this.baseClient.$disconnect();
   }
+}
+
+export function buildDatabaseConnectionUrl(
+  databaseUrl: string,
+  connectionLimit: number,
+  poolTimeoutSeconds: number,
+): string {
+  const url = new URL(databaseUrl);
+
+  if (!url.searchParams.has('connection_limit')) {
+    url.searchParams.set('connection_limit', connectionLimit.toString());
+  }
+
+  if (!url.searchParams.has('pool_timeout')) {
+    url.searchParams.set('pool_timeout', poolTimeoutSeconds.toString());
+  }
+
+  return url.toString();
 }

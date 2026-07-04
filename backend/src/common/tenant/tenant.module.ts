@@ -29,8 +29,6 @@ import { TenantMiddleware } from './tenant.middleware';
 })
 export class TenantModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer
-      .apply(TenantMiddleware)
-      .forRoutes({ path: '*path', method: RequestMethod.ALL });
+    consumer.apply(TenantMiddleware).forRoutes({ path: '*path', method: RequestMethod.ALL });
   }
 }

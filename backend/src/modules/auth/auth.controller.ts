@@ -55,7 +55,10 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new user and organization workspace' })
-  @ApiOkResponse({ description: 'Account created and tokens issued', type: LoginSuccessResponseDto })
+  @ApiOkResponse({
+    description: 'Account created and tokens issued',
+    type: LoginSuccessResponseDto,
+  })
   register(@Body() dto: RegisterDto): Promise<LoginResponseDto> {
     return this.authService.register(dto);
   }

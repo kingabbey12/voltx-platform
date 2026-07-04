@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
@@ -12,6 +14,7 @@ import { DatabaseModule } from './database/database.module';
 import { TenantModule } from './common/tenant/tenant.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { HealthModule } from './modules/health/health.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -33,7 +36,20 @@ import { UsersModule } from './modules/users/users.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => createPinoConfig(configService),
     }),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: configService.get<number>('security.rateLimitTtlSeconds', 60) * 1000,
+            limit: configService.get<number>('security.rateLimitLimit', 120),
+          },
+        ],
+      }),
+    }),
     DatabaseModule,
+    MetricsModule,
     TenantModule,
     AuditModule,
     AuthModule,
@@ -43,6 +59,14 @@ import { UsersModule } from './modules/users/users.module';
     RolesModule,
     UsersModule,
   ],
-  providers: [LoggingInterceptor, ResponseInterceptor, TimeoutInterceptor],
+  providers: [
+    LoggingInterceptor,
+    ResponseInterceptor,
+    TimeoutInterceptor,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

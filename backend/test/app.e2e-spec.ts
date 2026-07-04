@@ -2,7 +2,11 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { ApiSuccessResponse } from '../src/common/interceptors/response.interceptor';
-import { HealthCheckResult } from '../src/modules/health/health.service';
+import {
+  HealthCheckResult,
+  LivenessCheckResult,
+  ReadinessCheckResult,
+} from '../src/modules/health/health.service';
 import { createTestApp } from './create-test-app';
 
 describe('AppController (e2e)', () => {
@@ -16,8 +20,8 @@ describe('AppController (e2e)', () => {
     await app.close();
   });
 
-  it('/api/v1/health (GET)', () => {
-    return request(app.getHttpServer())
+  it('/api/v1/health (GET)', async () => {
+    await request(app.getHttpServer())
       .get('/api/v1/health')
       .expect(200)
       .expect((res) => {
@@ -26,8 +30,41 @@ describe('AppController (e2e)', () => {
         expect(body.data.status).toBe('ok');
         expect(body.data.timestamp).toBeDefined();
         expect(body.data.uptime).toBeGreaterThanOrEqual(0);
+        expect(body.data.dependencies.database.status).toBe('up');
         expect(body.meta.version).toBe('v1');
         expect(body.meta.timestamp).toBeDefined();
+      });
+  });
+
+  it('/readiness (GET)', async () => {
+    await request(app.getHttpServer())
+      .get('/readiness')
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as ReadinessCheckResult;
+        expect(body.status).toBe('ready');
+        expect(body.dependencies.database.status).toBe('up');
+      });
+  });
+
+  it('/liveness (GET)', async () => {
+    await request(app.getHttpServer())
+      .get('/liveness')
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as LivenessCheckResult;
+        expect(body.status).toBe('alive');
+        expect(body.uptime).toBeGreaterThanOrEqual(0);
+      });
+  });
+
+  it('/metrics (GET)', async () => {
+    await request(app.getHttpServer())
+      .get('/metrics')
+      .expect(200)
+      .expect('content-type', /text\/plain/)
+      .expect((res) => {
+        expect(res.text).toContain('voltx_http_requests_total');
       });
   });
 
