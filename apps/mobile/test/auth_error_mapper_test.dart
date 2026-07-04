@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voltx_mobile/features/auth/data/models/auth_user.dart';
 import 'package:voltx_mobile/features/auth/data/services/auth_error_mapper.dart';
@@ -27,6 +28,30 @@ void main() {
         ),
       );
 
+      expect(presentation.message, 'An account with this email already exists.');
+    });
+
+    test('extracts backend conflict messages from nested error payloads', () {
+      final dioException = DioException(
+        requestOptions: RequestOptions(path: '/auth/register'),
+        type: DioExceptionType.badResponse,
+        response: Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/auth/register'),
+          statusCode: 409,
+          data: {
+            'success': false,
+            'error': {
+              'code': 'CONFLICT',
+              'message': 'An account with this email already exists',
+            },
+          },
+        ),
+      );
+
+      final exception = NetworkException.fromDioException(dioException);
+      final presentation = AuthErrorMapper.toUiModel(exception);
+
+      expect(exception.message, 'An account with this email already exists');
       expect(presentation.message, 'An account with this email already exists.');
     });
   });
