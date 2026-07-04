@@ -152,21 +152,32 @@ class DashboardStatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(t.radiusPill),
         border: Border.all(color: color.withValues(alpha: 0.32)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 12, color: color),
-            const SizedBox(width: AppSpacing.xxs),
-          ],
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w700,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tooNarrowForLabel = constraints.maxWidth < 84;
+
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null)
+                Icon(icon, size: 12, color: color),
+              if (icon != null && !tooNarrowForLabel)
+                const SizedBox(width: AppSpacing.xxs),
+              if (!tooNarrowForLabel)
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
                 ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }

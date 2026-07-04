@@ -24,6 +24,7 @@ class DashboardCommandBar extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
+        final ultraTiny = maxWidth < 240;
         final tiny = maxWidth < 360;
         final narrow = maxWidth < 560;
         final compactActions = compact || narrow;
@@ -48,6 +49,7 @@ class DashboardCommandBar extends ConsumerWidget {
                 Builder(
                   builder: (context) => IconButton(
                     icon: const Icon(Icons.menu_rounded),
+                    visualDensity: VisualDensity.compact,
                     onPressed: () => Scaffold.of(context).openDrawer(),
                   ),
                 ),
@@ -64,7 +66,7 @@ class DashboardCommandBar extends ConsumerWidget {
                   ),
                 ),
               ),
-              if (!tiny) const SizedBox(width: AppSpacing.xs),
+              if (!ultraTiny && !tiny) const SizedBox(width: AppSpacing.xs),
               if (!compactActions)
                 const _ShortcutChip(label: '⌘K', icon: Icons.keyboard_command_key_rounded),
               if (!compactActions) const SizedBox(width: AppSpacing.xs),
@@ -72,13 +74,14 @@ class DashboardCommandBar extends ConsumerWidget {
                 const _AiStatusChip(),
                 const SizedBox(width: AppSpacing.xs),
               ],
-              if (!compactActions)
+              if (!compactActions && !ultraTiny)
                 IconButton(
                   tooltip: 'Quick actions',
                   onPressed: () => _openCommandPalette(context, ref),
+                  visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.flash_on_rounded),
                 ),
-              if (!tiny)
+              if (!tiny && !ultraTiny)
                 IconButton(
                   icon: Badge(
                     isLabelVisible: unread > 0,
@@ -86,9 +89,10 @@ class DashboardCommandBar extends ConsumerWidget {
                     child: const Icon(Icons.notifications_outlined),
                   ),
                   tooltip: 'Notifications',
+                  visualDensity: VisualDensity.compact,
                   onPressed: () => context.go(AppRoutes.dashboardNotifications),
                 ),
-              if (!narrow)
+              if (!narrow && !ultraTiny)
                 _ProfileButton(onPressed: () => context.go(AppRoutes.dashboardProfile)),
             ],
           ),
