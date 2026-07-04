@@ -30,17 +30,8 @@ class SignUpScreen extends HookConsumerWidget {
     final confirmController = useTextEditingController();
     final obscurePassword = useState(true);
     final isSubmitting = useState(false);
+    final hasCompletedSignUp = useState(false);
     final formState = ref.watch(signUpFormProvider);
-
-    ref.listen(signUpFormProvider, (previous, next) {
-      next.whenOrNull(
-        data: (message) {
-          if (message != null && context.mounted) {
-            context.go(AppRoutes.dashboard);
-          }
-        },
-      );
-    });
 
     final errorState = formState.maybeWhen(
       error: (error, _) => AuthErrorMapper.toUiModel(error),
@@ -66,7 +57,7 @@ class SignUpScreen extends HookConsumerWidget {
           }).toList();
 
     Future<void> submit() async {
-      if (isSubmitting.value) {
+      if (isSubmitting.value || hasCompletedSignUp.value) {
         return;
       }
 
@@ -85,6 +76,12 @@ class SignUpScreen extends HookConsumerWidget {
               );
           ref.read(authSessionProvider.notifier).setUser(user);
         }, successMessage: 'signed_up');
+
+        final isSuccess = ref.read(signUpFormProvider).valueOrNull == 'signed_up';
+        if (isSuccess && context.mounted) {
+          hasCompletedSignUp.value = true;
+          context.go(AppRoutes.dashboard);
+        }
       } finally {
         if (context.mounted) {
           isSubmitting.value = false;
@@ -130,7 +127,6 @@ class SignUpScreen extends HookConsumerWidget {
                     obscurePassword.value = !obscurePassword.value,
                 validator: (v) =>
                     AuthValidators.confirmPassword(v, passwordController.text),
-                onSubmitted: (_) => submit(),
               ),
               if (actionState.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.sm),
