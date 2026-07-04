@@ -17,12 +17,16 @@ export async function resetAuthTestData(prisma: PrismaService): Promise<void> {
     toolExecution: { deleteMany(): Promise<unknown> };
     memoryAccess: { deleteMany(): Promise<unknown> };
     memory: { deleteMany(): Promise<unknown> };
+    agentRun: { deleteMany(): Promise<unknown> };
+    agent: { deleteMany(): Promise<unknown> };
   };
 
   await systemClient.message.deleteMany();
   await systemClient.toolExecution.deleteMany();
   await systemClient.memoryAccess.deleteMany();
   await systemClient.memory.deleteMany();
+  await systemClient.agentRun.deleteMany();
+  await systemClient.agent.deleteMany();
   await systemClient.conversation.deleteMany();
   await prisma.system.auditLog.deleteMany();
   await prisma.system.verificationToken.deleteMany();

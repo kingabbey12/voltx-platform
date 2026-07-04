@@ -46,6 +46,13 @@ enum ToolExecutionStatus {
   TIMED_OUT
 }
 
+enum AgentRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  TIMED_OUT
+}
+
 model Organization {
   id          String             @id @default(uuid()) @db.Uuid
   name        String
@@ -62,6 +69,7 @@ model Organization {
   memberships Membership[]
   conversations Conversation[]
   memories    Memory[]
+  agents      Agent[]
 
   @@index([status])
   @@map("organizations")
@@ -110,6 +118,7 @@ model Conversation {
   toolExecutions ToolExecution[]
   memories       Memory[]
   memoryAccesses MemoryAccess[]
+  agentRuns      AgentRun[]
 
   @@index([organizationId])
   @@index([userId])
@@ -196,6 +205,52 @@ model MemoryAccess {
   @@index([conversationId])
   @@index([accessedAt])
   @@map("memory_accesses")
+}
+
+model Agent {
+  id             String     @id @default(uuid()) @db.Uuid
+  organizationId String     @map("organization_id") @db.Uuid
+  name           String
+  description    String
+  systemPrompt   String     @map("system_prompt")
+  provider       String
+  model          String
+  configuration  Json       @default("{}")
+  enabled        Boolean    @default(true)
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  deletedAt      DateTime?  @map("deleted_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  runs           AgentRun[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([enabled])
+  @@index([deletedAt])
+  @@map("agents")
+}
+
+model AgentRun {
+  id             String         @id @default(uuid()) @db.Uuid
+  agentId        String         @map("agent_id") @db.Uuid
+  conversationId String         @map("conversation_id") @db.Uuid
+  status         AgentRunStatus
+  input          Json           @default("{}")
+  output         Json           @default("{}")
+  startedAt      DateTime       @map("started_at")
+  completedAt    DateTime?      @map("completed_at")
+  durationMs     Int?           @map("duration_ms")
+  tokenUsage     Json           @default("{}") @map("token_usage")
+  error          String?
+  createdAt      DateTime       @default(now()) @map("created_at")
+  agent          Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([conversationId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("agent_runs")
 }
 
 model VerificationToken {

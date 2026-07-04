@@ -19,6 +19,11 @@ const PERMISSION_DEFINITIONS = [
   { key: 'permission.read', resource: 'permission', action: 'read', description: 'Read permissions' },
   { key: 'permission.update', resource: 'permission', action: 'update', description: 'Update permissions' },
   { key: 'permission.delete', resource: 'permission', action: 'delete', description: 'Delete permissions' },
+  { key: 'ai.agent.create', resource: 'ai_agent', action: 'create', description: 'Create AI agents' },
+  { key: 'ai.agent.read', resource: 'ai_agent', action: 'read', description: 'Read AI agents' },
+  { key: 'ai.agent.update', resource: 'ai_agent', action: 'update', description: 'Update AI agents' },
+  { key: 'ai.agent.delete', resource: 'ai_agent', action: 'delete', description: 'Delete AI agents' },
+  { key: 'ai.agent.run', resource: 'ai_agent', action: 'run', description: 'Run AI agents' },
 ] as const;
 
 const ROLE_DEFINITIONS = [
@@ -48,19 +53,23 @@ const ROLE_DEFINITIONS = [
       'user.read',
       'user.update',
       'role.read',
+      'ai.agent.create',
+      'ai.agent.read',
+      'ai.agent.update',
+      'ai.agent.run',
     ],
   },
   {
     key: 'member',
     name: 'Member',
     description: 'Standard member access',
-    permissions: ['organization.read', 'user.read', 'role.read'],
+    permissions: ['organization.read', 'user.read', 'role.read', 'ai.agent.read', 'ai.agent.run'],
   },
   {
     key: 'viewer',
     name: 'Viewer',
     description: 'Read-only access',
-    permissions: ['organization.read', 'user.read'],
+    permissions: ['organization.read', 'user.read', 'ai.agent.read'],
   },
 ] as const;
 
