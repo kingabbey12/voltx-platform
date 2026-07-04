@@ -32,6 +32,13 @@ enum VerificationTokenType {
   PASSWORD_RESET
 }
 
+enum MessageRole {
+  SYSTEM
+  USER
+  ASSISTANT
+  TOOL
+}
+
 model Organization {
   id          String             @id @default(uuid()) @db.Uuid
   name        String
@@ -46,6 +53,7 @@ model Organization {
   updatedAt   DateTime           @updatedAt @map("updated_at")
   deletedAt   DateTime?          @map("deleted_at")
   memberships Membership[]
+  conversations Conversation[]
 
   @@index([status])
   @@map("organizations")
@@ -69,9 +77,50 @@ model User {
   memberships       Membership[]
   refreshTokens     RefreshToken[]
   verificationTokens VerificationToken[]
+  conversations      Conversation[]
 
   @@index([status])
   @@map("users")
+}
+
+model Conversation {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  title          String
+  model          String
+  provider       String
+  pinned         Boolean   @default(false)
+  archived       Boolean   @default(false)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages       Message[]
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([archived])
+  @@index([pinned])
+  @@index([deletedAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @map("conversation_id") @db.Uuid
+  role           MessageRole
+  content        String
+  metadata       Json         @default("{}")
+  tokenUsage     Json         @default("{}") @map("token_usage")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([role])
+  @@index([createdAt])
+  @@map("messages")
 }
 
 model VerificationToken {

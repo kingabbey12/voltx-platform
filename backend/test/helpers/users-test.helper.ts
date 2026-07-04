@@ -11,6 +11,13 @@ import { seedRbac } from '../../prisma/seed';
 export const DEFAULT_TEST_PASSWORD = 'SecurePassword123!';
 
 export async function resetAuthTestData(prisma: PrismaService): Promise<void> {
+  const systemClient = prisma.system as unknown as {
+    message: { deleteMany(): Promise<unknown> };
+    conversation: { deleteMany(): Promise<unknown> };
+  };
+
+  await systemClient.message.deleteMany();
+  await systemClient.conversation.deleteMany();
   await prisma.system.auditLog.deleteMany();
   await prisma.system.verificationToken.deleteMany();
   await prisma.system.refreshToken.deleteMany();

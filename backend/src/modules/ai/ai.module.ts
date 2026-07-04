@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AIController } from './ai.controller';
+import { ConversationController } from './conversations/conversation.controller';
+import { ConversationRepository } from './conversations/conversation.repository';
+import { ConversationService } from './conversations/conversation.service';
 import { ConversationMemoryService } from './memory/conversation-memory.service';
 import { ModelRegistryService } from './models/model-registry.service';
 import { PromptBuilderService } from './prompts/prompt-builder.service';
@@ -12,9 +15,11 @@ import { AIRuntimeService } from './runtime/ai-runtime.service';
 
 @Module({
   imports: [ConfigModule],
-  controllers: [AIController],
+  controllers: [AIController, ConversationController],
   providers: [
     AIRuntimeService,
+    ConversationRepository,
+    ConversationService,
     ConversationMemoryService,
     PromptBuilderService,
     ModelRegistryService,
@@ -31,6 +36,6 @@ import { AIRuntimeService } from './runtime/ai-runtime.service';
       inject: [OpenAIProvider, AnthropicProvider, GoogleAIProvider],
     },
   ],
-  exports: [AIRuntimeService, ModelRegistryService],
+  exports: [AIRuntimeService, ModelRegistryService, ConversationService, ConversationRepository],
 })
 export class AIModule {}
