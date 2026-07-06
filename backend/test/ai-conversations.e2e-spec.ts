@@ -167,6 +167,20 @@ describe('AI Conversations (e2e)', () => {
     const messagesBody = messagesResponse.body as ApiSuccessResponse<PaginatedMessagesDto>;
     expect(messagesBody.data.items).toHaveLength(2);
     expect(messagesBody.data.items[1]?.content).toBe('Executive summary ready.');
+
+    // Token usage / cost tracking: no existing test asserted that a chat
+    // turn actually persists an AiUsageLog row (only that the in-response
+    // tokenUsage field is populated) — verify the full pipeline, including
+    // estimated cost calculation, actually writes through.
+    const usageLogs = await prisma.system.aiUsageLog.findMany({
+      where: { conversationId: conversation.id },
+    });
+    expect(usageLogs).toHaveLength(1);
+    expect(usageLogs[0].totalTokens).toBe(37);
+    expect(usageLogs[0].inputTokens).toBe(25);
+    expect(usageLogs[0].outputTokens).toBe(12);
+    expect(usageLogs[0].succeeded).toBe(true);
+    expect(Number(usageLogs[0].estimatedCostUsd)).toBeGreaterThan(0);
   });
 
   it('DELETE /api/v1/ai/conversations/:id soft deletes the conversation', async () => {

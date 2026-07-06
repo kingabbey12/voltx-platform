@@ -49,6 +49,7 @@ class DashboardCommandBar extends ConsumerWidget {
                 Builder(
                   builder: (context) => IconButton(
                     icon: const Icon(Icons.menu_rounded),
+                    tooltip: 'Open navigation menu',
                     visualDensity: VisualDensity.compact,
                     onPressed: () => Scaffold.of(context).openDrawer(),
                   ),

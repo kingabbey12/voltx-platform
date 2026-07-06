@@ -1,6 +1,7 @@
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/network_exception.dart';
 import '../constants/auth_constants.dart';
+import '../models/auth_organization_membership.dart';
 import '../models/auth_tokens.dart';
 import '../models/auth_user.dart';
 
@@ -47,6 +48,24 @@ class AuthApiService {
       fromJson: (json) => json,
     );
     return AuthUser.fromJson(data);
+  }
+
+  Future<List<AuthOrganizationMembership>> myOrganizations() {
+    return _apiClient.getList(
+      AuthApiPaths.myOrganizations,
+      fromJson: AuthOrganizationMembership.fromJson,
+    );
+  }
+
+  Future<({AuthTokens tokens, AuthUser user})> switchOrganization({
+    required String organizationId,
+  }) async {
+    final data = await _apiClient.post<Map<String, dynamic>>(
+      AuthApiPaths.switchOrganization,
+      data: {'organizationId': organizationId},
+      fromJson: (json) => json,
+    );
+    return _parseLoginResponse(data);
   }
 
   Future<AuthTokens> refresh({required String refreshToken}) async {
@@ -100,7 +119,12 @@ class AuthApiService {
   }
 }
 
-/// Maps network failures to auth-specific exceptions.
+/// Maps network failures to auth-specific exceptions. [AuthErrorMapper]
+/// only ever sees the [AuthException] produced here (every repository
+/// method funnels its catch through this function), so every distinction
+/// the UI needs to make — validation vs. rate limit vs. offline vs. server
+/// error — has to survive as a `code`, not just live on the discarded
+/// [NetworkException].
 AuthException mapToAuthException(Object error) {
   if (error is AuthException) {
     return error;
@@ -110,7 +134,14 @@ AuthException mapToAuthException(Object error) {
     final code = switch (error.statusCode) {
       401 => 'invalid_credentials',
       409 => 'email_exists',
-      _ => null,
+      400 => 'validation_failed',
+      429 => 'rate_limited',
+      _ => switch (error.type) {
+          NetworkExceptionType.offline => 'offline',
+          NetworkExceptionType.timeout => 'timeout',
+          NetworkExceptionType.server => 'server_error',
+          NetworkExceptionType.cancelled || NetworkExceptionType.unknown => null,
+        },
     };
     return AuthException(error.message, code: code);
   }

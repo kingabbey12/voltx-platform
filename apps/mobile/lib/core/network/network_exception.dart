@@ -95,3 +95,23 @@ enum NetworkExceptionType {
   cancelled,
   unknown,
 }
+
+/// A safe, user-facing message for a [NetworkException] that carries no
+/// real HTTP response (`statusCode == null` — connection refused, DNS
+/// failure, timeout, etc.). In that case [NetworkException.message] is
+/// Dio's internal exception text (e.g. "Connection refused... This
+/// indicates an error which most likely cannot be solved by the
+/// library"), which must never reach a user directly. When a real HTTP
+/// response did come back, the backend's own message is informative and
+/// should be used instead — this helper only covers the no-response case.
+String friendlyNetworkFailureMessage(NetworkException error) {
+  return switch (error.type) {
+    NetworkExceptionType.offline => "You're offline. Check your connection and try again.",
+    NetworkExceptionType.timeout => 'The request timed out. Please try again.',
+    NetworkExceptionType.server =>
+      'Our servers are having trouble right now. Please try again shortly.',
+    NetworkExceptionType.cancelled ||
+    NetworkExceptionType.unknown =>
+      'Something went wrong. Please try again.',
+  };
+}

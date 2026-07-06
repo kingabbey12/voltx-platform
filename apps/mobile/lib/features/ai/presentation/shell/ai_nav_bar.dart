@@ -16,7 +16,8 @@ class AiNavBar extends StatelessWidget {
     _NavItem('Chat', AppRoutes.aiChat, Icons.chat_outlined, Icons.chat_rounded),
     _NavItem('Agents', AppRoutes.aiAgents, Icons.smart_toy_outlined, Icons.smart_toy_rounded),
     _NavItem('Knowledge', AppRoutes.aiKnowledge, Icons.menu_book_outlined, Icons.menu_book_rounded),
-    _NavItem('Automations', AppRoutes.aiAutomations, Icons.bolt_outlined, Icons.bolt_rounded),
+    _NavItem('Workflows', AppRoutes.aiAutomations, Icons.bolt_outlined, Icons.bolt_rounded),
+    _NavItem('Integrations', AppRoutes.aiIntegrations, Icons.hub_outlined, Icons.hub_rounded),
     _NavItem('History', AppRoutes.aiHistory, Icons.history_rounded, Icons.history_rounded),
   ];
 

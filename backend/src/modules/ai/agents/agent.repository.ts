@@ -27,8 +27,13 @@ export interface UpdateAgentData {
 }
 
 export interface CreateAgentRunData {
+  /** Optional client-generated id — lets a root run reference its own id as rootRunId in the same insert. */
+  id?: string;
   agentId: string;
   conversationId: string;
+  parentRunId?: string | null;
+  rootRunId?: string | null;
+  depth?: number;
   status: AgentRunStatus;
   input?: Record<string, unknown>;
   output?: Record<string, unknown>;
@@ -42,10 +47,19 @@ export interface CreateAgentRunData {
 export interface UpdateAgentRunData {
   status?: AgentRunStatus;
   output?: Record<string, unknown>;
+  currentStep?: number;
+  iterationCount?: number;
+  toolCallCount?: number;
   completedAt?: Date | null;
   durationMs?: number | null;
   tokenUsage?: Record<string, unknown>;
   error?: string | null;
+}
+
+export interface UpdateAgentRunProgressData {
+  currentStep: number;
+  iterationCount: number;
+  toolCallCount: number;
 }
 
 interface AgentRecord {
@@ -67,9 +81,15 @@ interface AgentRunRecord {
   id: string;
   agentId: string;
   conversationId: string;
+  parentRunId: string | null;
+  rootRunId: string | null;
+  depth: number;
   status: AgentRunStatus;
   input: Prisma.JsonValue;
   output: Prisma.JsonValue;
+  currentStep: number;
+  iterationCount: number;
+  toolCallCount: number;
   startedAt: Date;
   completedAt: Date | null;
   durationMs: number | null;
@@ -103,8 +123,12 @@ interface AgentClient {
 interface AgentRunClient {
   create(args: {
     data: {
+      id?: string;
       agentId: string;
       conversationId: string;
+      parentRunId?: string | null;
+      rootRunId?: string | null;
+      depth?: number;
       status: AgentRunStatus;
       input: Prisma.InputJsonValue | Record<string, never>;
       output: Prisma.InputJsonValue | Record<string, never>;
@@ -116,6 +140,11 @@ interface AgentRunClient {
     };
   }): Promise<AgentRunRecord>;
   update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<AgentRunRecord>;
+  findFirst(args: { where: Record<string, unknown> }): Promise<AgentRunRecord | null>;
+  findMany(args: {
+    where: Record<string, unknown>;
+    orderBy?: Array<Record<string, 'asc' | 'desc'>>;
+  }): Promise<AgentRunRecord[]>;
 }
 
 @Injectable()
@@ -226,8 +255,12 @@ export class AgentRepository {
   async createAgentRun(data: CreateAgentRunData): Promise<AgentRunEntity> {
     const record = await this.agentRuns().create({
       data: {
+        ...(data.id ? { id: data.id } : {}),
         agentId: data.agentId,
         conversationId: data.conversationId,
+        parentRunId: data.parentRunId ?? null,
+        rootRunId: data.rootRunId ?? null,
+        depth: data.depth ?? 0,
         status: data.status,
         input: toJsonValue(data.input) ?? {},
         output: toJsonValue(data.output) ?? {},
@@ -242,12 +275,47 @@ export class AgentRepository {
     return toAgentRunEntity(record);
   }
 
+  /**
+   * Tenant-scoped via the owning agent's organizationId since AgentRun has
+   * no direct organizationId column — matches how every other AgentRun
+   * lookup in this repository defers tenant scoping to the agent.
+   */
+  async findRunById(id: string): Promise<AgentRunEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const record = await this.agentRuns().findFirst({
+      where: { id, agent: { organizationId: tenant.organizationId } },
+    });
+
+    return record ? toAgentRunEntity(record) : null;
+  }
+
+  async listChildRuns(parentRunId: string): Promise<AgentRunEntity[]> {
+    const records = await this.agentRuns().findMany({
+      where: { parentRunId },
+      orderBy: [{ createdAt: 'asc' }],
+    });
+
+    return records.map(toAgentRunEntity);
+  }
+
+  async listRunsInTree(rootRunId: string): Promise<AgentRunEntity[]> {
+    const records = await this.agentRuns().findMany({
+      where: { OR: [{ id: rootRunId }, { rootRunId }] },
+      orderBy: [{ depth: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    return records.map(toAgentRunEntity);
+  }
+
   async updateAgentRun(id: string, data: UpdateAgentRunData): Promise<AgentRunEntity> {
     const record = await this.agentRuns().update({
       where: { id },
       data: {
         ...(data.status !== undefined ? { status: data.status } : {}),
         ...(data.output !== undefined ? { output: toJsonValue(data.output) ?? {} } : {}),
+        ...(data.currentStep !== undefined ? { currentStep: data.currentStep } : {}),
+        ...(data.iterationCount !== undefined ? { iterationCount: data.iterationCount } : {}),
+        ...(data.toolCallCount !== undefined ? { toolCallCount: data.toolCallCount } : {}),
         ...(data.completedAt !== undefined ? { completedAt: data.completedAt } : {}),
         ...(data.durationMs !== undefined ? { durationMs: data.durationMs } : {}),
         ...(data.tokenUsage !== undefined
@@ -258,6 +326,22 @@ export class AgentRepository {
     });
 
     return toAgentRunEntity(record);
+  }
+
+  /**
+   * Live progress checkpoint written during an autonomous run so persisted
+   * state reflects how far execution got even if the process never reaches
+   * a terminal update (crash, forced kill).
+   */
+  async updateAgentRunProgress(id: string, data: UpdateAgentRunProgressData): Promise<void> {
+    await this.agentRuns().update({
+      where: { id },
+      data: {
+        currentStep: data.currentStep,
+        iterationCount: data.iterationCount,
+        toolCallCount: data.toolCallCount,
+      },
+    });
   }
 
   private agents(): AgentClient {

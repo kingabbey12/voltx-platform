@@ -6,7 +6,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../../router/routes.dart';
 import '../../../../theme/components/voltx_text_field.dart';
 import '../../../../theme/tokens/spacing.dart';
-import '../../data/constants/auth_constants.dart';
 import '../../utils/auth_validators.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_form.dart';
@@ -89,8 +88,8 @@ class ResetPasswordScreen extends HookConsumerWidget {
               VoltxTextField(
                 controller: tokenController,
                 label: 'Reset token',
-                hint: AuthMockCredentials.validResetToken,
-                helper: 'Use mock token: valid-reset-token',
+                hint: 'Paste reset token from your email',
+                helper: 'Use the secure reset token sent to your inbox.',
                 validator: AuthValidators.resetToken,
               ),
               const SizedBox(height: AppSpacing.sm),

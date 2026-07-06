@@ -1,32 +1,11 @@
 import '../models/ai_models.dart';
 
-/// Mock AI workspace data.
+/// Fallback data used only when there is no Flutter binding (e.g. plain
+/// Dart unit tests constructing providers outside a running app) — see
+/// `_hasFlutterBinding()` in `ai_providers.dart`. Every member here must
+/// stay wired to that guard; anything else is dead weight.
 abstract final class MockAiData {
   static final DateTime _now = DateTime(2026, 7, 3, 9, 30);
-
-  static const models = [
-    AiModel(
-      id: 'voltx-pro',
-      name: 'Voltx Pro',
-      description: 'Best for complex operations analysis',
-      contextWindow: 128000,
-      costPer1kTokens: 0.012,
-    ),
-    AiModel(
-      id: 'voltx-fast',
-      name: 'Voltx Fast',
-      description: 'Quick responses for everyday tasks',
-      contextWindow: 32000,
-      costPer1kTokens: 0.004,
-    ),
-    AiModel(
-      id: 'voltx-code',
-      name: 'Voltx Code',
-      description: 'Optimized for technical workflows',
-      contextWindow: 64000,
-      costPer1kTokens: 0.008,
-    ),
-  ];
 
   static const agents = [
     AiAgent(
@@ -76,27 +55,35 @@ abstract final class MockAiData {
     ),
   ];
 
-  static const automations = [
-    AiAutomation(
-      id: 'auto-1',
-      name: 'Daily Ops Briefing',
-      description: 'Summarize overnight alerts and KPIs each morning',
-      trigger: 'Schedule · 06:00',
-      enabled: true,
+  static final memories = [
+    AiMemory(
+      id: 'mem-1',
+      conversationId: 'conv-1',
+      category: 'preference',
+      importance: 0.92,
+      content: 'Executive preference: concise action-first summaries.',
+      createdAt: _now.subtract(const Duration(hours: 5)),
+      updatedAt: _now.subtract(const Duration(hours: 2)),
     ),
-    AiAutomation(
-      id: 'auto-2',
-      name: 'Peak Demand Alert',
-      description: 'Analyze and recommend load shifts when threshold exceeded',
-      trigger: 'Event · Demand > 90%',
-      enabled: true,
+    AiMemory(
+      id: 'mem-2',
+      conversationId: 'conv-1',
+      category: 'priority',
+      importance: 0.88,
+      content:
+          'Priority program: Helios rollout remains top priority this quarter.',
+      createdAt: _now.subtract(const Duration(hours: 8)),
+      updatedAt: _now.subtract(const Duration(hours: 3)),
     ),
-    AiAutomation(
-      id: 'auto-3',
-      name: 'Weekly Report Draft',
-      description: 'Generate draft operations report every Friday',
-      trigger: 'Schedule · Friday 16:00',
-      enabled: false,
+    AiMemory(
+      id: 'mem-3',
+      conversationId: 'conv-2',
+      category: 'risk',
+      importance: 0.81,
+      content:
+          'North Region volatility requires urgent monitoring during morning windows.',
+      createdAt: _now.subtract(const Duration(days: 1)),
+      updatedAt: _now.subtract(const Duration(hours: 9)),
     ),
   ];
 
@@ -143,33 +130,6 @@ abstract final class MockAiData {
     ),
   ];
 
-  static const suggestedPrompts = [
-    SuggestedPrompt(
-      id: 'sp-1',
-      label: 'Summarize today\'s alerts',
-      prompt: 'Summarize all grid alerts from the last 24 hours and highlight any that need executive attention.',
-      iconName: 'alert',
-    ),
-    SuggestedPrompt(
-      id: 'sp-2',
-      label: 'Draft ops briefing',
-      prompt: 'Draft a morning operations briefing covering KPIs, incidents, and recommended actions.',
-      iconName: 'doc',
-    ),
-    SuggestedPrompt(
-      id: 'sp-3',
-      label: 'Analyze peak demand',
-      prompt: 'What caused the peak demand alert in North Region and what preventive measures do you recommend?',
-      iconName: 'chart',
-    ),
-    SuggestedPrompt(
-      id: 'sp-4',
-      label: 'Review maintenance schedule',
-      prompt: 'Review upcoming maintenance windows and flag any conflicts with projected peak demand.',
-      iconName: 'build',
-    ),
-  ];
-
   static final initialMessages = <String, List<AiMessage>>{
     'conv-1': [
       AiMessage(
@@ -188,7 +148,8 @@ abstract final class MockAiData {
       AiMessage(
         id: 'm3',
         role: AiMessageRole.assistant,
-        content: '''The alert was triggered at **08:42** when demand hit **94%** of regional capacity.
+        content:
+            '''The alert was triggered at **08:42** when demand hit **94%** of regional capacity.
 
 ## Root cause
 Industrial load from **Sector 7** spiked 18% above baseline due to simultaneous equipment startup.
@@ -214,7 +175,8 @@ Automated load balancing resolved the event within **4 minutes**.
     ],
   };
 
-  static const mockResponseTemplate = '''Based on current grid data and your selected knowledge base, here is my analysis:
+  static const mockResponseTemplate =
+      '''Based on current grid data and your selected knowledge base, here is my analysis:
 
 ## Summary
 Operations are within normal parameters with two optimization opportunities identified.

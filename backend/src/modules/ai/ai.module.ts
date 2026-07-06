@@ -1,9 +1,16 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { AIController } from './ai.controller';
 import { ConversationController } from './conversations/conversation.controller';
 import { ConversationRepository } from './conversations/conversation.repository';
 import { ConversationService } from './conversations/conversation.service';
+import { AIGatewayService } from './gateway/ai-gateway.service';
+import { AiRateLimiterService } from './gateway/ai-rate-limiter.service';
+import { AiToolPermissionService } from './gateway/ai-tool-permission.service';
+import { AiUsageRepository } from './gateway/ai-usage.repository';
+import { AiUsageService } from './gateway/ai-usage.service';
+import { KnowledgeRetrieverService } from './gateway/knowledge-retriever.service';
 import { MemoryModule } from './memory/memory.module';
 import { ModelRegistryService } from './models/model-registry.service';
 import { PromptBuilderService } from './prompts/prompt-builder.service';
@@ -15,10 +22,16 @@ import { AIRuntimeService } from './runtime/ai-runtime.service';
 import { ToolModule } from './tools/tool.module';
 
 @Module({
-  imports: [ConfigModule, ToolModule, MemoryModule],
+  imports: [ConfigModule, ToolModule, MemoryModule, forwardRef(() => KnowledgeModule)],
   controllers: [AIController, ConversationController],
   providers: [
     AIRuntimeService,
+    AIGatewayService,
+    AiRateLimiterService,
+    AiToolPermissionService,
+    AiUsageRepository,
+    AiUsageService,
+    KnowledgeRetrieverService,
     ConversationRepository,
     ConversationService,
     PromptBuilderService,
@@ -36,6 +49,13 @@ import { ToolModule } from './tools/tool.module';
       inject: [OpenAIProvider, AnthropicProvider, GoogleAIProvider],
     },
   ],
-  exports: [AIRuntimeService, ModelRegistryService, ConversationService, ConversationRepository],
+  exports: [
+    AIRuntimeService,
+    AIGatewayService,
+    AiUsageService,
+    ModelRegistryService,
+    ConversationService,
+    ConversationRepository,
+  ],
 })
 export class AIModule {}

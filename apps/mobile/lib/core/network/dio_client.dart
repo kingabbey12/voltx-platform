@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../config/app_config.dart';
 import '../../config/env_config.dart';
 import '../storage/token_storage.dart';
+import 'certificate_pinning.dart';
 import 'interceptors/auth_interceptor.dart';
 import 'interceptors/request_id_interceptor.dart';
 
@@ -30,6 +31,8 @@ class DioClient {
         },
       ),
     );
+
+    applyCertificatePinning(dio, CertificatePinningConfig.fromEnvironment());
 
     dio.interceptors.add(RequestIdInterceptor());
 

@@ -12,6 +12,7 @@ export const ERROR_CODES = {
   payloadTooLarge: 'PAYLOAD_TOO_LARGE',
   unsupportedMediaType: 'UNSUPPORTED_MEDIA_TYPE',
   internalServerError: 'INTERNAL_SERVER_ERROR',
+  aiServiceUnavailable: 'AI_SERVICE_UNAVAILABLE',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

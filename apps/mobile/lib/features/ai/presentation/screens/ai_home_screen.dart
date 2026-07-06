@@ -4,8 +4,9 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../../router/routes.dart';
 import '../../../../theme/tokens/spacing.dart';
+import '../../../workflows/data/models/workflow_models.dart';
+import '../../../workflows/presentation/providers/workflow_providers.dart';
 import '../../data/models/ai_models.dart';
-import '../../data/mock/mock_ai_data.dart';
 import '../providers/ai_providers.dart';
 import '../shell/ai_nav_bar.dart';
 import '../widgets/suggested_prompts.dart';
@@ -20,7 +21,9 @@ class AiHomeScreen extends ConsumerWidget {
     final pinned = ref.watch(pinnedConversationsProvider);
     final selectedAgent = ref.watch(selectedAgentProvider);
     final selectedKnowledge = ref.watch(selectedKnowledgeProvider);
-    final automations = ref.watch(automationsProvider);
+    final workflows = ref.watch(workflowsProvider(const WorkflowPageQuery(limit: 100, status: 'PUBLISHED')));
+    final activeWorkflowCount = workflows.valueOrNull?.items.length ?? 0;
+    final memorySnapshot = ref.watch(memorySnapshotProvider);
     final isMobile = MediaQuery.sizeOf(context).width < 860;
 
     return Column(
@@ -67,10 +70,13 @@ class AiHomeScreen extends ConsumerWidget {
                         children: [
                           AiSuggestionChip(label: 'Knowledge: ${selectedKnowledge.name}', icon: Icons.menu_book_outlined),
                           AiSuggestionChip(
-                            label: '${automations.where((a) => a.enabled).length} automations active',
+                            label: '$activeWorkflowCount workflows published',
                             icon: Icons.bolt_rounded,
                           ),
-                          const AiSuggestionChip(label: 'Memory synced', icon: Icons.memory_rounded),
+                          AiSuggestionChip(
+                            label: 'Memory: ${memorySnapshot.totalMemories}',
+                            icon: Icons.memory_rounded,
+                          ),
                         ],
                       ),
                     ],
@@ -155,6 +161,10 @@ class _HomeDesktopSections extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final conversations = ref.watch(conversationsProvider);
+    final activeConversationId = ref.watch(activeConversationIdProvider);
+    final memorySnapshot = ref.watch(memorySnapshotProvider);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -169,7 +179,9 @@ class _HomeDesktopSections extends ConsumerWidget {
               children: [
                 SuggestedPrompts(
                   onSelect: (prompt) {
-                    final convId = MockAiData.conversations.first.id;
+                    final convId = conversations.isNotEmpty
+                        ? conversations.first.id
+                        : activeConversationId;
                     ref.read(activeConversationIdProvider.notifier).state = convId;
                     context.go(AppRoutes.aiChat);
                     ref.read(aiChatProvider(convId).notifier).sendMessage(prompt);
@@ -178,12 +190,10 @@ class _HomeDesktopSections extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.md),
                 AiMemoryCard(
                   title: 'Memory Summary',
-                  summary: 'Persistent strategic context currently loaded in workspace.',
-                  items: const [
-                    'Executive digest style: concise with recommendations',
-                    'Priority region: North grid resilience and demand shifts',
-                    'Program Helios milestones are critical this quarter',
-                  ],
+                  summary: memorySnapshot.statusLabel,
+                  items: memorySnapshot.recentHighlights.isEmpty
+                      ? const ['No live memories synced yet']
+                      : memorySnapshot.recentHighlights,
                 ),
               ],
             ),
@@ -233,6 +243,10 @@ class _HomeMobileSections extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final conversations = ref.watch(conversationsProvider);
+    final activeConversationId = ref.watch(activeConversationIdProvider);
+    final memorySnapshot = ref.watch(memorySnapshotProvider);
+
     return Column(
       children: [
         AiPanel(
@@ -242,12 +256,22 @@ class _HomeMobileSections extends ConsumerWidget {
           ),
           child: SuggestedPrompts(
             onSelect: (prompt) {
-              final convId = MockAiData.conversations.first.id;
+              final convId = conversations.isNotEmpty
+                  ? conversations.first.id
+                  : activeConversationId;
               ref.read(activeConversationIdProvider.notifier).state = convId;
               context.go(AppRoutes.aiChat);
               ref.read(aiChatProvider(convId).notifier).sendMessage(prompt);
             },
           ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        AiMemoryCard(
+          title: 'Memory Summary',
+          summary: memorySnapshot.statusLabel,
+          items: memorySnapshot.recentHighlights.isEmpty
+              ? const ['No live memories synced yet']
+              : memorySnapshot.recentHighlights,
         ),
         const SizedBox(height: AppSpacing.md),
         AiPanel(

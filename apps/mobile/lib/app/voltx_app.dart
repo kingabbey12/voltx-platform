@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../config/app_config.dart';
+import '../core/deep_links/deep_link_service.dart';
 import '../router/app_router.dart';
 import '../theme/theme_providers.dart';
 
 /// Root application widget configured with Riverpod and GoRouter.
-class VoltxApp extends ConsumerWidget {
+class VoltxApp extends HookConsumerWidget {
   const VoltxApp({super.key});
 
   @override
@@ -15,6 +17,12 @@ class VoltxApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final lightTheme = ref.watch(lightThemeProvider);
     final darkTheme = ref.watch(darkThemeProvider);
+
+    useEffect(() {
+      final deepLinkService = DeepLinkService(router);
+      deepLinkService.start();
+      return deepLinkService.dispose;
+    }, [router]);
 
     return MaterialApp.router(
       title: AppConfig.appName,

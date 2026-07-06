@@ -6,6 +6,7 @@ import { AgentFactory } from '../src/modules/ai/agents/agent.factory';
 import { AgentRegistry } from '../src/modules/ai/agents/agent.registry';
 import { AgentRepository } from '../src/modules/ai/agents/agent.repository';
 import { AgentService } from '../src/modules/ai/agents/agent.service';
+import { MultiAgentOrchestratorService } from '../src/modules/ai/agents/autonomous/multi-agent-orchestrator.service';
 import { ModelRegistryService } from '../src/modules/ai/models/model-registry.service';
 
 describe('AgentService', () => {
@@ -42,7 +43,14 @@ describe('AgentService', () => {
         {
           provide: AgentExecutor,
           useValue: {
-            execute: jest.fn(),
+            executeStream: jest.fn(),
+          },
+        },
+        {
+          provide: MultiAgentOrchestratorService,
+          useValue: {
+            createCoordinationStateForRoot: jest.fn(),
+            runAgent: jest.fn(),
           },
         },
         {
@@ -176,9 +184,15 @@ describe('AgentService', () => {
       id: 'run-1',
       agentId: 'agent-1',
       conversationId: 'conversation-1',
+      parentRunId: null,
+      rootRunId: null,
+      depth: 0,
       status: 'RUNNING',
       input: {},
       output: {},
+      currentStep: 0,
+      iterationCount: 0,
+      toolCallCount: 0,
       startedAt: new Date('2026-07-04T00:00:00.000Z'),
       completedAt: null,
       durationMs: null,
@@ -186,38 +200,48 @@ describe('AgentService', () => {
       error: null,
       createdAt: new Date('2026-07-04T00:00:00.000Z'),
     });
-    executor.execute.mockResolvedValue({
-      outputText: 'Ready.',
-      finishReason: 'stop',
-      tokenUsage: { totalTokens: 20 },
-      userMessage: {
-        id: 'msg-user',
-        conversationId: 'conversation-1',
-        role: 'user',
-        content: 'Prepare an update.',
-        metadata: {},
-        tokenUsage: {},
-        createdAt: '2026-07-04T00:00:00.000Z',
-      },
-      toolMessages: [],
-      assistantMessage: {
-        id: 'msg-assistant',
-        conversationId: 'conversation-1',
-        role: 'assistant',
-        content: 'Ready.',
-        metadata: {},
+    executor.executeStream.mockImplementation(async function* executeStream() {
+      await Promise.resolve();
+      yield { type: 'status', status: 'streaming' };
+      return {
+        outputText: 'Ready.',
+        finishReason: 'stop',
         tokenUsage: { totalTokens: 20 },
-        createdAt: '2026-07-04T00:00:01.000Z',
-      },
-      toolResults: [],
+        userMessage: {
+          id: 'msg-user',
+          conversationId: 'conversation-1',
+          role: 'user',
+          content: 'Prepare an update.',
+          metadata: {},
+          tokenUsage: {},
+          createdAt: '2026-07-04T00:00:00.000Z',
+        },
+        toolMessages: [],
+        assistantMessage: {
+          id: 'msg-assistant',
+          conversationId: 'conversation-1',
+          role: 'assistant',
+          content: 'Ready.',
+          metadata: {},
+          tokenUsage: { totalTokens: 20 },
+          createdAt: '2026-07-04T00:00:01.000Z',
+        },
+        toolResults: [],
+      };
     });
     repository.updateAgentRun.mockResolvedValue({
       id: 'run-1',
       agentId: 'agent-1',
       conversationId: 'conversation-1',
+      parentRunId: null,
+      rootRunId: null,
+      depth: 0,
       status: 'SUCCEEDED',
       input: {},
       output: { outputText: 'Ready.' },
+      currentStep: 1,
+      iterationCount: 1,
+      toolCallCount: 0,
       startedAt: new Date('2026-07-04T00:00:00.000Z'),
       completedAt: new Date('2026-07-04T00:00:01.000Z'),
       durationMs: 1000,
@@ -231,7 +255,7 @@ describe('AgentService', () => {
       prompt: 'Prepare an update.',
     });
 
-    expect(executor.execute).toHaveBeenCalled();
+    expect(executor.executeStream).toHaveBeenCalled();
     expect(factory.buildRunOutput).toHaveBeenCalled();
     expect(result.run.status).toBe('SUCCEEDED');
     expect(result.assistantMessage?.content).toBe('Ready.');

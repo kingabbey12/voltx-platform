@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  IsEnum,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
@@ -41,7 +41,7 @@ export class CreateCompanyDto {
 
   @ApiPropertyOptional({ enum: ['PROSPECT', 'ACTIVE', 'INACTIVE'] })
   @IsOptional()
-  @IsEnum(['PROSPECT', 'ACTIVE', 'INACTIVE'])
+  @IsIn(['PROSPECT', 'ACTIVE', 'INACTIVE'])
   status?: CompanyStatus;
 
   @ApiPropertyOptional({ example: 'Strategic prospect for Q3 expansion.' })
@@ -84,7 +84,7 @@ export class UpdateCompanyDto {
 
   @ApiPropertyOptional({ enum: ['PROSPECT', 'ACTIVE', 'INACTIVE'] })
   @IsOptional()
-  @IsEnum(['PROSPECT', 'ACTIVE', 'INACTIVE'])
+  @IsIn(['PROSPECT', 'ACTIVE', 'INACTIVE'])
   status?: CompanyStatus;
 
   @ApiPropertyOptional({ example: 'Strategic prospect for Q3 expansion.' })
@@ -123,7 +123,7 @@ export class ListCompaniesQueryDto {
 
   @ApiPropertyOptional({ enum: ['PROSPECT', 'ACTIVE', 'INACTIVE'] })
   @IsOptional()
-  @IsEnum(['PROSPECT', 'ACTIVE', 'INACTIVE'])
+  @IsIn(['PROSPECT', 'ACTIVE', 'INACTIVE'])
   status?: CompanyStatus;
 }
 

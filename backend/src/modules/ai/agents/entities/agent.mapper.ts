@@ -22,9 +22,15 @@ interface AgentRunRecord {
   id: string;
   agentId: string;
   conversationId: string;
+  parentRunId: string | null;
+  rootRunId: string | null;
+  depth: number;
   status: AgentRunStatus;
   input: Prisma.JsonValue;
   output: Prisma.JsonValue;
+  currentStep: number;
+  iterationCount: number;
+  toolCallCount: number;
   startedAt: Date;
   completedAt: Date | null;
   durationMs: number | null;
@@ -55,9 +61,15 @@ export function toAgentRunEntity(record: AgentRunRecord): AgentRunEntity {
     id: record.id,
     agentId: record.agentId,
     conversationId: record.conversationId,
+    parentRunId: record.parentRunId,
+    rootRunId: record.rootRunId,
+    depth: record.depth,
     status: record.status,
     input: toObject(record.input),
     output: toObject(record.output),
+    currentStep: record.currentStep,
+    iterationCount: record.iterationCount,
+    toolCallCount: record.toolCallCount,
     startedAt: record.startedAt,
     completedAt: record.completedAt,
     durationMs: record.durationMs,

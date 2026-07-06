@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../router/routes.dart';
 import '../../../../theme/tokens/spacing.dart';
+import '../../../../shared/widgets/async_value_view.dart';
+import '../../../../shared/widgets/pull_to_refresh.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../data/models/sales_models.dart';
@@ -20,164 +22,216 @@ class SalesDashboardScreen extends ConsumerWidget {
       return const _SalesAccessRequired();
     }
 
-    final companies = ref.watch(companiesProvider(const SalesPageQuery(limit: 6)));
-    final contacts = ref.watch(contactsProvider(const SalesPageQuery(limit: 6)));
+    final companies = ref.watch(
+      companiesProvider(const SalesPageQuery(limit: 6)),
+    );
+    final contacts = ref.watch(
+      contactsProvider(const SalesPageQuery(limit: 6)),
+    );
     final leads = ref.watch(leadsProvider(const SalesPageQuery(limit: 50)));
-    final opportunities = ref.watch(opportunitiesProvider(const SalesPageQuery(limit: 50)));
-    final activities = ref.watch(activitiesProvider(const SalesPageQuery(limit: 6)));
-    final copilotState = ref.watch(salesCopilotControllerProvider);
+    final opportunities = ref.watch(
+      opportunitiesProvider(const SalesPageQuery(limit: 50)),
+    );
+    final activities = ref.watch(
+      activitiesProvider(const SalesPageQuery(limit: 6)),
+    );
     final isWide = currentBreakpoint(context) != AppBreakpoint.compact;
     final forecast = _forecastLabel(opportunities);
     final weighted = _weightedPipelineLabel(opportunities);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: ResponsiveLayout(
-        maxContentWidth: 1320,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Sales Command Center',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'AI-native pipeline intelligence with revenue forecast, deal risk, and next-best-action guidance in one operating view.',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            SalesSectionCard(
-              title: 'Executive Revenue Overview',
-              subtitle: 'Quarter momentum and forecast confidence',
-              child: Wrap(
+    Future<void> refresh() async {
+      ref.invalidate(companiesProvider);
+      ref.invalidate(contactsProvider);
+      ref.invalidate(leadsProvider);
+      ref.invalidate(opportunitiesProvider);
+      ref.invalidate(activitiesProvider);
+    }
+
+    return PullToRefresh(
+      onRefresh: refresh,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: ResponsiveLayout(
+          maxContentWidth: 1320,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Sales Command Center',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'AI-native pipeline intelligence with revenue forecast, deal risk, and next-best-action guidance in one operating view.',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              SalesSectionCard(
+                title: 'Executive Revenue Overview',
+                subtitle: 'Quarter momentum and forecast confidence',
+                child: Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.md,
+                  children: [
+                    SalesMetricCard(
+                      label: 'Pipeline Value',
+                      value: _totalAmountLabel(opportunities),
+                      icon: Icons.payments_rounded,
+                      footnote: weighted,
+                    ),
+                    SalesMetricCard(
+                      label: 'Forecast',
+                      value: forecast,
+                      icon: Icons.query_stats_rounded,
+                      footnote: _confidenceLabel(opportunities),
+                    ),
+                    SalesMetricCard(
+                      label: 'High Risk Deals',
+                      value: _riskCountLabel(opportunities),
+                      icon: Icons.warning_amber_rounded,
+                      footnote: 'Probability under 40%',
+                    ),
+                    SalesMetricCard(
+                      label: 'Next Actions Pending',
+                      value: _actionGapLabel(opportunities),
+                      icon: Icons.bolt_rounded,
+                      footnote: 'Needs AI playbook',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Wrap(
                 spacing: AppSpacing.md,
                 runSpacing: AppSpacing.md,
                 children: [
                   SalesMetricCard(
-                    label: 'Pipeline Value',
-                    value: _totalAmountLabel(opportunities),
-                    icon: Icons.payments_rounded,
-                    footnote: weighted,
+                    label: 'Leads',
+                    value: _countLabel(leads),
+                    icon: Icons.group_add_rounded,
+                    footnote: _topLeadStatus(leads),
                   ),
                   SalesMetricCard(
-                    label: 'Forecast',
-                    value: forecast,
-                    icon: Icons.query_stats_rounded,
-                    footnote: _confidenceLabel(opportunities),
+                    label: 'Open Opportunities',
+                    value: _countLabel(opportunities),
+                    icon: Icons.stacked_line_chart_rounded,
+                    footnote: _activeOpportunityStage(opportunities),
                   ),
                   SalesMetricCard(
-                    label: 'High Risk Deals',
-                    value: _riskCountLabel(opportunities),
-                    icon: Icons.warning_amber_rounded,
-                    footnote: 'Probability under 40%',
+                    label: 'Companies',
+                    value: _countLabel(companies),
+                    icon: Icons.apartment_rounded,
+                    footnote: 'Tracked accounts',
                   ),
                   SalesMetricCard(
-                    label: 'Next Actions Pending',
-                    value: _actionGapLabel(opportunities),
-                    icon: Icons.bolt_rounded,
-                    footnote: 'Needs AI playbook',
+                    label: 'Contacts',
+                    value: _countLabel(contacts),
+                    icon: Icons.contact_phone_rounded,
+                    footnote: 'Buying committee coverage',
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Wrap(
-              spacing: AppSpacing.md,
-              runSpacing: AppSpacing.md,
-              children: [
-                SalesMetricCard(
-                  label: 'Leads',
-                  value: _countLabel(leads),
-                  icon: Icons.group_add_rounded,
-                  footnote: _topLeadStatus(leads),
+              const SizedBox(height: AppSpacing.lg),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () => context.go(AppRoutes.salesPipeline),
+                    icon: const Icon(Icons.account_tree_outlined),
+                    label: const Text('Lead Pipeline'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        context.go(AppRoutes.salesOpportunityBoard),
+                    icon: const Icon(Icons.view_kanban_outlined),
+                    label: const Text('Opportunity Board'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => context.go(AppRoutes.salesCopilot),
+                    icon: const Icon(Icons.auto_awesome_rounded),
+                    label: const Text('Open Copilot'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              const SalesCopilotResult(),
+              const SizedBox(height: AppSpacing.lg),
+              SalesSectionCard(
+                title: 'AI Recommendations',
+                subtitle: 'Prioritized interventions to protect forecast',
+                child: _buildAiRecommendations(
+                  opportunities,
+                  onRetry: () => ref.invalidate(opportunitiesProvider),
                 ),
-                SalesMetricCard(
-                  label: 'Open Opportunities',
-                  value: _countLabel(opportunities),
-                  icon: Icons.stacked_line_chart_rounded,
-                  footnote: _activeOpportunityStage(opportunities),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              if (isWide)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _RecentLeadsCard(
+                        leads: leads,
+                        onRetry: () => ref.invalidate(leadsProvider),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: _RecentActivitiesCard(
+                        activities: activities,
+                        onRetry: () => ref.invalidate(activitiesProvider),
+                      ),
+                    ),
+                  ],
+                )
+              else ...[
+                _RecentLeadsCard(
+                  leads: leads,
+                  onRetry: () => ref.invalidate(leadsProvider),
                 ),
-                SalesMetricCard(
-                  label: 'Companies',
-                  value: _countLabel(companies),
-                  icon: Icons.apartment_rounded,
-                  footnote: 'Tracked accounts',
-                ),
-                SalesMetricCard(
-                  label: 'Contacts',
-                  value: _countLabel(contacts),
-                  icon: Icons.contact_phone_rounded,
-                  footnote: 'Buying committee coverage',
+                const SizedBox(height: AppSpacing.md),
+                _RecentActivitiesCard(
+                  activities: activities,
+                  onRetry: () => ref.invalidate(activitiesProvider),
                 ),
               ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                FilledButton.icon(
-                  onPressed: () => context.go(AppRoutes.salesPipeline),
-                  icon: const Icon(Icons.account_tree_outlined),
-                  label: const Text('Lead Pipeline'),
+              const SizedBox(height: AppSpacing.md),
+              if (isWide)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _CompanySnapshotCard(
+                        companies: companies,
+                        onRetry: () => ref.invalidate(companiesProvider),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: _ContactsSnapshotCard(
+                        contacts: contacts,
+                        onRetry: () => ref.invalidate(contactsProvider),
+                      ),
+                    ),
+                  ],
+                )
+              else ...[
+                _CompanySnapshotCard(
+                  companies: companies,
+                  onRetry: () => ref.invalidate(companiesProvider),
                 ),
-                OutlinedButton.icon(
-                  onPressed: () => context.go(AppRoutes.salesOpportunityBoard),
-                  icon: const Icon(Icons.view_kanban_outlined),
-                  label: const Text('Opportunity Board'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => context.go(AppRoutes.salesCopilot),
-                  icon: const Icon(Icons.auto_awesome_rounded),
-                  label: const Text('Open Copilot'),
+                const SizedBox(height: AppSpacing.md),
+                _ContactsSnapshotCard(
+                  contacts: contacts,
+                  onRetry: () => ref.invalidate(contactsProvider),
                 ),
               ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            SalesAiResultCard(
-              state: copilotState,
-              onClear: () => ref.read(salesCopilotControllerProvider.notifier).clear(),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            SalesSectionCard(
-              title: 'AI Recommendations',
-              subtitle: 'Prioritized interventions to protect forecast',
-              child: _buildAiRecommendations(opportunities),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            if (isWide)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _RecentLeadsCard(leads: leads)),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(child: _RecentActivitiesCard(activities: activities)),
-                ],
-              )
-            else ...[
-              _RecentLeadsCard(leads: leads),
-              const SizedBox(height: AppSpacing.md),
-              _RecentActivitiesCard(activities: activities),
             ],
-            const SizedBox(height: AppSpacing.md),
-            if (isWide)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _CompanySnapshotCard(companies: companies)),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(child: _ContactsSnapshotCard(contacts: contacts)),
-                ],
-              )
-            else ...[
-              _CompanySnapshotCard(companies: companies),
-              const SizedBox(height: AppSpacing.md),
-              _ContactsSnapshotCard(contacts: contacts),
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -195,7 +249,8 @@ class _SalesAccessRequired extends StatelessWidget {
         maxContentWidth: 980,
         child: SalesSectionCard(
           title: 'Sales Access Required',
-          subtitle: 'Your current account does not have sales read permissions.',
+          subtitle:
+              'Your current account does not have sales read permissions.',
           child: SalesEmptyState(
             title: 'Unable to load sales workspace',
             subtitle:
@@ -222,9 +277,10 @@ bool _hasSalesReadAccess(dynamic session) {
 }
 
 class _RecentLeadsCard extends StatelessWidget {
-  const _RecentLeadsCard({required this.leads});
+  const _RecentLeadsCard({required this.leads, this.onRetry});
 
   final AsyncValue<PaginatedSalesResult<SalesLead>> leads;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +298,8 @@ class _RecentLeadsCard extends StatelessWidget {
             if (page.items.isEmpty)
               const SalesEmptyState(
                 title: 'No leads in motion',
-                subtitle: 'When leads arrive, AI qualification signals will appear here.',
+                subtitle:
+                    'When leads arrive, AI qualification signals will appear here.',
                 icon: Icons.group_add_rounded,
               )
             else
@@ -255,7 +312,8 @@ class _RecentLeadsCard extends StatelessWidget {
                   action: Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton(
-                      onPressed: () => context.push(AppRoutes.salesLeadDetails(lead.id)),
+                      onPressed: () =>
+                          context.push(AppRoutes.salesLeadDetails(lead.id)),
                       child: const Text('Open lead'),
                     ),
                   ),
@@ -271,16 +329,20 @@ class _RecentLeadsCard extends StatelessWidget {
             SalesSkeletonLine(),
           ],
         ),
-        error: (error, _) => Text(error.toString()),
+        error: (error, _) => InlineErrorCard(
+          message: AsyncValueView.friendlyMessageFor(error),
+          onRetry: onRetry,
+        ),
       ),
     );
   }
 }
 
 class _RecentActivitiesCard extends StatelessWidget {
-  const _RecentActivitiesCard({required this.activities});
+  const _RecentActivitiesCard({required this.activities, this.onRetry});
 
   final AsyncValue<PaginatedSalesResult<SalesActivity>> activities;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -295,7 +357,8 @@ class _RecentActivitiesCard extends StatelessWidget {
         data: (page) => page.items.isEmpty
             ? const SalesEmptyState(
                 title: 'No activity events',
-                subtitle: 'Live interactions will populate this timeline automatically.',
+                subtitle:
+                    'Live interactions will populate this timeline automatically.',
                 icon: Icons.history_rounded,
               )
             : Column(
@@ -303,10 +366,14 @@ class _RecentActivitiesCard extends StatelessWidget {
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
-                      activity.completed ? Icons.check_circle : Icons.pending_actions,
+                      activity.completed
+                          ? Icons.check_circle
+                          : Icons.pending_actions,
                     ),
                     title: Text(activity.subject),
-                    subtitle: Text('${activity.type} · ${activity.completed ? 'Completed' : 'Open'}'),
+                    subtitle: Text(
+                      '${activity.type} · ${activity.completed ? 'Completed' : 'Open'}',
+                    ),
                   );
                 }).toList(),
               ),
@@ -317,16 +384,20 @@ class _RecentActivitiesCard extends StatelessWidget {
             SalesSkeletonLine(),
           ],
         ),
-        error: (error, _) => Text(error.toString()),
+        error: (error, _) => InlineErrorCard(
+          message: AsyncValueView.friendlyMessageFor(error),
+          onRetry: onRetry,
+        ),
       ),
     );
   }
 }
 
 class _CompanySnapshotCard extends StatelessWidget {
-  const _CompanySnapshotCard({required this.companies});
+  const _CompanySnapshotCard({required this.companies, this.onRetry});
 
   final AsyncValue<PaginatedSalesResult<SalesCompany>> companies;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -337,7 +408,8 @@ class _CompanySnapshotCard extends StatelessWidget {
         data: (page) => page.items.isEmpty
             ? const SalesEmptyState(
                 title: 'No account data',
-                subtitle: 'Add accounts to unlock territory-level intelligence.',
+                subtitle:
+                    'Add accounts to unlock territory-level intelligence.',
                 icon: Icons.apartment_rounded,
               )
             : Column(
@@ -350,16 +422,20 @@ class _CompanySnapshotCard extends StatelessWidget {
                 }).toList(),
               ),
         loading: () => const SalesSkeletonLine(),
-        error: (error, _) => Text(error.toString()),
+        error: (error, _) => InlineErrorCard(
+          message: AsyncValueView.friendlyMessageFor(error),
+          onRetry: onRetry,
+        ),
       ),
     );
   }
 }
 
 class _ContactsSnapshotCard extends StatelessWidget {
-  const _ContactsSnapshotCard({required this.contacts});
+  const _ContactsSnapshotCard({required this.contacts, this.onRetry});
 
   final AsyncValue<PaginatedSalesResult<SalesContact>> contacts;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -370,7 +446,8 @@ class _ContactsSnapshotCard extends StatelessWidget {
         data: (page) => page.items.isEmpty
             ? const SalesEmptyState(
                 title: 'No stakeholder records',
-                subtitle: 'Stakeholder mapping appears once contacts are linked.',
+                subtitle:
+                    'Stakeholder mapping appears once contacts are linked.',
                 icon: Icons.contact_page_rounded,
               )
             : Column(
@@ -383,7 +460,10 @@ class _ContactsSnapshotCard extends StatelessWidget {
                 }).toList(),
               ),
         loading: () => const SalesSkeletonLine(),
-        error: (error, _) => Text(error.toString()),
+        error: (error, _) => InlineErrorCard(
+          message: AsyncValueView.friendlyMessageFor(error),
+          onRetry: onRetry,
+        ),
       ),
     );
   }
@@ -399,27 +479,38 @@ String _countLabel(AsyncValue<dynamic> asyncValue) {
 String _topLeadStatus(AsyncValue<PaginatedSalesResult<SalesLead>> leads) {
   return leads.maybeWhen(
     data: (page) {
-      final qualified = page.items.where((lead) => lead.status == 'QUALIFIED').length;
+      final qualified = page.items
+          .where((lead) => lead.status == 'QUALIFIED')
+          .length;
       return '$qualified qualified in view';
     },
     orElse: () => 'Pipeline loading',
   );
 }
 
-String _activeOpportunityStage(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+String _activeOpportunityStage(
+  AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities,
+) {
   return opportunities.maybeWhen(
     data: (page) {
-      final open = page.items.where((opportunity) => !opportunity.stage.startsWith('CLOSED')).length;
+      final open = page.items
+          .where((opportunity) => !opportunity.stage.startsWith('CLOSED'))
+          .length;
       return '$open active deals';
     },
     orElse: () => 'Board loading',
   );
 }
 
-String _totalAmountLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+String _totalAmountLabel(
+  AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities,
+) {
   return opportunities.maybeWhen(
     data: (page) {
-      final total = page.items.fold<double>(0, (sum, item) => sum + (item.amount ?? 0));
+      final total = page.items.fold<double>(
+        0,
+        (sum, item) => sum + (item.amount ?? 0),
+      );
       if (total == 0) {
         return '--';
       }
@@ -430,7 +521,9 @@ String _totalAmountLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> oppo
   );
 }
 
-String _weightedPipelineLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+String _weightedPipelineLabel(
+  AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities,
+) {
   return opportunities.maybeWhen(
     data: (page) {
       final weighted = page.items.fold<double>(
@@ -443,60 +536,83 @@ String _weightedPipelineLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>>
   );
 }
 
-String _forecastLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+String _forecastLabel(
+  AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities,
+) {
   return opportunities.maybeWhen(
     data: (page) {
-      final open = page.items.where((item) => !item.stage.startsWith('CLOSED')).toList();
+      final open = page.items
+          .where((item) => !item.stage.startsWith('CLOSED'))
+          .toList();
       if (open.isEmpty) {
         return '--';
       }
-      final avgProb = open.fold<int>(0, (sum, item) => sum + item.probability) / open.length;
+      final avgProb =
+          open.fold<int>(0, (sum, item) => sum + item.probability) /
+          open.length;
       return avgProb >= 70
           ? 'Strong'
           : avgProb >= 45
-              ? 'Balanced'
-              : 'At Risk';
+          ? 'Balanced'
+          : 'At Risk';
     },
     orElse: () => '--',
   );
 }
 
-String _confidenceLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+String _confidenceLabel(
+  AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities,
+) {
   return opportunities.maybeWhen(
     data: (page) {
-      final confident = page.items.where((item) => item.probability >= 70).length;
+      final confident = page.items
+          .where((item) => item.probability >= 70)
+          .length;
       return '$confident high-confidence deals';
     },
     orElse: () => 'Computing confidence',
   );
 }
 
-String _riskCountLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+String _riskCountLabel(
+  AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities,
+) {
   return opportunities.maybeWhen(
-    data: (page) => '${page.items.where((item) => item.probability < 40).length}',
+    data: (page) =>
+        '${page.items.where((item) => item.probability < 40).length}',
     orElse: () => '--',
   );
 }
 
-String _actionGapLabel(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+String _actionGapLabel(
+  AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities,
+) {
   return opportunities.maybeWhen(
-    data: (page) => '${page.items.where((item) => item.nextBestAction == null).length}',
+    data: (page) =>
+        '${page.items.where((item) => item.nextBestAction == null).length}',
     orElse: () => '--',
   );
 }
 
-Widget _buildAiRecommendations(AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities) {
+Widget _buildAiRecommendations(
+  AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities, {
+  VoidCallback? onRetry,
+}) {
   return opportunities.when(
     data: (page) {
       if (page.items.isEmpty) {
         return const SalesEmptyState(
           title: 'No opportunities yet',
-          subtitle: 'Recommendations appear once opportunities enter the pipeline.',
+          subtitle:
+              'Recommendations appear once opportunities enter the pipeline.',
           icon: Icons.lightbulb_outline_rounded,
         );
       }
 
-      final risky = page.items.where((item) => item.probability < 50).take(3).toList();
+      final risky = page.items
+          .where((item) => item.probability < 50)
+          .take(3)
+          .toList();
       final source = risky.isEmpty ? page.items.take(2).toList() : risky;
 
       return Column(
@@ -505,7 +621,8 @@ Widget _buildAiRecommendations(AsyncValue<PaginatedSalesResult<SalesOpportunity>
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: SalesRecommendationCard(
               title: item.title,
-              body: item.nextBestAction ??
+              body:
+                  item.nextBestAction ??
                   'Run executive alignment and reinforce value narrative before ${item.stage.replaceAll('_', ' ')}.',
               icon: Icons.psychology_alt_rounded,
               action: SalesProbabilityBar(value: item.probability),
@@ -521,6 +638,9 @@ Widget _buildAiRecommendations(AsyncValue<PaginatedSalesResult<SalesOpportunity>
         SalesSkeletonLine(),
       ],
     ),
-    error: (error, _) => Text(error.toString()),
+    error: (error, _) => InlineErrorCard(
+          message: AsyncValueView.friendlyMessageFor(error),
+          onRetry: onRetry,
+        ),
   );
 }

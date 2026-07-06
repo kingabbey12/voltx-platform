@@ -37,23 +37,23 @@ class ChatPanel extends HookConsumerWidget {
 
     return AiPanel(
       fillChild: true,
-      header: Row(
+      header: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
         children: [
           Text(
             'Chat Workspace',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
-          const SizedBox(width: AppSpacing.xs),
           AiSuggestionChip(
             label: chatState.isStreaming ? 'Streaming' : 'Ready',
             icon: chatState.isStreaming ? Icons.stream_rounded : Icons.check_circle_rounded,
           ),
-          const SizedBox(width: AppSpacing.xs),
           AiSuggestionChip(
             label: '${chatState.messages.length} msgs',
             icon: Icons.chat_bubble_outline_rounded,
           ),
-          const Spacer(),
           AiSuggestionChip(
             label: chatState.activeTool == null ? 'Tools idle' : 'Tool running',
             icon: chatState.activeTool == null ? Icons.handyman_outlined : Icons.precision_manufacturing_rounded,
@@ -61,43 +61,35 @@ class ChatPanel extends HookConsumerWidget {
         ],
       ),
       child: chatState.messages.isEmpty
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const AiEmptyState(
-                  title: 'Start an AI conversation',
-                  subtitle: 'Use a suggested prompt to launch reasoning with tools, context, and memory.',
-                  icon: Icons.auto_awesome_rounded,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Suggested prompts',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                SuggestedPrompts(
-                  onSelect: (prompt) =>
-                      ref.read(aiChatProvider(conversationId).notifier).sendMessage(prompt),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                const AiLoadingState(lines: 2),
-              ],
+          ? SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const AiEmptyState(
+                    title: 'Start an AI conversation',
+                    subtitle: 'Use a suggested prompt to launch reasoning with tools, context, and memory.',
+                    icon: Icons.auto_awesome_rounded,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Suggested prompts',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  SuggestedPrompts(
+                    onSelect: (prompt) =>
+                        ref.read(aiChatProvider(conversationId).notifier).sendMessage(prompt),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  const AiLoadingState(lines: 2),
+                ],
+              ),
             )
           : ListView.builder(
               controller: scrollController,
               padding: EdgeInsets.zero,
-              itemCount: chatState.messages.length + (chatState.isStreaming ? 1 : 0),
+              itemCount: chatState.messages.length,
               itemBuilder: (context, index) {
-                if (index == chatState.messages.length && chatState.isStreaming) {
-                  return const Padding(
-                    padding: EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: TypingIndicator(),
-                    ),
-                  );
-                }
-
                 final message = chatState.messages[index];
                 final isLastAssistant =
                     index == chatState.messages.length - 1 && message.isAssistant;
@@ -131,6 +123,8 @@ class AgentPanel extends ConsumerWidget {
     final agents = ref.watch(agentsProvider);
     final conversationId = ref.watch(activeConversationIdProvider);
     final chatState = ref.watch(aiChatProvider(conversationId));
+    final tools = ref.watch(availableToolsProvider);
+    final memorySnapshot = ref.watch(memorySnapshotProvider);
 
     return SizedBox(
       width: 292,
@@ -175,9 +169,9 @@ class AgentPanel extends ConsumerWidget {
               agent: agent,
               selected: true,
               status: 'Active',
-              memoryUsage: '68%',
-              toolCount: 7,
-              recentActivity: 'Last action: generated opportunity summary 2m ago',
+              memoryUsage: memorySnapshot.statusLabel,
+              toolCount: tools.length,
+              recentActivity: memorySnapshot.freshnessLabel,
               onTap: () {},
               onRun: () {},
             ),
@@ -200,9 +194,11 @@ class AgentPanel extends ConsumerWidget {
                       selected: item.id == agent.id,
                       onTap: () => ref.read(selectedAgentProvider.notifier).state = item,
                       status: item.id == agent.id ? 'Active' : 'Idle',
-                      memoryUsage: item.id == agent.id ? '68%' : '42%',
-                      toolCount: item.id == agent.id ? 7 : 5,
-                      recentActivity: 'Recent activity available',
+                      memoryUsage: item.id == agent.id ? memorySnapshot.statusLabel : memorySnapshot.freshnessLabel,
+                      toolCount: tools.length,
+                      recentActivity: memorySnapshot.totalMemories == 0
+                          ? 'No live memories synced'
+                          : '${memorySnapshot.totalMemories} memory records synced',
                     ),
                   ),
               ],
@@ -225,22 +221,16 @@ class ContextPanel extends ConsumerWidget {
     final chatState = ref.watch(aiChatProvider(conversationId));
     final knowledge = ref.watch(selectedKnowledgeProvider);
     final bases = ref.watch(knowledgeBasesProvider);
+    final tools = ref.watch(availableToolsProvider);
+    final memorySnapshot = ref.watch(memorySnapshotProvider);
 
-    final timeline = <AiTimelineItem>[
-      for (final message in chatState.messages.take(5))
+    final timeline = [
+      for (final item in memorySnapshot.timeline)
         AiTimelineItem(
-          title: message.isUser ? 'User prompt' : 'Assistant reasoning',
-          subtitle: message.displayContent.isEmpty
-              ? 'Streaming response...'
-              : message.displayContent.split('\n').first,
-          time: _formatTime(message.timestamp),
-          color: message.isUser ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.primary,
-        ),
-      if (chatState.isStreaming)
-        const AiTimelineItem(
-          title: 'Streaming',
-          subtitle: 'Response generation in progress',
-          time: 'Now',
+          title: item.title,
+          subtitle: item.subtitle,
+          time: item.time,
+          color: Theme.of(context).colorScheme.primary,
         ),
     ];
 
@@ -277,6 +267,8 @@ class ContextPanel extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.xs),
                 AiContextCard(label: 'Knowledge', value: knowledge.name),
                 const SizedBox(height: AppSpacing.xs),
+                AiContextCard(label: 'Memory', value: memorySnapshot.statusLabel),
+                const SizedBox(height: AppSpacing.xs),
                 TokenUsageIndicator(
                   tokensUsed: chatState.tokensUsed,
                   contextWindow: model.contextWindow,
@@ -292,6 +284,8 @@ class ContextPanel extends ConsumerWidget {
                 const Text('Connected Knowledge'),
                 const SizedBox(height: AppSpacing.xs),
                 const KnowledgeSelector(),
+                const SizedBox(height: AppSpacing.xs),
+                AiContextCard(label: 'Tool registry', value: '${tools.length} tools available'),
               ],
             ),
           ),
@@ -320,25 +314,23 @@ class ContextPanel extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          const AiMemoryCard(
+          AiMemoryCard(
             title: 'Workspace Memory',
-            summary: 'Persistent cues currently influencing generation.',
-            items: [
-              'North Region load volatility in morning windows',
-              'Executive preference: concise action-first summaries',
-              'Priority program: Helios expansion rollout',
-            ],
+            summary: memorySnapshot.statusLabel,
+            items: memorySnapshot.recentHighlights.isEmpty
+                ? const ['No live memories synced yet']
+                : memorySnapshot.recentHighlights,
           ),
           const SizedBox(height: AppSpacing.sm),
           AiPanel(
             header: Text(
-              'Reasoning Timeline',
+              'Memory Timeline',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             child: timeline.isEmpty
                 ? const AiEmptyState(
-                    title: 'No reasoning events yet',
-                    subtitle: 'Timeline entries appear as conversation reasoning advances.',
+                    title: 'No memory timeline yet',
+                    subtitle: 'Timeline entries appear as conversation memories are synced.',
                     icon: Icons.timeline_rounded,
                   )
                 : AiTimeline(items: timeline),
@@ -357,12 +349,5 @@ class ContextPanel extends ConsumerWidget {
       return '${diff.inHours}h ago';
     }
     return '${diff.inDays}d ago';
-  }
-
-  String _formatTime(DateTime dt) {
-    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final m = dt.minute.toString().padLeft(2, '0');
-    final suffix = dt.hour >= 12 ? 'PM' : 'AM';
-    return '$h:$m $suffix';
   }
 }

@@ -3,14 +3,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { ConversationRepository } from '../src/modules/ai/conversations/conversation.repository';
 import { ConversationService } from '../src/modules/ai/conversations/conversation.service';
+import { AIGatewayService } from '../src/modules/ai/gateway/ai-gateway.service';
 import { MemoryService } from '../src/modules/ai/memory/memory.service';
 import { ModelRegistryService } from '../src/modules/ai/models/model-registry.service';
-import { AIRuntimeService } from '../src/modules/ai/runtime/ai-runtime.service';
 
 describe('ConversationService', () => {
   let service: ConversationService;
   let repository: jest.Mocked<ConversationRepository>;
-  let runtimeService: jest.Mocked<AIRuntimeService>;
+  let aiGatewayService: jest.Mocked<AIGatewayService>;
   let modelRegistryService: jest.Mocked<ModelRegistryService>;
   let memoryService: jest.Mocked<MemoryService>;
 
@@ -38,7 +38,7 @@ describe('ConversationService', () => {
           },
         },
         {
-          provide: AIRuntimeService,
+          provide: AIGatewayService,
           useValue: {
             streamChat: jest.fn(),
           },
@@ -60,7 +60,7 @@ describe('ConversationService', () => {
 
     service = module.get(ConversationService);
     repository = module.get(ConversationRepository);
-    runtimeService = module.get(AIRuntimeService);
+    aiGatewayService = module.get(AIGatewayService);
     modelRegistryService = module.get(ModelRegistryService);
     memoryService = module.get(MemoryService);
   });
@@ -144,7 +144,7 @@ describe('ConversationService', () => {
         createdAt: new Date('2026-07-04T00:00:01.000Z'),
       });
 
-    runtimeService.streamChat.mockImplementation(async function* stream() {
+    aiGatewayService.streamChat.mockImplementation(async function* stream() {
       await Promise.resolve();
       yield {
         type: 'content_delta',

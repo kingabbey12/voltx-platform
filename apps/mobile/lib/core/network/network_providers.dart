@@ -5,6 +5,7 @@ import '../../config/env_config.dart';
 import '../storage/token_storage.dart';
 import 'api_client.dart';
 import 'dio_client.dart';
+import 'sse_client.dart';
 
 final envConfigProvider = Provider<EnvConfig>(
   (ref) => EnvConfig.fromEnvironment(),
@@ -33,4 +34,8 @@ final dioProvider = Provider<Dio>((ref) {
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient(ref.watch(dioProvider));
+});
+
+final sseClientProvider = Provider<SseClient>((ref) {
+  return SseClient(ref.watch(dioProvider));
 });

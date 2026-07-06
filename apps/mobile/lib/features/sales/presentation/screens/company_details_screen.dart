@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../router/routes.dart';
+import '../../../../shared/widgets/async_value_view.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../theme/tokens/spacing.dart';
 import '../../data/models/sales_models.dart';
@@ -16,12 +17,10 @@ class CompanyDetailsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final company = ref.watch(companyDetailProvider(companyId));
-    final contacts = ref.watch(
-      contactsProvider(SalesPageQuery(limit: 20, filters: {'companyId': companyId})),
-    );
-    final leads = ref.watch(
-      leadsProvider(SalesPageQuery(limit: 20, filters: {'companyId': companyId})),
-    );
+    final contactsQuery = SalesPageQuery(limit: 20, filters: {'companyId': companyId});
+    final leadsQuery = SalesPageQuery(limit: 20, filters: {'companyId': companyId});
+    final contacts = ref.watch(contactsProvider(contactsQuery));
+    final leads = ref.watch(leadsProvider(leadsQuery));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -82,7 +81,10 @@ class CompanyDetailsScreen extends ConsumerWidget {
                           }).toList(),
                         ),
                   loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Text(error.toString()),
+                  error: (error, _) => InlineErrorCard(
+                    message: AsyncValueView.friendlyMessageFor(error),
+                    onRetry: () => ref.invalidate(contactsProvider(contactsQuery)),
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -101,7 +103,10 @@ class CompanyDetailsScreen extends ConsumerWidget {
                           }).toList(),
                         ),
                   loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Text(error.toString()),
+                  error: (error, _) => InlineErrorCard(
+                    message: AsyncValueView.friendlyMessageFor(error),
+                    onRetry: () => ref.invalidate(leadsProvider(leadsQuery)),
+                  ),
                 ),
               ),
             ],
@@ -109,7 +114,10 @@ class CompanyDetailsScreen extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => SalesSectionCard(
             title: 'Unable to load company',
-            child: Text(error.toString()),
+            child: InlineErrorCard(
+              message: AsyncValueView.friendlyMessageFor(error),
+              onRetry: () => ref.invalidate(companyDetailProvider(companyId)),
+            ),
           ),
         ),
       ),

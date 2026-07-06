@@ -18,7 +18,22 @@ export default () => ({
   security: {
     rateLimitTtlSeconds: parseInt(process.env.RATE_LIMIT_TTL_SECONDS ?? '60', 10),
     rateLimitLimit: parseInt(process.env.RATE_LIMIT_LIMIT ?? '120', 10),
+    authRateLimitTtlSeconds: parseInt(process.env.AUTH_RATE_LIMIT_TTL_SECONDS ?? '60', 10),
+    authRateLimitLimit: parseInt(process.env.AUTH_RATE_LIMIT_LIMIT ?? '10', 10),
     requestBodyLimit: process.env.REQUEST_BODY_LIMIT ?? '1mb',
+    corsAllowedOrigins: (process.env.CORS_ALLOWED_ORIGINS ?? '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0),
+  },
+  sentry: {
+    dsn: process.env.SENTRY_DSN ?? '',
+    environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'development',
+    tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE ?? '0'),
+  },
+  redis: {
+    enabled: process.env.REDIS_ENABLED === 'true',
+    url: process.env.REDIS_URL ?? 'redis://localhost:6379',
   },
   tracing: {
     enabled: process.env.OTEL_ENABLED === 'true',
@@ -33,6 +48,20 @@ export default () => ({
     defaultModel: process.env.AI_DEFAULT_MODEL ?? 'gpt-5-mini',
     maxRetries: parseInt(process.env.AI_MAX_RETRIES ?? '2', 10),
     retryBaseDelayMs: parseInt(process.env.AI_RETRY_BASE_DELAY_MS ?? '250', 10),
+    rateLimit: {
+      requestsPerMinute: parseInt(process.env.AI_RATE_LIMIT_REQUESTS_PER_MINUTE ?? '120', 10),
+    },
+    agentLoop: {
+      maxIterations: parseInt(process.env.AI_AGENT_LOOP_MAX_ITERATIONS ?? '8', 10),
+      maxToolCalls: parseInt(process.env.AI_AGENT_LOOP_MAX_TOOL_CALLS ?? '12', 10),
+      timeoutMs: parseInt(process.env.AI_AGENT_LOOP_TIMEOUT_MS ?? '120000', 10),
+    },
+    multiAgent: {
+      maxAgents: parseInt(process.env.AI_MULTI_AGENT_MAX_AGENTS ?? '10', 10),
+      maxDepth: parseInt(process.env.AI_MULTI_AGENT_MAX_DEPTH ?? '3', 10),
+      maxParallelExecutions: parseInt(process.env.AI_MULTI_AGENT_MAX_PARALLEL ?? '4', 10),
+      timeoutMs: parseInt(process.env.AI_MULTI_AGENT_TIMEOUT_MS ?? '300000', 10),
+    },
     providers: {
       openai: {
         enabled: process.env.OPENAI_ENABLED === 'true',
@@ -49,6 +78,78 @@ export default () => ({
         apiKey: process.env.GOOGLE_AI_API_KEY ?? '',
         baseUrl:
           process.env.GOOGLE_AI_BASE_URL ?? 'https://generativelanguage.googleapis.com/v1beta',
+      },
+    },
+  },
+  knowledge: {
+    embeddingProvider: process.env.KNOWLEDGE_EMBEDDING_PROVIDER ?? 'openai',
+    embeddingModel: process.env.KNOWLEDGE_EMBEDDING_MODEL ?? 'text-embedding-3-small',
+    embeddingDimensions: parseInt(process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS ?? '1536', 10),
+    embeddingBatchSize: parseInt(process.env.KNOWLEDGE_EMBEDDING_BATCH_SIZE ?? '64', 10),
+    chunking: {
+      chunkSizeTokens: parseInt(process.env.KNOWLEDGE_CHUNK_SIZE_TOKENS ?? '400', 10),
+      chunkOverlapTokens: parseInt(process.env.KNOWLEDGE_CHUNK_OVERLAP_TOKENS ?? '60', 10),
+    },
+    retrieval: {
+      defaultTopK: parseInt(process.env.KNOWLEDGE_RETRIEVAL_TOP_K ?? '8', 10),
+      maxTopK: parseInt(process.env.KNOWLEDGE_RETRIEVAL_MAX_TOP_K ?? '50', 10),
+      semanticWeight: parseFloat(process.env.KNOWLEDGE_RETRIEVAL_SEMANTIC_WEIGHT ?? '0.65'),
+      keywordWeight: parseFloat(process.env.KNOWLEDGE_RETRIEVAL_KEYWORD_WEIGHT ?? '0.35'),
+      minConfidence: parseFloat(process.env.KNOWLEDGE_RETRIEVAL_MIN_CONFIDENCE ?? '0.15'),
+      contextTokenBudget: parseInt(
+        process.env.KNOWLEDGE_RETRIEVAL_CONTEXT_TOKEN_BUDGET ?? '2000',
+        10,
+      ),
+      graphExpansionHops: parseInt(process.env.KNOWLEDGE_RETRIEVAL_GRAPH_HOPS ?? '1', 10),
+      cacheTtlMs: parseInt(process.env.KNOWLEDGE_RETRIEVAL_CACHE_TTL_MS ?? '30000', 10),
+    },
+  },
+  invitations: {
+    // The mobile app's deep-link scheme (or a web app's URL) that opens the
+    // "accept invitation" screen with ?token=... appended — there is no
+    // email-sending infrastructure in this backend, so the invitation
+    // response hands this link to the inviter to share directly.
+    acceptBaseUrl: process.env.INVITATIONS_ACCEPT_BASE_URL ?? 'voltx://invitations/accept',
+  },
+  integrations: {
+    encryptionKey: process.env.INTEGRATIONS_ENCRYPTION_KEY ?? '',
+    webhookBaseUrl: process.env.INTEGRATIONS_WEBHOOK_BASE_URL ?? '',
+    pollIntervalMs: parseInt(process.env.INTEGRATIONS_POLL_INTERVAL_MS ?? '300000', 10),
+    maxRetries: parseInt(process.env.INTEGRATIONS_MAX_RETRIES ?? '3', 10),
+    retryBaseDelayMs: parseInt(process.env.INTEGRATIONS_RETRY_BASE_DELAY_MS ?? '500', 10),
+    rateLimit: {
+      requestsPerMinute: parseInt(
+        process.env.INTEGRATIONS_RATE_LIMIT_REQUESTS_PER_MINUTE ?? '60',
+        10,
+      ),
+    },
+    providers: {
+      google: {
+        clientId: process.env.GOOGLE_OAUTH_CLIENT_ID ?? '',
+        clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? '',
+      },
+      microsoft: {
+        clientId: process.env.MICROSOFT_OAUTH_CLIENT_ID ?? '',
+        clientSecret: process.env.MICROSOFT_OAUTH_CLIENT_SECRET ?? '',
+        tenantId: process.env.MICROSOFT_OAUTH_TENANT_ID ?? 'common',
+      },
+      slack: {
+        clientId: process.env.SLACK_OAUTH_CLIENT_ID ?? '',
+        clientSecret: process.env.SLACK_OAUTH_CLIENT_SECRET ?? '',
+        signingSecret: process.env.SLACK_SIGNING_SECRET ?? '',
+      },
+      teams: {
+        clientId: process.env.MICROSOFT_OAUTH_CLIENT_ID ?? '',
+        clientSecret: process.env.MICROSOFT_OAUTH_CLIENT_SECRET ?? '',
+        tenantId: process.env.MICROSOFT_OAUTH_TENANT_ID ?? 'common',
+      },
+      github: {
+        clientId: process.env.GITHUB_OAUTH_CLIENT_ID ?? '',
+        clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET ?? '',
+      },
+      stripe: {
+        apiKey: process.env.STRIPE_API_KEY ?? '',
+        webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
       },
     },
   },

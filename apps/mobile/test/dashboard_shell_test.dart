@@ -78,5 +78,43 @@ void main() {
       expect(find.text('Dashboard'), findsWidgets);
       expect(find.text('AI'), findsOneWidget);
     });
+
+    testWidgets('tapping the mobile menu icon opens the drawer', (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final router = GoRouter(
+        routes: [
+          ShellRoute(
+            builder: (context, state, child) => DashboardShell(child: child),
+            routes: [
+              GoRoute(
+                path: AppRoutes.dashboard,
+                builder: (context, state) => const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ],
+        initialLocation: AppRoutes.dashboard,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp.router(
+            theme: AppTheme.light(),
+            routerConfig: router,
+          ),
+        ),
+      );
+
+      await tester.pump(const Duration(milliseconds: 350));
+
+      expect(find.byIcon(Icons.menu_rounded), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.menu_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Drawer), findsOneWidget);
+    });
   });
 }

@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint, test, e2e, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: voltx
+          POSTGRES_PASSWORD: voltx
+          POSTGRES_DB: voltx_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U voltx -d voltx_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Create .env.test
+        # .env.test is gitignored by design (same convention as .env/.env.local
+        # — no env files committed), so CI has to materialize it itself.
+        # AUTH_RATE_LIMIT_LIMIT is raised because e2e specs call loginAs()
+        # dozens of times per run under --runInBand from a single IP, which
+        # would otherwise trip the production auth-endpoint throttle (10/60s).
+        run: |
+          cat > .env.test <<EOF
+          NODE_ENV=test
+          PORT=3000
+          LOG_LEVEL=silent
+          DATABASE_URL=postgresql://voltx:voltx@localhost:5433/voltx_test
+          JWT_ACCESS_SECRET=ci-jwt-access-secret-minimum-32-characters-long
+          JWT_ACCESS_EXPIRES_IN=15m
+          AUTH_RATE_LIMIT_LIMIT=1000
+          AUTH_RATE_LIMIT_TTL_SECONDS=60
+          EOF
+
+      - name: Run migrations (test database)
+        run: pnpm prisma:migrate:deploy
+        env:
+          DATABASE_URL: postgresql://voltx:voltx@localhost:5433/voltx_test
+
+      - name: E2E tests
+        run: pnpm test:e2e
+
+      - name: Build
+        run: pnpm build
+
+  mobile:
+    name: Mobile (analyze, test, build macos)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.4'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build macOS (release)
+        run: flutter build macos --release

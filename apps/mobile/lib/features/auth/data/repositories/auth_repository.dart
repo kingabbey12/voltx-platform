@@ -1,9 +1,14 @@
+import '../models/auth_organization_membership.dart';
 import '../models/auth_user.dart';
 
 abstract class AuthRepository {
   AuthUser? get currentUser;
 
   Future<AuthUser?> restoreSession();
+
+  Future<List<AuthOrganizationMembership>> myOrganizations();
+
+  Future<AuthUser> switchOrganization(String organizationId);
 
   Future<AuthUser> signIn({
     required String email,

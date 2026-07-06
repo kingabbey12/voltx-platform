@@ -34,6 +34,26 @@ export class AuthMeResponseDto extends UserResponseDto {
   permissions!: string[];
 }
 
+export class MyOrganizationResponseDto {
+  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
+  organizationId!: string;
+
+  @ApiProperty({ example: 'Acme Energy' })
+  organizationName!: string;
+
+  @ApiProperty({ example: 'acme-energy' })
+  organizationSlug!: string;
+
+  @ApiProperty({ example: 'owner' })
+  roleKey!: string;
+
+  @ApiProperty({ example: 'Owner' })
+  roleName!: string;
+
+  @ApiProperty({ example: '2026-07-03T00:00:00.000Z' })
+  joinedAt!: string;
+}
+
 export class MessageResponseDto {
   @ApiProperty({ example: 'If the account exists, a password reset email has been sent.' })
   message!: string;

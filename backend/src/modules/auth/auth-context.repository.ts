@@ -11,6 +11,15 @@ export interface MembershipAuthContext {
   roleName: string;
 }
 
+export interface MembershipSummary {
+  organizationId: string;
+  organizationName: string;
+  organizationSlug: string;
+  roleKey: string;
+  roleName: string;
+  joinedAt: Date;
+}
+
 @Injectable()
 export class AuthContextRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -43,6 +52,28 @@ export class AuthContextRepository {
       roleKey: membership.role.key,
       roleName: membership.role.name,
     };
+  }
+
+  async listActiveMembershipsForUser(userId: string): Promise<MembershipSummary[]> {
+    const memberships = await this.prisma.system.membership.findMany({
+      where: {
+        userId,
+        status: MembershipStatus.ACTIVE,
+        user: { deletedAt: null },
+        organization: { deletedAt: null },
+      },
+      include: { role: true, organization: true },
+      orderBy: { joinedAt: 'asc' },
+    });
+
+    return memberships.map((membership) => ({
+      organizationId: membership.organizationId,
+      organizationName: membership.organization.name,
+      organizationSlug: membership.organization.slug,
+      roleKey: membership.role.key,
+      roleName: membership.role.name,
+      joinedAt: membership.joinedAt,
+    }));
   }
 
   async userExists(userId: string): Promise<boolean> {

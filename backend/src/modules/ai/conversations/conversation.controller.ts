@@ -3,15 +3,27 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiOperation,
+  ApiProduces,
+  ApiTags,
+} from '@nestjs/swagger';
+import { Response } from 'express';
 import { AUTH_GUARDS } from '../../../common/guards/protected.guards';
+import { writeGatewayEventStreamToResponse } from '../streaming/write-gateway-stream-to-response';
 import { ConversationService } from './conversation.service';
 import {
   ConversationSuccessResponseDto,
@@ -84,6 +96,23 @@ export class ConversationController {
     @Body() dto: CreateMessageDto,
   ): Promise<CreateConversationMessageResponseDto> {
     return this.conversationService.createMessage(id, dto);
+  }
+
+  @Post(':id/messages/stream')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Create a user message and stream the assistant response over Server-Sent Events',
+  })
+  @ApiConsumes('application/json')
+  @ApiProduces('text/event-stream')
+  async streamMessage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateMessageDto,
+    @Res() response: Response,
+  ): Promise<void> {
+    await writeGatewayEventStreamToResponse(response, (signal) =>
+      this.conversationService.streamMessageTurn(id, dto, signal),
+    );
   }
 
   @Get(':id/messages')

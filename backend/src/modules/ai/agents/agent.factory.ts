@@ -133,6 +133,30 @@ export class AgentFactory {
       : [];
   }
 
+  /**
+   * Whether this agent may delegate to other agents at all. Defaults to
+   * true — delegation is a broadly available capability the model opts
+   * into per-objective, not a per-agent feature flag, matching "do not
+   * hardcode workflows."
+   */
+  canDelegate(agent: AgentEntity): boolean {
+    const configuration = this.getConfiguration(agent);
+    return configuration.canDelegate !== false;
+  }
+
+  /**
+   * Empty/absent means unrestricted (may delegate to any enabled agent in
+   * the organization), mirroring getAllowedToolNames's convention exactly.
+   */
+  getAllowedDelegateAgentNames(agent: AgentEntity): string[] {
+    const configuration = this.getConfiguration(agent);
+    return Array.isArray(configuration.delegateToAgentNames)
+      ? configuration.delegateToAgentNames.filter(
+          (item): item is string => typeof item === 'string',
+        )
+      : [];
+  }
+
   buildRunOutput(params: {
     outputText: string;
     finishReason?: string;

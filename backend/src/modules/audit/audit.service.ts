@@ -8,4 +8,10 @@ export class AuditService {
   async record(data: CreateAuditLogData): Promise<void> {
     await this.auditRepository.create(data);
   }
+
+  async recordWithExplicitActor(
+    data: CreateAuditLogData & { organizationId: string; userId: string },
+  ): Promise<void> {
+    await this.auditRepository.createWithExplicitActor(data);
+  }
 }

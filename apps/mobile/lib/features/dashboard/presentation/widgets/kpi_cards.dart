@@ -16,92 +16,24 @@ class KpiCards extends ConsumerWidget {
   const KpiCards({super.key});
 
   List<_ExecutiveMetric> _buildExecutiveMetrics(List<DashboardKpi> source) {
-    DashboardKpi pick(int index, DashboardKpi fallback) {
-      if (source.isEmpty) {
-        return fallback;
-      }
-      if (index < source.length) {
-        return source[index];
-      }
-      return source.last;
+    if (source.isEmpty) {
+      return const [];
     }
 
-    const fallback = DashboardKpi(
-      id: 'fallback',
-      label: 'Signal',
-      value: '--',
-      delta: '--',
-      trend: KpiTrend.neutral,
-      iconName: 'dashboard',
-    );
-
-    final k1 = pick(0, fallback);
-    final k2 = pick(1, fallback);
-    final k3 = pick(2, fallback);
-    final k4 = pick(3, fallback);
-
-    return [
-      _ExecutiveMetric(
-        id: 'revenue',
-        label: 'Revenue',
-        value: k1.value,
-        delta: '+6.2% WoW',
-        trend: KpiTrend.up,
-        icon: Icons.payments_rounded,
-        sparkline: _trendShape(KpiTrend.up),
-        commentary: 'AI: Enterprise segment conversion remains ahead of plan.',
-      ),
-      _ExecutiveMetric(
-        id: 'growth',
-        label: 'Growth',
-        value: k2.value,
-        delta: '+1.1 pts',
-        trend: KpiTrend.up,
-        icon: Icons.trending_up_rounded,
-        sparkline: _trendShape(KpiTrend.up),
-        commentary: 'AI: Expansion velocity is strongest in the north cluster.',
-      ),
-      _ExecutiveMetric(
-        id: 'deals',
-        label: 'Active Deals',
-        value: k3.value,
-        delta: '+8 today',
-        trend: KpiTrend.up,
-        icon: Icons.handshake_outlined,
-        sparkline: _trendShape(KpiTrend.up),
-        commentary: 'AI: 3 high-probability deals need exec sponsorship.',
-      ),
-      _ExecutiveMetric(
-        id: 'tasks',
-        label: 'AI Tasks',
-        value: '27',
-        delta: '6 critical',
-        trend: KpiTrend.neutral,
-        icon: Icons.auto_awesome_rounded,
-        sparkline: _trendShape(KpiTrend.neutral),
-        commentary: 'AI: Prioritize risk remediation prompts before midday.',
-      ),
-      _ExecutiveMetric(
-        id: 'health',
-        label: 'Customer Health',
-        value: '82%',
-        delta: '-2 at-risk accounts',
-        trend: KpiTrend.down,
-        icon: Icons.favorite_border_rounded,
-        sparkline: _trendShape(KpiTrend.down),
-        commentary: 'AI: 2 enterprise accounts need immediate outreach.',
-      ),
-      _ExecutiveMetric(
-        id: 'team',
-        label: 'Team Activity',
-        value: k4.value,
-        delta: '+14% execution',
-        trend: KpiTrend.up,
-        icon: Icons.groups_rounded,
-        sparkline: _trendShape(KpiTrend.up),
-        commentary: 'AI: Stand-up completion and follow-through are improving.',
-      ),
-    ];
+    return source
+        .map(
+          (kpi) => _ExecutiveMetric(
+            id: kpi.id,
+            label: kpi.label,
+            value: kpi.value,
+            delta: kpi.delta,
+            trend: kpi.trend,
+            icon: dashboardIcon(kpi.iconName),
+            sparkline: _trendShape(kpi.trend),
+            commentary: 'AI: ${kpi.label.toLowerCase()} is updated from the latest backend snapshot.',
+          ),
+        )
+        .toList();
   }
 
   static List<double> _trendShape(KpiTrend trend) {

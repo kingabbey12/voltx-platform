@@ -27,6 +27,13 @@ enum MembershipStatus {
   SUSPENDED
 }
 
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
 enum VerificationTokenType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
@@ -51,6 +58,33 @@ enum AgentRunStatus {
   SUCCEEDED
   FAILED
   TIMED_OUT
+}
+
+enum AiRequestType {
+  CHAT
+  CONVERSATION_MESSAGE
+  AGENT_RUN
+  TOOL_EXECUTION
+  KNOWLEDGE_EMBEDDING
+}
+
+enum AgentRunStepType {
+  PLAN
+  REASONING
+  TOOL_CALL
+  TOOL_RESULT
+  TOOL_ERROR
+  FINAL_ANSWER
+  DELEGATION_START
+  DELEGATION_RESULT
+}
+
+enum AgentMessageType {
+  REQUEST
+  RESPONSE
+  STATUS
+  OBSERVATION
+  COMPLETION
 }
 
 enum SalesCompanyStatus {
@@ -85,76 +119,87 @@ enum SalesActivityType {
 }
 
 model Organization {
-  id          String             @id @default(uuid()) @db.Uuid
-  name        String
-  slug        String             @unique
-  logoUrl     String?            @map("logo_url")
-  industry    String?
-  country     String?
-  timezone    String             @default("UTC")
-  status      OrganizationStatus @default(ACTIVE)
-  settings    Json               @default("{}")
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
-  deletedAt   DateTime?          @map("deleted_at")
-  memberships Membership[]
-  conversations Conversation[]
-  memories    Memory[]
-  agents      Agent[]
-  salesCompanies    SalesCompany[]
-  salesContacts     SalesContact[]
-  salesLeads        SalesLead[]
-  salesOpportunities SalesOpportunity[]
-  salesActivities   SalesActivity[]
+  id                     String                  @id @default(uuid()) @db.Uuid
+  name                   String
+  slug                   String                  @unique
+  logoUrl                String?                 @map("logo_url")
+  industry               String?
+  country                String?
+  timezone               String                  @default("UTC")
+  status                 OrganizationStatus      @default(ACTIVE)
+  settings               Json                    @default("{}")
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
+  deletedAt              DateTime?               @map("deleted_at")
+  memberships            Membership[]
+  conversations          Conversation[]
+  memories               Memory[]
+  agents                 Agent[]
+  aiUsageLogs            AiUsageLog[]
+  salesCompanies         SalesCompany[]
+  salesContacts          SalesContact[]
+  salesLeads             SalesLead[]
+  salesOpportunities     SalesOpportunity[]
+  salesActivities        SalesActivity[]
+  knowledgeSources       KnowledgeSource[]
+  knowledgeEntities      KnowledgeEntity[]
+  workflows              Workflow[]
+  integrationConnections IntegrationConnection[]
+  invitations            Invitation[]
 
   @@index([status])
   @@map("organizations")
 }
 
 model User {
-  id              String         @id @default(uuid()) @db.Uuid
-  email           String         @unique
-  passwordHash    String?        @map("password_hash")
-  firstName       String         @map("first_name")
-  lastName        String         @map("last_name")
-  avatarUrl       String?        @map("avatar_url")
-  phoneNumber     String?        @map("phone_number")
-  jobTitle        String?        @map("job_title")
-  status          UserStatus     @default(ACTIVE)
-  lastLoginAt     DateTime?      @map("last_login_at")
-  emailVerifiedAt DateTime?      @map("email_verified_at")
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
-  deletedAt       DateTime?      @map("deleted_at")
-  memberships       Membership[]
-  refreshTokens     RefreshToken[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  email              String              @unique
+  passwordHash       String?             @map("password_hash")
+  firstName          String              @map("first_name")
+  lastName           String              @map("last_name")
+  avatarUrl          String?             @map("avatar_url")
+  phoneNumber        String?             @map("phone_number")
+  jobTitle           String?             @map("job_title")
+  status             UserStatus          @default(ACTIVE)
+  lastLoginAt        DateTime?           @map("last_login_at")
+  emailVerifiedAt    DateTime?           @map("email_verified_at")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  deletedAt          DateTime?           @map("deleted_at")
+  memberships        Membership[]
+  refreshTokens      RefreshToken[]
   verificationTokens VerificationToken[]
   conversations      Conversation[]
   memories           Memory[]
+  aiUsageLogs        AiUsageLog[]
+  sentInvitations     Invitation[]       @relation("InvitationInvitedBy")
+  acceptedInvitations Invitation[]       @relation("InvitationAcceptedBy")
 
   @@index([status])
   @@map("users")
 }
 
 model Conversation {
-  id             String    @id @default(uuid()) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
-  userId         String    @map("user_id") @db.Uuid
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  userId         String          @map("user_id") @db.Uuid
   title          String
   model          String
   provider       String
-  pinned         Boolean   @default(false)
-  archived       Boolean   @default(false)
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  deletedAt      DateTime? @map("deleted_at")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pinned         Boolean         @default(false)
+  archived       Boolean         @default(false)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  deletedAt      DateTime?       @map("deleted_at")
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages       Message[]
   toolExecutions ToolExecution[]
   memories       Memory[]
   memoryAccesses MemoryAccess[]
   agentRuns      AgentRun[]
+  aiUsageLogs    AiUsageLog[]
+  workflowRuns   WorkflowRun[]
 
   @@index([organizationId])
   @@index([userId])
@@ -181,18 +226,18 @@ model Message {
 }
 
 model ToolExecution {
-  id           String              @id @default(uuid()) @db.Uuid
-  conversationId String            @map("conversation_id") @db.Uuid
-  toolName     String              @map("tool_name")
-  input        Json                @default("{}")
-  output       Json                @default("{}")
-  status       ToolExecutionStatus
-  startedAt    DateTime            @map("started_at")
-  completedAt  DateTime?           @map("completed_at")
-  durationMs   Int?                @map("duration_ms")
-  error        String?
-  createdAt    DateTime            @default(now()) @map("created_at")
-  conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  id             String              @id @default(uuid()) @db.Uuid
+  conversationId String              @map("conversation_id") @db.Uuid
+  toolName       String              @map("tool_name")
+  input          Json                @default("{}")
+  output         Json                @default("{}")
+  status         ToolExecutionStatus
+  startedAt      DateTime            @map("started_at")
+  completedAt    DateTime?           @map("completed_at")
+  durationMs     Int?                @map("duration_ms")
+  error          String?
+  createdAt      DateTime            @default(now()) @map("created_at")
+  conversation   Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
   @@index([toolName])
@@ -202,21 +247,21 @@ model ToolExecution {
 }
 
 model Memory {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  userId         String       @map("user_id") @db.Uuid
-  conversationId String       @map("conversation_id") @db.Uuid
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  conversationId String         @map("conversation_id") @db.Uuid
   category       String
   importance     Float
   content        String
-  embeddingId    String?      @map("embedding_id")
-  metadata       Json         @default("{}")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  deletedAt      DateTime?    @map("deleted_at")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  embeddingId    String?        @map("embedding_id")
+  metadata       Json           @default("{}")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  deletedAt      DateTime?      @map("deleted_at")
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   accesses       MemoryAccess[]
 
   @@index([organizationId])
@@ -244,20 +289,21 @@ model MemoryAccess {
 }
 
 model Agent {
-  id             String     @id @default(uuid()) @db.Uuid
-  organizationId String     @map("organization_id") @db.Uuid
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
   name           String
   description    String
-  systemPrompt   String     @map("system_prompt")
+  systemPrompt   String       @map("system_prompt")
   provider       String
   model          String
-  configuration  Json       @default("{}")
-  enabled        Boolean    @default(true)
-  createdAt      DateTime   @default(now()) @map("created_at")
-  updatedAt      DateTime   @updatedAt @map("updated_at")
-  deletedAt      DateTime?  @map("deleted_at")
+  configuration  Json         @default("{}")
+  enabled        Boolean      @default(true)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   runs           AgentRun[]
+  aiUsageLogs    AiUsageLog[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -270,9 +316,15 @@ model AgentRun {
   id             String         @id @default(uuid()) @db.Uuid
   agentId        String         @map("agent_id") @db.Uuid
   conversationId String         @map("conversation_id") @db.Uuid
+  parentRunId    String?        @map("parent_run_id") @db.Uuid
+  rootRunId      String?        @map("root_run_id") @db.Uuid
+  depth          Int            @default(0)
   status         AgentRunStatus
   input          Json           @default("{}")
   output         Json           @default("{}")
+  currentStep    Int            @default(0) @map("current_step")
+  iterationCount Int            @default(0) @map("iteration_count")
+  toolCallCount  Int            @default(0) @map("tool_call_count")
   startedAt      DateTime       @map("started_at")
   completedAt    DateTime?      @map("completed_at")
   durationMs     Int?           @map("duration_ms")
@@ -281,12 +333,90 @@ model AgentRun {
   createdAt      DateTime       @default(now()) @map("created_at")
   agent          Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
   conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  parentRun      AgentRun?      @relation("AgentRunHierarchy", fields: [parentRunId], references: [id], onDelete: Cascade)
+  childRuns      AgentRun[]     @relation("AgentRunHierarchy")
+  aiUsageLogs    AiUsageLog[]
+  steps          AgentRunStep[]
+  sentMessages   AgentMessage[]
 
   @@index([agentId])
   @@index([conversationId])
+  @@index([parentRunId])
+  @@index([rootRunId])
   @@index([status])
   @@index([createdAt])
   @@map("agent_runs")
+}
+
+model AgentRunStep {
+  id         String           @id @default(uuid()) @db.Uuid
+  agentRunId String           @map("agent_run_id") @db.Uuid
+  stepNumber Int              @map("step_number")
+  type       AgentRunStepType
+  summary    String
+  toolName   String?          @map("tool_name")
+  input      Json?
+  output     Json?
+  createdAt  DateTime         @default(now()) @map("created_at")
+  agentRun   AgentRun         @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+
+  @@index([agentRunId])
+  @@index([stepNumber])
+  @@index([type])
+  @@map("agent_run_steps")
+}
+
+model AgentMessage {
+  id             String           @id @default(uuid()) @db.Uuid
+  rootRunId      String           @map("root_run_id") @db.Uuid
+  fromAgentRunId String           @map("from_agent_run_id") @db.Uuid
+  toAgentRunId   String?          @map("to_agent_run_id") @db.Uuid
+  type           AgentMessageType
+  content        String
+  payload        Json             @default("{}")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  fromAgentRun   AgentRun         @relation(fields: [fromAgentRunId], references: [id], onDelete: Cascade)
+
+  @@index([rootRunId])
+  @@index([fromAgentRunId])
+  @@index([toAgentRunId])
+  @@index([type])
+  @@map("agent_messages")
+}
+
+model AiUsageLog {
+  id               String        @id @default(uuid()) @db.Uuid
+  organizationId   String        @map("organization_id") @db.Uuid
+  userId           String        @map("user_id") @db.Uuid
+  conversationId   String?       @map("conversation_id") @db.Uuid
+  agentId          String?       @map("agent_id") @db.Uuid
+  agentRunId       String?       @map("agent_run_id") @db.Uuid
+  requestType      AiRequestType @map("request_type")
+  provider         String?
+  model            String?
+  toolName         String?       @map("tool_name")
+  inputTokens      Int           @default(0) @map("input_tokens")
+  outputTokens     Int           @default(0) @map("output_tokens")
+  totalTokens      Int           @default(0) @map("total_tokens")
+  estimatedCostUsd Decimal       @default(0) @map("estimated_cost_usd") @db.Decimal(12, 6)
+  durationMs       Int?          @map("duration_ms")
+  succeeded        Boolean       @default(true)
+  errorMessage     String?       @map("error_message")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation     Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  agent            Agent?        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agentRun         AgentRun?     @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([conversationId])
+  @@index([agentId])
+  @@index([agentRunId])
+  @@index([requestType])
+  @@index([createdAt])
+  @@map("ai_usage_logs")
 }
 
 model VerificationToken {
@@ -346,6 +476,7 @@ model Role {
   updatedAt       DateTime         @updatedAt @map("updated_at")
   memberships     Membership[]
   rolePermissions RolePermission[]
+  invitations     Invitation[]
 
   @@index([isSystem])
   @@map("roles")
@@ -394,24 +525,49 @@ model Membership {
   @@map("memberships")
 }
 
+model Invitation {
+  id               String           @id @default(uuid()) @db.Uuid
+  organizationId   String           @map("organization_id") @db.Uuid
+  email            String
+  roleId           String           @map("role_id") @db.Uuid
+  tokenHash        String           @unique @map("token_hash")
+  status           InvitationStatus @default(PENDING)
+  invitedByUserId  String           @map("invited_by_user_id") @db.Uuid
+  acceptedByUserId String?          @map("accepted_by_user_id") @db.Uuid
+  expiresAt        DateTime         @map("expires_at")
+  acceptedAt       DateTime?        @map("accepted_at")
+  revokedAt        DateTime?        @map("revoked_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role             Role             @relation(fields: [roleId], references: [id])
+  invitedBy        User             @relation("InvitationInvitedBy", fields: [invitedByUserId], references: [id])
+  acceptedBy       User?            @relation("InvitationAcceptedBy", fields: [acceptedByUserId], references: [id])
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([status])
+  @@map("invitations")
+}
+
 model SalesCompany {
-  id            String             @id @default(uuid()) @db.Uuid
-  organizationId String            @map("organization_id") @db.Uuid
-  name          String
-  domain        String?
-  website       String?
-  industry      String?
-  status        SalesCompanyStatus @default(PROSPECT)
-  notes         String?
-  metadata      Json               @default("{}")
-  createdAt     DateTime           @default(now()) @map("created_at")
-  updatedAt     DateTime           @updatedAt @map("updated_at")
-  deletedAt     DateTime?          @map("deleted_at")
-  organization  Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  contacts      SalesContact[]
-  leads         SalesLead[]
-  opportunities SalesOpportunity[]
-  activities    SalesActivity[]
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  name           String
+  domain         String?
+  website        String?
+  industry       String?
+  status         SalesCompanyStatus @default(PROSPECT)
+  notes          String?
+  metadata       Json               @default("{}")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  deletedAt      DateTime?          @map("deleted_at")
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts       SalesContact[]
+  leads          SalesLead[]
+  opportunities  SalesOpportunity[]
+  activities     SalesActivity[]
 
   @@index([organizationId])
   @@index([status])
@@ -421,21 +577,21 @@ model SalesCompany {
 }
 
 model SalesContact {
-  id             String        @id @default(uuid()) @db.Uuid
-  organizationId String        @map("organization_id") @db.Uuid
-  companyId      String?       @map("company_id") @db.Uuid
-  firstName      String        @map("first_name")
-  lastName       String        @map("last_name")
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  companyId      String?            @map("company_id") @db.Uuid
+  firstName      String             @map("first_name")
+  lastName       String             @map("last_name")
   email          String?
   phone          String?
-  jobTitle       String?       @map("job_title")
+  jobTitle       String?            @map("job_title")
   notes          String?
-  metadata       Json          @default("{}")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
-  deletedAt      DateTime?     @map("deleted_at")
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company        SalesCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  metadata       Json               @default("{}")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  deletedAt      DateTime?          @map("deleted_at")
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company        SalesCompany?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
   leads          SalesLead[]
   opportunities  SalesOpportunity[]
   activities     SalesActivity[]
@@ -448,23 +604,23 @@ model SalesContact {
 }
 
 model SalesLead {
-  id                   String          @id @default(uuid()) @db.Uuid
-  organizationId       String          @map("organization_id") @db.Uuid
-  companyId            String?         @map("company_id") @db.Uuid
-  contactId            String?         @map("contact_id") @db.Uuid
+  id                   String             @id @default(uuid()) @db.Uuid
+  organizationId       String             @map("organization_id") @db.Uuid
+  companyId            String?            @map("company_id") @db.Uuid
+  contactId            String?            @map("contact_id") @db.Uuid
   title                String
   source               String?
-  status               SalesLeadStatus @default(NEW)
-  qualificationScore   Int?            @map("qualification_score")
-  qualificationSummary String?         @map("qualification_summary")
+  status               SalesLeadStatus    @default(NEW)
+  qualificationScore   Int?               @map("qualification_score")
+  qualificationSummary String?            @map("qualification_summary")
   notes                String?
-  metadata             Json            @default("{}")
-  createdAt            DateTime        @default(now()) @map("created_at")
-  updatedAt            DateTime        @updatedAt @map("updated_at")
-  deletedAt            DateTime?       @map("deleted_at")
-  organization         Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company              SalesCompany?   @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  contact              SalesContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  metadata             Json               @default("{}")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  deletedAt            DateTime?          @map("deleted_at")
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company              SalesCompany?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact              SalesContact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
   opportunities        SalesOpportunity[]
   activities           SalesActivity[]
 
@@ -513,28 +669,28 @@ model SalesOpportunity {
 }
 
 model SalesActivity {
-  id               String            @id @default(uuid()) @db.Uuid
-  organizationId   String            @map("organization_id") @db.Uuid
-  companyId        String?           @map("company_id") @db.Uuid
-  contactId        String?           @map("contact_id") @db.Uuid
-  leadId           String?           @map("lead_id") @db.Uuid
-  opportunityId    String?           @map("opportunity_id") @db.Uuid
-  type             SalesActivityType
-  subject          String
-  description      String?
-  occurredAt       DateTime?         @map("occurred_at")
-  dueAt            DateTime?         @map("due_at")
-  completed        Boolean           @default(false)
-  meetingSummary   String?           @map("meeting_summary")
-  metadata         Json              @default("{}")
-  createdAt        DateTime          @default(now()) @map("created_at")
-  updatedAt        DateTime          @updatedAt @map("updated_at")
-  deletedAt        DateTime?         @map("deleted_at")
-  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company          SalesCompany?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  contact          SalesContact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  lead             SalesLead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  opportunity      SalesOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  companyId      String?           @map("company_id") @db.Uuid
+  contactId      String?           @map("contact_id") @db.Uuid
+  leadId         String?           @map("lead_id") @db.Uuid
+  opportunityId  String?           @map("opportunity_id") @db.Uuid
+  type           SalesActivityType
+  subject        String
+  description    String?
+  occurredAt     DateTime?         @map("occurred_at")
+  dueAt          DateTime?         @map("due_at")
+  completed      Boolean           @default(false)
+  meetingSummary String?           @map("meeting_summary")
+  metadata       Json              @default("{}")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  deletedAt      DateTime?         @map("deleted_at")
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company        SalesCompany?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact        SalesContact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lead           SalesLead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  opportunity    SalesOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([companyId])
@@ -546,4 +702,761 @@ model SalesActivity {
   @@index([deletedAt])
   @@index([createdAt])
   @@map("sales_activities")
+}
+
+enum KnowledgeSourceType {
+  CRM_CONTACT
+  CRM_COMPANY
+  CRM_OPPORTUNITY
+  CRM_ACTIVITY
+  NOTE
+  DOCUMENT
+  EMAIL
+  CALENDAR
+  TASK
+  MEETING
+  UPLOADED_FILE
+  AI_MEMORY
+  MESSAGE
+  ISSUE
+  OTHER
+}
+
+enum KnowledgeSourceStatus {
+  ACTIVE
+  PAUSED
+  ERROR
+}
+
+enum KnowledgeDocumentStatus {
+  PENDING
+  INDEXING
+  INDEXED
+  FAILED
+}
+
+enum KnowledgeEntityType {
+  PERSON
+  COMPANY
+  DEAL
+  PROJECT
+  TASK
+  MEETING
+  DOCUMENT
+  EMAIL
+  FILE
+  NOTE
+  AGENT
+  WORKFLOW
+  MEMORY
+}
+
+enum KnowledgeRelationshipType {
+  OWNS
+  WORKS_AT
+  ASSOCIATED_WITH
+  PARTICIPATED_IN
+  ASSIGNED_TO
+  MENTIONS
+  ATTACHED_TO
+  RELATED_TO
+  CREATED_BY
+}
+
+/// A configured knowledge source: one CRM record type, file-upload bucket,
+/// or other feed that documents are ingested from. Reindex/pause/health
+/// operate at this granularity.
+model KnowledgeSource {
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @map("organization_id") @db.Uuid
+  type           KnowledgeSourceType
+  name           String
+  description    String?
+  config         Json                  @default("{}")
+  status         KnowledgeSourceStatus @default(ACTIVE)
+  lastIndexedAt  DateTime?             @map("last_indexed_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+  deletedAt      DateTime?             @map("deleted_at")
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents      KnowledgeDocument[]
+
+  @@index([organizationId])
+  @@index([type])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("knowledge_sources")
+}
+
+/// One ingestible unit of content (a CRM record snapshot, an uploaded file,
+/// a note) belonging to a KnowledgeSource. Holds extracted raw text before
+/// chunking; externalId lets re-ingestion of the same upstream record
+/// update rather than duplicate.
+model KnowledgeDocument {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @map("organization_id") @db.Uuid
+  sourceId       String                  @map("source_id") @db.Uuid
+  externalId     String?                 @map("external_id")
+  title          String
+  contentType    String                  @map("content_type")
+  rawText        String?                 @map("raw_text")
+  metadata       Json                    @default("{}")
+  status         KnowledgeDocumentStatus @default(PENDING)
+  indexedAt      DateTime?               @map("indexed_at")
+  error          String?
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+  deletedAt      DateTime?               @map("deleted_at")
+  source         KnowledgeSource         @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  chunks         KnowledgeChunk[]
+
+  @@index([organizationId])
+  @@index([sourceId])
+  @@index([externalId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("knowledge_documents")
+}
+
+/// A chunk of a document's extracted text plus its embedding vector — the
+/// unit actually searched. The `embedding` column is `Unsupported` because
+/// Prisma has no native pgvector type: all reads/writes to it go through
+/// raw SQL in KnowledgeChunkRepository, and its migration is hand-written
+/// (extension + column + ivfflat index + generated tsvector + GIN index).
+model KnowledgeChunk {
+  id             String                       @id @default(uuid()) @db.Uuid
+  organizationId String                       @map("organization_id") @db.Uuid
+  documentId     String                       @map("document_id") @db.Uuid
+  chunkIndex     Int                          @map("chunk_index")
+  content        String
+  tokenCount     Int                          @map("token_count")
+  embedding      Unsupported("vector(1536)")?
+  /// Generated column (to_tsvector(content)), maintained entirely in the
+  /// migration SQL — declared here only so Prisma doesn't propose dropping
+  /// it on a future `migrate dev` diff.
+  contentTsv     Unsupported("tsvector")?     @map("content_tsv")
+  metadata       Json                         @default("{}")
+  createdAt      DateTime                     @default(now()) @map("created_at")
+  deletedAt      DateTime?                    @map("deleted_at")
+  document       KnowledgeDocument            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([documentId])
+  @@index([deletedAt])
+  @@map("knowledge_chunks")
+}
+
+/// A node in the knowledge graph — a person, company, deal, document, etc.
+/// externalId links back to the originating CRM/document record so graph
+/// nodes and knowledge documents can be cross-referenced without
+/// duplicating data.
+model KnowledgeEntity {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @map("organization_id") @db.Uuid
+  type           KnowledgeEntityType
+  externalId     String?                 @map("external_id")
+  label          String
+  metadata       Json                    @default("{}")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+  deletedAt      DateTime?               @map("deleted_at")
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  outgoing       KnowledgeRelationship[] @relation("FromEntity")
+  incoming       KnowledgeRelationship[] @relation("ToEntity")
+
+  @@index([organizationId])
+  @@index([type])
+  @@index([externalId])
+  @@index([deletedAt])
+  @@map("knowledge_entities")
+}
+
+/// A directed, typed edge between two KnowledgeEntity nodes — what graph
+/// traversal walks.
+model KnowledgeRelationship {
+  id             String                    @id @default(uuid()) @db.Uuid
+  organizationId String                    @map("organization_id") @db.Uuid
+  fromEntityId   String                    @map("from_entity_id") @db.Uuid
+  toEntityId     String                    @map("to_entity_id") @db.Uuid
+  type           KnowledgeRelationshipType
+  metadata       Json                      @default("{}")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  fromEntity     KnowledgeEntity           @relation("FromEntity", fields: [fromEntityId], references: [id], onDelete: Cascade)
+  toEntity       KnowledgeEntity           @relation("ToEntity", fields: [toEntityId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([fromEntityId])
+  @@index([toEntityId])
+  @@index([type])
+  @@map("knowledge_relationships")
+}
+
+/// Retrieval observability: one row per knowledge search, feeding the
+/// admin statistics/health endpoints (latency, hit rate, cache hit,
+/// confidence, citation quality).
+model KnowledgeSearchLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  organizationId    String   @map("organization_id") @db.Uuid
+  query             String
+  resultCount       Int      @map("result_count")
+  citedResultCount  Int      @map("cited_result_count")
+  topConfidence     Float?   @map("top_confidence")
+  averageConfidence Float?   @map("average_confidence")
+  latencyMs         Int      @map("latency_ms")
+  cacheHit          Boolean  @default(false) @map("cache_hit")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([organizationId])
+  @@index([createdAt])
+  @@map("knowledge_search_logs")
+}
+
+enum WorkflowStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum WorkflowStepType {
+  AGENT
+  TOOL
+  API
+  WEBHOOK
+  NOTIFICATION
+  APPROVAL
+  DELAY
+  INTEGRATION
+}
+
+enum WorkflowTriggerType {
+  MANUAL
+  IMMEDIATE
+  DELAYED
+  CRON
+  EVENT
+  API
+}
+
+enum WorkflowRunStatus {
+  PENDING
+  RUNNING
+  PAUSED
+  WAITING_APPROVAL
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  TIMED_OUT
+}
+
+enum WorkflowStepRunStatus {
+  PENDING
+  RUNNING
+  WAITING_APPROVAL
+  SUCCEEDED
+  FAILED
+  SKIPPED
+  CANCELLED
+  RETRYING
+}
+
+enum WorkflowApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum WorkflowLogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
+/// A named, versioned business process. The Workflow row itself is a
+/// stable identity + status (DRAFT/PUBLISHED/ARCHIVED); the actual
+/// executable DAG lives in immutable WorkflowVersion rows so a running
+/// WorkflowRun always points at the exact definition it started with,
+/// even if the workflow is edited or republished mid-flight.
+model Workflow {
+  id               String             @id @default(uuid()) @db.Uuid
+  organizationId   String             @map("organization_id") @db.Uuid
+  name             String
+  description      String?
+  status           WorkflowStatus     @default(DRAFT)
+  publishedVersion Int?               @map("published_version")
+  createdBy        String             @map("created_by") @db.Uuid
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  deletedAt        DateTime?          @map("deleted_at")
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions         WorkflowVersion[]
+  runs             WorkflowRun[]
+  schedules        WorkflowSchedule[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("workflows")
+}
+
+/// One immutable snapshot of a workflow's step DAG. `definition` is the
+/// validated JSON graph (steps, dependsOn, conditions, retry/timeout
+/// policy) produced by WorkflowDefinitionValidatorService.
+model WorkflowVersion {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  workflowId     String        @map("workflow_id") @db.Uuid
+  version        Int
+  definition     Json
+  createdBy      String        @map("created_by") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+  workflow       Workflow      @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  runs           WorkflowRun[]
+
+  @@unique([workflowId, version])
+  @@index([organizationId])
+  @@index([workflowId])
+  @@map("workflow_versions")
+}
+
+/// A configured trigger for a workflow (cron, delayed, event-triggered).
+/// MANUAL/IMMEDIATE/API triggers don't need a persisted schedule row —
+/// they execute a run directly — so this table only holds triggers that
+/// need to fire on their own later.
+model WorkflowSchedule {
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @map("organization_id") @db.Uuid
+  workflowId     String              @map("workflow_id") @db.Uuid
+  triggerType    WorkflowTriggerType @map("trigger_type")
+  cronExpression String?             @map("cron_expression")
+  delayMs        Int?                @map("delay_ms")
+  eventName      String?             @map("event_name")
+  input          Json                @default("{}")
+  enabled        Boolean             @default(true)
+  nextRunAt      DateTime?           @map("next_run_at")
+  lastRunAt      DateTime?           @map("last_run_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  workflow       Workflow            @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([workflowId])
+  @@index([triggerType])
+  @@index([enabled])
+  @@index([nextRunAt])
+  @@map("workflow_schedules")
+}
+
+/// One execution of a workflow version. `version` is an optimistic-
+/// concurrency counter (incremented on every state transition) so
+/// concurrent pause/resume/cancel/step-completion writes can detect and
+/// reject a stale update instead of silently clobbering it. `context`
+/// accumulates every completed step's output keyed by stepId, which is
+/// how later steps and conditions reference earlier results.
+model WorkflowRun {
+  id                String                 @id @default(uuid()) @db.Uuid
+  organizationId    String                 @map("organization_id") @db.Uuid
+  workflowId        String                 @map("workflow_id") @db.Uuid
+  workflowVersionId String                 @map("workflow_version_id") @db.Uuid
+  conversationId    String                 @map("conversation_id") @db.Uuid
+  status            WorkflowRunStatus      @default(PENDING)
+  triggerType       WorkflowTriggerType    @map("trigger_type")
+  input             Json                   @default("{}")
+  context           Json                   @default("{}")
+  output            Json                   @default("{}")
+  currentStepId     String?                @map("current_step_id")
+  idempotencyKey    String?                @map("idempotency_key")
+  triggeredBy       String?                @map("triggered_by") @db.Uuid
+  error             String?
+  version           Int                    @default(0)
+  startedAt         DateTime?              @map("started_at")
+  completedAt       DateTime?              @map("completed_at")
+  durationMs        Int?                   @map("duration_ms")
+  queuedAt          DateTime               @default(now()) @map("queued_at")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+  workflow          Workflow               @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflowVersion   WorkflowVersion        @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
+  conversation      Conversation           @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  stepRuns          WorkflowStepRun[]
+  logs              WorkflowExecutionLog[]
+  checkpoints       WorkflowCheckpoint[]
+  approvals         WorkflowApproval[]
+  deadLetters       WorkflowDeadLetter[]
+
+  @@unique([workflowId, idempotencyKey])
+  @@index([organizationId])
+  @@index([workflowId])
+  @@index([workflowVersionId])
+  @@index([conversationId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("workflow_runs")
+}
+
+/// One step's execution within a run. `attempt` tracks the current retry
+/// count; individual retry attempts are additionally logged to
+/// WorkflowRetryAttempt for full history.
+model WorkflowStepRun {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @map("organization_id") @db.Uuid
+  workflowRunId  String                 @map("workflow_run_id") @db.Uuid
+  stepId         String                 @map("step_id")
+  type           WorkflowStepType
+  status         WorkflowStepRunStatus  @default(PENDING)
+  input          Json                   @default("{}")
+  output         Json                   @default("{}")
+  attempt        Int                    @default(0)
+  error          String?
+  startedAt      DateTime?              @map("started_at")
+  completedAt    DateTime?              @map("completed_at")
+  durationMs     Int?                   @map("duration_ms")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+  workflowRun    WorkflowRun            @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+  retryAttempts  WorkflowRetryAttempt[]
+  approvals      WorkflowApproval[]
+
+  @@unique([workflowRunId, stepId])
+  @@index([organizationId])
+  @@index([workflowRunId])
+  @@index([status])
+  @@map("workflow_step_runs")
+}
+
+/// Full retry history for a step run — one row per failed attempt, kept
+/// even after the step eventually succeeds, distinct from
+/// WorkflowStepRun.attempt (the live counter) so past failures remain
+/// inspectable.
+model WorkflowRetryAttempt {
+  id            String          @id @default(uuid()) @db.Uuid
+  stepRunId     String          @map("step_run_id") @db.Uuid
+  attemptNumber Int             @map("attempt_number")
+  error         String
+  delayMs       Int             @map("delay_ms")
+  occurredAt    DateTime        @default(now()) @map("occurred_at")
+  stepRun       WorkflowStepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade)
+
+  @@index([stepRunId])
+  @@map("workflow_retry_attempts")
+}
+
+/// Structured execution log / audit trail for a run — every lifecycle
+/// event (WorkflowStarted, StepCompleted, etc.) is persisted here in
+/// addition to being streamed live, so a run's full history survives
+/// after the SSE connection is long gone.
+model WorkflowExecutionLog {
+  id            String           @id @default(uuid()) @db.Uuid
+  workflowRunId String           @map("workflow_run_id") @db.Uuid
+  stepRunId     String?          @map("step_run_id") @db.Uuid
+  level         WorkflowLogLevel @default(INFO)
+  event         String
+  message       String
+  metadata      Json             @default("{}")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  workflowRun   WorkflowRun      @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+
+  @@index([workflowRunId])
+  @@index([stepRunId])
+  @@index([createdAt])
+  @@map("workflow_execution_logs")
+}
+
+/// A resumable snapshot of run state taken after each step completes —
+/// what pause/resume and crash-recovery replay from, rather than
+/// re-deriving progress from the step-run rows on every resume.
+model WorkflowCheckpoint {
+  id            String      @id @default(uuid()) @db.Uuid
+  workflowRunId String      @map("workflow_run_id") @db.Uuid
+  stepId        String      @map("step_id")
+  state         Json
+  createdAt     DateTime    @default(now()) @map("created_at")
+  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+
+  @@index([workflowRunId])
+  @@index([createdAt])
+  @@map("workflow_checkpoints")
+}
+
+/// A pending/decided human approval gate for an APPROVAL-type step.
+model WorkflowApproval {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @map("organization_id") @db.Uuid
+  workflowRunId  String                 @map("workflow_run_id") @db.Uuid
+  stepRunId      String                 @map("step_run_id") @db.Uuid
+  status         WorkflowApprovalStatus @default(PENDING)
+  approverUserId String?                @map("approver_user_id") @db.Uuid
+  comment        String?
+  expiresAt      DateTime?              @map("expires_at")
+  decidedAt      DateTime?              @map("decided_at")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  workflowRun    WorkflowRun            @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+  stepRun        WorkflowStepRun        @relation(fields: [stepRunId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([workflowRunId])
+  @@index([stepRunId])
+  @@index([status])
+  @@map("workflow_approvals")
+}
+
+/// A step whose retries were exhausted (or which failed unrecoverably)
+/// lands here for manual inspection/replay instead of silently
+/// disappearing — the workflow engine's dead letter queue.
+model WorkflowDeadLetter {
+  id             String      @id @default(uuid()) @db.Uuid
+  organizationId String      @map("organization_id") @db.Uuid
+  workflowRunId  String      @map("workflow_run_id") @db.Uuid
+  stepId         String      @map("step_id")
+  reason         String
+  payload        Json        @default("{}")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  workflowRun    WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([workflowRunId])
+  @@index([createdAt])
+  @@map("workflow_dead_letters")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Enterprise Integration Platform (VT-025)
+// ─────────────────────────────────────────────────────────────
+
+enum IntegrationProviderKey {
+  GOOGLE_GMAIL
+  GOOGLE_CALENDAR
+  GOOGLE_DRIVE
+  MICROSOFT_OUTLOOK
+  MICROSOFT_CALENDAR
+  MICROSOFT_ONEDRIVE
+  SLACK
+  MICROSOFT_TEAMS
+  GITHUB
+  STRIPE
+  WEBHOOK
+  REST_API
+}
+
+enum IntegrationAuthType {
+  OAUTH2
+  API_KEY
+  WEBHOOK_SECRET
+  NONE
+}
+
+enum IntegrationConnectionStatus {
+  PENDING
+  CONNECTED
+  ERROR
+  DISCONNECTED
+  REVOKED
+  TOKEN_EXPIRED
+}
+
+enum IntegrationHealthStatus {
+  HEALTHY
+  DEGRADED
+  UNHEALTHY
+  UNKNOWN
+}
+
+enum IntegrationSyncTrigger {
+  MANUAL
+  POLL
+  WEBHOOK
+  SCHEDULED
+}
+
+enum IntegrationSyncStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  PARTIAL
+}
+
+enum IntegrationEventType {
+  EMAIL_RECEIVED
+  MEETING_CREATED
+  FILE_UPLOADED
+  PAYMENT_RECEIVED
+  SLACK_MESSAGE
+  TEAMS_MESSAGE
+  GITHUB_ISSUE
+  WEBHOOK_RECEIVED
+  API_EVENT
+  CONNECTION_CONNECTED
+  CONNECTION_ERROR
+  TOKEN_REFRESHED
+}
+
+/// One connected external account (a Gmail inbox, a Slack workspace, a
+/// Stripe account, ...). `version` is bumped on every update for
+/// optimistic concurrency (same convention as WorkflowRun) and doubles as
+/// the "Connection Versioning" enterprise feature; full change history
+/// lives in AuditLog rather than a separate version table, since audit
+/// logging already captures who-changed-what-when generically.
+model IntegrationConnection {
+  id                String                       @id @default(uuid()) @db.Uuid
+  organizationId    String                       @map("organization_id") @db.Uuid
+  provider          IntegrationProviderKey
+  displayName       String                       @map("display_name")
+  authType          IntegrationAuthType          @map("auth_type")
+  status            IntegrationConnectionStatus  @default(PENDING)
+  externalAccountId String?                      @map("external_account_id")
+  config            Json                         @default("{}")
+  version           Int                          @default(0)
+  lastHealthCheckAt DateTime?                    @map("last_health_check_at")
+  lastHealthStatus  IntegrationHealthStatus      @default(UNKNOWN) @map("last_health_status")
+  lastSyncAt        DateTime?                    @map("last_sync_at")
+  lastError         String?                      @map("last_error")
+  createdBy         String                       @map("created_by") @db.Uuid
+  createdAt         DateTime                     @default(now()) @map("created_at")
+  updatedAt         DateTime                     @updatedAt @map("updated_at")
+  deletedAt         DateTime?                    @map("deleted_at")
+  organization      Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  credential        IntegrationCredential?
+  webhookEndpoints  IntegrationWebhookEndpoint[]
+  events            IntegrationEvent[]
+  syncRuns          IntegrationSyncRun[]
+  apiUsageLogs      IntegrationApiUsageLog[]
+  healthChecks      IntegrationHealthCheck[]
+
+  @@unique([organizationId, provider, externalAccountId])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("integration_connections")
+}
+
+/// The decrypted-at-use secret material for a connection, kept in a
+/// separate table from IntegrationConnection so listing/updating
+/// connection metadata never touches encrypted payloads. One JSON blob
+/// (access token, refresh token, api key, provider-specific extras) is
+/// encrypted as a single unit by EncryptionService rather than
+/// field-by-field — simpler, and `expiresAt` is kept OUTSIDE the
+/// encrypted blob so token-refresh sweeps can query "expiring soon"
+/// without decrypting every row.
+model IntegrationCredential {
+  id               String                @id @default(uuid()) @db.Uuid
+  connectionId     String                @unique @map("connection_id") @db.Uuid
+  organizationId   String                @map("organization_id") @db.Uuid
+  encryptedPayload String                @map("encrypted_payload") @db.Text
+  expiresAt        DateTime?             @map("expires_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+  connection       IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([expiresAt])
+  @@map("integration_credentials")
+}
+
+/// A registered inbound webhook URL (`/api/v1/integrations/webhooks/:token`)
+/// for a connection — `token` is the unguessable path segment, distinct
+/// from `encryptedSecret` which is used to verify the provider's request
+/// signature (HMAC etc.), never to authorize the URL itself.
+model IntegrationWebhookEndpoint {
+  id              String                 @id @default(uuid()) @db.Uuid
+  connectionId    String                 @map("connection_id") @db.Uuid
+  organizationId  String                 @map("organization_id") @db.Uuid
+  provider        IntegrationProviderKey
+  token           String                 @unique
+  encryptedSecret String                 @map("encrypted_secret") @db.Text
+  enabled         Boolean                @default(true)
+  lastReceivedAt  DateTime?              @map("last_received_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  connection      IntegrationConnection  @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId])
+  @@index([organizationId])
+  @@map("integration_webhook_endpoints")
+}
+
+/// One normalized fact observed via webhook or poll. `externalId` (the
+/// provider's own event/message id) plus the unique constraint below is
+/// what makes webhook/poll processing idempotent — replays of the same
+/// upstream event are silently deduplicated at the DB layer rather than
+/// with an application-level cache.
+model IntegrationEvent {
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @map("organization_id") @db.Uuid
+  connectionId   String                @map("connection_id") @db.Uuid
+  type           IntegrationEventType
+  externalId     String?               @map("external_id")
+  payload        Json                  @default("{}")
+  processedAt    DateTime?             @map("processed_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  connection     IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, externalId])
+  @@index([organizationId])
+  @@index([connectionId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("integration_events")
+}
+
+/// History of poll/webhook-triggered sync jobs for a connection.
+model IntegrationSyncRun {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @map("organization_id") @db.Uuid
+  connectionId   String                 @map("connection_id") @db.Uuid
+  trigger        IntegrationSyncTrigger
+  status         IntegrationSyncStatus  @default(RUNNING)
+  startedAt      DateTime               @default(now()) @map("started_at")
+  completedAt    DateTime?              @map("completed_at")
+  durationMs     Int?                   @map("duration_ms")
+  itemsProcessed Int                    @default(0) @map("items_processed")
+  itemsFailed    Int                    @default(0) @map("items_failed")
+  error          String?
+  createdAt      DateTime               @default(now()) @map("created_at")
+  connection     IntegrationConnection  @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([connectionId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("integration_sync_runs")
+}
+
+/// Per-call telemetry (status, duration, rate-limit headroom, retries) —
+/// the basis for the "API Usage" / "Rate Limits" / "Retries" observability
+/// requirements, mirroring AiUsageLog's role for the AI Gateway.
+model IntegrationApiUsageLog {
+  id                 String                @id @default(uuid()) @db.Uuid
+  organizationId     String                @map("organization_id") @db.Uuid
+  connectionId       String                @map("connection_id") @db.Uuid
+  action             String
+  statusCode         Int?                  @map("status_code")
+  durationMs         Int                   @map("duration_ms")
+  rateLimitRemaining Int?                  @map("rate_limit_remaining")
+  retryCount         Int                   @default(0) @map("retry_count")
+  error              String?
+  createdAt          DateTime              @default(now()) @map("created_at")
+  connection         IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([connectionId])
+  @@index([createdAt])
+  @@map("integration_api_usage_logs")
+}
+
+/// History of health checks for a connection (manual or scheduled).
+model IntegrationHealthCheck {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @map("organization_id") @db.Uuid
+  connectionId   String                  @map("connection_id") @db.Uuid
+  status         IntegrationHealthStatus
+  latencyMs      Int?                    @map("latency_ms")
+  message        String?
+  checkedAt      DateTime                @default(now()) @map("checked_at")
+  connection     IntegrationConnection   @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId])
+  @@index([checkedAt])
+  @@map("integration_health_checks")
 }

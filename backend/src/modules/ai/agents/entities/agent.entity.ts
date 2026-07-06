@@ -6,6 +6,10 @@ export interface AgentConfiguration {
   toolNames?: string[];
   temperature?: number;
   maxOutputTokens?: number;
+  /** Defaults to true when absent — see AgentFactory.canDelegate. */
+  canDelegate?: boolean;
+  /** Empty/absent means unrestricted — see AgentFactory.getAllowedDelegateAgentNames. */
+  delegateToAgentNames?: string[];
 }
 
 export interface AgentEntity {

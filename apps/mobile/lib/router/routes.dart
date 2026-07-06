@@ -18,6 +18,7 @@ abstract final class AppRoutes {
   static const String aiAgents = '/ai/agents';
   static const String aiKnowledge = '/ai/knowledge';
   static const String aiAutomations = '/ai/automations';
+  static const String aiIntegrations = '/ai/integrations';
   static const String aiHistory = '/ai/history';
   static const String salesDashboard = '/sales';
   static const String salesPipeline = '/sales/leads';
@@ -26,6 +27,8 @@ abstract final class AppRoutes {
   static const String salesOpportunityBoard = '/sales/opportunities';
   static const String salesCopilot = '/sales/copilot';
   static const String settings = '/settings';
+  static const String manageTeam = '/settings/team';
+  static const String acceptInvitation = '/invitations/accept';
   static const String components = '/components';
   static const String loading = '/components/loading';
   static const String error = '/components/error';
@@ -53,6 +56,7 @@ abstract final class AppRoutes {
     aiAgents,
     aiKnowledge,
     aiAutomations,
+    aiIntegrations,
     aiHistory,
     salesDashboard,
     salesPipeline,
@@ -61,6 +65,7 @@ abstract final class AppRoutes {
     salesOpportunityBoard,
     salesCopilot,
     settings,
+    manageTeam,
     components,
   };
 

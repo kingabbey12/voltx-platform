@@ -92,7 +92,7 @@ class DashboardSidebar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.voltxColors;
     final scheme = Theme.of(context).colorScheme;
-    final collapsed = ref.watch(dashboardShellProvider).sidebarCollapsed;
+    final collapsed = ref.watch(dashboardShellProvider.select((s) => s.sidebarCollapsed));
     final unread = ref.watch(unreadNotificationsCountProvider);
     final location = GoRouterState.of(context).uri.toString();
 

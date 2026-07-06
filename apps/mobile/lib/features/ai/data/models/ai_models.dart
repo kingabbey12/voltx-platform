@@ -49,21 +49,29 @@ class AiKnowledgeBase {
   final DateTime lastSynced;
 }
 
-/// Automation workflow template.
-class AiAutomation {
-  const AiAutomation({
+/// Long-term memory record returned by the backend memory engine.
+class AiMemory {
+  const AiMemory({
     required this.id,
-    required this.name,
-    required this.description,
-    required this.trigger,
-    required this.enabled,
+    required this.conversationId,
+    required this.category,
+    required this.importance,
+    required this.content,
+    required this.createdAt,
+    required this.updatedAt,
+    this.embeddingId,
+    this.metadata = const {},
   });
 
   final String id;
-  final String name;
-  final String description;
-  final String trigger;
-  final bool enabled;
+  final String conversationId;
+  final String category;
+  final double importance;
+  final String content;
+  final String? embeddingId;
+  final Map<String, dynamic> metadata;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 }
 
 /// Conversation thread.
@@ -105,8 +113,7 @@ class AiMessage {
   final bool isStreaming;
   final String? streamedContent;
 
-  String get displayContent =>
-      isStreaming ? (streamedContent ?? '') : content;
+  String get displayContent => isStreaming ? (streamedContent ?? '') : content;
 
   bool get isUser => role == AiMessageRole.user;
   bool get isAssistant => role == AiMessageRole.assistant;
@@ -162,10 +169,7 @@ class AiToolExecution {
   final AiToolStatus status;
   final String output;
 
-  AiToolExecution copyWith({
-    AiToolStatus? status,
-    String? output,
-  }) {
+  AiToolExecution copyWith({AiToolStatus? status, String? output}) {
     return AiToolExecution(
       id: id,
       toolName: toolName,

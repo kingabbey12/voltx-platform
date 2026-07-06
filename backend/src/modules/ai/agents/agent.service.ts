@@ -4,12 +4,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { AuditService } from '../../audit/audit.service';
+import { AiGatewayStreamEvent } from '../gateway/ai-gateway-stream-event.types';
 import { ModelRegistryService } from '../models/model-registry.service';
+import { drainToReturnValue, isAbortError } from '../streaming/drain-generator';
 import { AgentExecutor } from './agent.executor';
 import { AgentFactory } from './agent.factory';
+import { MultiAgentOrchestratorService } from './autonomous/multi-agent-orchestrator.service';
+import { MultiAgentStreamEvent } from './autonomous/multi-agent-stream-event.types';
 import { AgentRegistry } from './agent.registry';
 import { AgentRepository } from './agent.repository';
+import { RunAutonomousAgentDto } from './dto/autonomous-agent.dto';
 import {
   AgentResponseDto,
   AgentRunResponseDto,
@@ -26,6 +32,7 @@ export class AgentService {
     private readonly agentRepository: AgentRepository,
     private readonly agentRegistry: AgentRegistry,
     private readonly agentExecutor: AgentExecutor,
+    private readonly multiAgentOrchestratorService: MultiAgentOrchestratorService,
     private readonly agentFactory: AgentFactory,
     private readonly modelRegistryService: ModelRegistryService,
     private readonly auditService: AuditService,
@@ -139,12 +146,36 @@ export class AgentService {
     return AgentResponseDto.fromEntity(deleted);
   }
 
-  async runAgent(id: string, dto: RunAgentDto): Promise<RunAgentResponseDto> {
+  async runAgent(
+    id: string,
+    dto: RunAgentDto,
+    grantedPermissions: string[] = [],
+  ): Promise<RunAgentResponseDto> {
+    return drainToReturnValue(this.runAgentStream(id, dto, grantedPermissions));
+  }
+
+  /**
+   * Same agent-run lifecycle as runAgent (create the AgentRun row, execute
+   * the turn, update the run to SUCCEEDED/FAILED/TIMED_OUT, audit-log the
+   * outcome), expressed as a generator so runAgent can drain it for its
+   * existing JSON response and the new streaming endpoint can re-yield it
+   * live — one implementation of the run lifecycle, two consumption modes.
+   */
+  async *runAgentStream(
+    id: string,
+    dto: RunAgentDto,
+    grantedPermissions: string[] = [],
+    signal?: AbortSignal,
+  ): AsyncGenerator<AiGatewayStreamEvent, RunAgentResponseDto> {
+    yield { type: 'status', status: 'queued' };
+
     await this.agentRegistry.ensureSystemAgents();
     const agent = await this.getAgentOrThrow(id);
     if (!agent.enabled) {
       throw new BadRequestException(`Agent "${agent.name}" is disabled`);
     }
+
+    yield { type: 'status', status: 'processing' };
 
     const startedAt = new Date();
     const run = await this.agentRepository.createAgentRun({
@@ -168,8 +199,22 @@ export class AgentService {
       tokenUsage: {},
     });
 
+    const executorGenerator = this.agentExecutor.executeStream(
+      agent,
+      run,
+      dto,
+      grantedPermissions,
+      signal,
+    );
+
     try {
-      const result = await this.agentExecutor.execute(agent, run, dto);
+      let step = await executorGenerator.next();
+      while (!step.done) {
+        yield step.value;
+        step = await executorGenerator.next();
+      }
+      const result = step.value;
+
       const completedAt = new Date();
       const updatedRun = await this.agentRepository.updateAgentRun(run.id, {
         status: 'SUCCEEDED',
@@ -198,6 +243,8 @@ export class AgentService {
         },
       });
 
+      yield { type: 'status', status: 'completed' };
+
       return {
         run: AgentRunResponseDto.fromEntity(updatedRun),
         userMessage: result.userMessage,
@@ -206,8 +253,10 @@ export class AgentService {
       };
     } catch (error) {
       const completedAt = new Date();
-      const status =
-        error instanceof Error && error.message.toLowerCase().includes('timed out')
+      const cancelled = isAbortError(error);
+      const status = cancelled
+        ? 'TIMED_OUT'
+        : error instanceof Error && error.message.toLowerCase().includes('timed out')
           ? 'TIMED_OUT'
           : 'FAILED';
       const errorMessage = error instanceof Error ? error.message : 'Agent execution failed';
@@ -233,8 +282,135 @@ export class AgentService {
         },
       });
 
+      yield { type: 'status', status: cancelled ? 'cancelled' : 'failed' };
+
       throw error;
     }
+  }
+
+  async runAutonomousAgent(
+    id: string,
+    dto: RunAutonomousAgentDto,
+    grantedPermissions: string[] = [],
+  ): Promise<RunAgentResponseDto> {
+    return drainToReturnValue(this.runAutonomousAgentStream(id, dto, grantedPermissions));
+  }
+
+  /**
+   * Phase 1/2 autonomous execution: creates the root AgentRun (depth 0, no
+   * parent, rootRunId pointing at itself) and a fresh multi-agent
+   * coordination budget, then delegates all run-and-finalize bookkeeping to
+   * MultiAgentOrchestratorService.runAgent — the same method used for
+   * every delegated child, so this logic exists in exactly one place
+   * regardless of where in the execution tree a run sits. If the model
+   * never delegates, this behaves exactly like the Phase 1 single-agent
+   * loop. Reachable only via the /run/autonomous(/stream) endpoints — the
+   * existing /run endpoint and its behavior are completely untouched.
+   */
+  async *runAutonomousAgentStream(
+    id: string,
+    dto: RunAutonomousAgentDto,
+    grantedPermissions: string[] = [],
+    signal?: AbortSignal,
+  ): AsyncGenerator<AiGatewayStreamEvent | MultiAgentStreamEvent, RunAgentResponseDto> {
+    yield { type: 'status', status: 'queued' };
+
+    await this.agentRegistry.ensureSystemAgents();
+    const agent = await this.getAgentOrThrow(id);
+    if (!agent.enabled) {
+      throw new BadRequestException(`Agent "${agent.name}" is disabled`);
+    }
+
+    yield { type: 'status', status: 'processing' };
+
+    // Generated client-side so rootRunId can point at the run's own id in
+    // the same insert — a root run is the root of its own coordination.
+    const rootRunId = randomUUID();
+    const run = await this.agentRepository.createAgentRun({
+      id: rootRunId,
+      agentId: agent.id,
+      conversationId: dto.conversationId,
+      parentRunId: null,
+      rootRunId,
+      depth: 0,
+      status: 'RUNNING',
+      input: {
+        mode: 'autonomous',
+        objective: dto.objective,
+        workspaceContext: dto.workspaceContext ?? [],
+        ...(dto.temperature !== undefined ? { temperature: dto.temperature } : {}),
+        ...(dto.maxOutputTokens !== undefined ? { maxOutputTokens: dto.maxOutputTokens } : {}),
+        ...(dto.maxIterations !== undefined ? { maxIterations: dto.maxIterations } : {}),
+        ...(dto.maxToolCalls !== undefined ? { maxToolCalls: dto.maxToolCalls } : {}),
+        ...(dto.timeoutMs !== undefined ? { timeoutMs: dto.timeoutMs } : {}),
+      },
+      output: {},
+      startedAt: new Date(),
+      tokenUsage: {},
+    });
+
+    const coordinationState =
+      this.multiAgentOrchestratorService.createCoordinationStateForRoot(rootRunId);
+
+    const orchestratorGenerator = this.multiAgentOrchestratorService.runAgent(
+      agent,
+      run,
+      {
+        objective: dto.objective,
+        workspaceContext: dto.workspaceContext,
+        temperature: dto.temperature,
+        maxOutputTokens: dto.maxOutputTokens,
+        maxIterations: dto.maxIterations,
+        maxToolCalls: dto.maxToolCalls,
+        timeoutMs: dto.timeoutMs,
+      },
+      coordinationState,
+      grantedPermissions,
+      signal,
+    );
+
+    try {
+      let step = await orchestratorGenerator.next();
+      while (!step.done) {
+        yield step.value;
+        step = await orchestratorGenerator.next();
+      }
+      const result = step.value;
+
+      yield { type: 'status', status: 'completed' };
+
+      const updatedRun = await this.agentRepository.findRunById(run.id);
+      if (!updatedRun) {
+        throw new NotFoundException(`Agent run with id "${run.id}" not found after completion`);
+      }
+
+      return {
+        run: AgentRunResponseDto.fromEntity(updatedRun),
+        userMessage: result.userMessage,
+        toolMessages: result.toolMessages,
+        assistantMessage: result.assistantMessage,
+      };
+    } catch (error) {
+      yield { type: 'status', status: isAbortError(error) ? 'cancelled' : 'failed' };
+      throw error;
+    }
+  }
+
+  /**
+   * Observability: the full execution tree for a coordinated multi-agent
+   * run (or a single-agent run, which is simply a tree of one) — every
+   * descendant AgentRun, reusing AgentRunEntity/AgentRunResponseDto
+   * unchanged.
+   */
+  async getExecutionTree(runId: string): Promise<AgentRunResponseDto[]> {
+    const rootCandidate = await this.agentRepository.findRunById(runId);
+    if (!rootCandidate) {
+      throw new NotFoundException(`Agent run with id "${runId}" not found`);
+    }
+
+    const rootRunId = rootCandidate.rootRunId ?? rootCandidate.id;
+    const runs = await this.agentRepository.listRunsInTree(rootRunId);
+    return runs.map((run) => AgentRunResponseDto.fromEntity(run));
   }
 
   private async getAgentOrThrow(id: string): Promise<AgentEntity> {

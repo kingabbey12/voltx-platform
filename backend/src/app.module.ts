@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -16,12 +17,15 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AgentModule } from './modules/ai/agents/agent.module';
 import { AIModule } from './modules/ai/ai.module';
 import { HealthModule } from './modules/health/health.module';
+import { IntegrationModule } from './modules/integrations/integration.module';
+import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { UsersModule } from './modules/users/users.module';
+import { WorkflowModule } from './modules/workflows/workflow.module';
 
 @Module({
   imports: [
@@ -51,6 +55,7 @@ import { UsersModule } from './modules/users/users.module';
         ],
       }),
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     MetricsModule,
     TenantModule,
@@ -59,11 +64,14 @@ import { UsersModule } from './modules/users/users.module';
     AgentModule,
     AuthModule,
     HealthModule,
+    IntegrationModule,
+    KnowledgeModule,
     OrganizationModule,
     PermissionsModule,
     RolesModule,
     SalesModule,
     UsersModule,
+    WorkflowModule,
   ],
   providers: [
     LoggingInterceptor,

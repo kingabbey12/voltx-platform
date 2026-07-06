@@ -26,19 +26,20 @@ class AiContextSheet extends ConsumerWidget {
     final agent = ref.watch(selectedAgentProvider);
     final knowledge = ref.watch(selectedKnowledgeProvider);
     final bases = ref.watch(knowledgeBasesProvider);
+    final tools = ref.watch(availableToolsProvider);
+    final memorySnapshot = ref.watch(memorySnapshotProvider);
     final conversationId = ref.watch(activeConversationIdProvider);
     final chatState = ref.watch(aiChatProvider(conversationId));
 
-    final timeline = <AiTimelineItem>[
-      for (final message in chatState.messages.take(4))
-        AiTimelineItem(
-          title: message.isUser ? 'User prompt' : 'Assistant reasoning',
-          subtitle: message.displayContent.isEmpty
-              ? 'Streaming response...'
-              : message.displayContent.split('\n').first,
-          time: _formatTime(message.timestamp),
-        ),
-    ];
+    final timeline = memorySnapshot.timeline
+        .map(
+          (item) => AiTimelineItem(
+            title: item.title,
+            subtitle: item.subtitle,
+            time: item.time,
+          ),
+        )
+        .toList();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.55,
@@ -76,6 +77,8 @@ class AiContextSheet extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.xs),
                   AiContextCard(label: 'Knowledge', value: knowledge.name),
                   const SizedBox(height: AppSpacing.xs),
+                  AiContextCard(label: 'Memory', value: memorySnapshot.statusLabel),
+                  const SizedBox(height: AppSpacing.xs),
                   TokenUsageIndicator(
                     tokensUsed: chatState.tokensUsed,
                     contextWindow: model.contextWindow,
@@ -86,6 +89,11 @@ class AiContextSheet extends ConsumerWidget {
                     value: chatState.activeTool == null
                         ? 'Idle'
                         : '${chatState.activeTool!.toolName} (${chatState.activeTool!.status.name})',
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  AiContextCard(
+                    label: 'Tool registry',
+                    value: '${tools.length} tools available',
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   const AgentSelector(),
@@ -119,25 +127,31 @@ class AiContextSheet extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            const AiMemoryCard(
+            AiMemoryCard(
               title: 'Workspace Memory',
-              summary: 'Persistent context used for generation.',
-              items: [
-                'Executive summaries prioritized',
-                'Helios rollout remains top priority',
-                'North grid alerts require urgency handling',
-              ],
+              summary: memorySnapshot.statusLabel,
+              items: memorySnapshot.recentHighlights.isEmpty
+                  ? const ['No live memories synced yet']
+                  : memorySnapshot.recentHighlights,
             ),
+            if (memorySnapshot.recentHighlights.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              AiMemoryCard(
+                title: 'Live Memory Highlights',
+                summary: memorySnapshot.freshnessLabel,
+                items: memorySnapshot.recentHighlights,
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             AiPanel(
               header: Text(
-                'Reasoning Timeline',
+                'Memory Timeline',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
               ),
               child: timeline.isEmpty
                   ? const AiEmptyState(
-                      title: 'No reasoning events yet',
-                      subtitle: 'Timeline appears as responses are generated.',
+                      title: 'No memory timeline yet',
+                      subtitle: 'Timeline appears as memories are synced from the backend.',
                       icon: Icons.timeline_rounded,
                     )
                   : AiTimeline(items: timeline),
@@ -157,12 +171,5 @@ class AiContextSheet extends ConsumerWidget {
       return '${diff.inHours}h ago';
     }
     return '${diff.inDays}d ago';
-  }
-
-  String _formatTime(DateTime dt) {
-    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final minute = dt.minute.toString().padLeft(2, '0');
-    final suffix = dt.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $suffix';
   }
 }

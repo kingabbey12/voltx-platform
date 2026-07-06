@@ -1,254 +1,171 @@
 import 'package:flutter/material.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/widgets/async_value_view.dart';
+import '../../../../shared/widgets/pull_to_refresh.dart';
 import '../../../../theme/components/voltx_text_field.dart';
 import '../../../../theme/tokens/spacing.dart';
-import '../../data/models/ai_models.dart';
+import '../../../knowledge/data/models/knowledge_models.dart';
+import '../../../knowledge/presentation/providers/knowledge_providers.dart';
 import '../providers/ai_providers.dart';
 import '../shell/ai_nav_bar.dart';
 import '../widgets/ai_workspace_components.dart';
-import '../widgets/typing_indicator.dart';
 
-/// Knowledge and memory workspace screen.
+/// Knowledge Graph workspace — real sources, documents, and semantic
+/// search against the backend's Enterprise Knowledge Graph (VT-023),
+/// plus the AI memory panel (already real via `/ai/memories`).
 class AiKnowledgeScreen extends ConsumerWidget {
   const AiKnowledgeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bases = ref.watch(knowledgeBasesProvider);
-    final selected = ref.watch(selectedKnowledgeProvider);
-    final model = ref.watch(selectedModelProvider);
+    final selectedSourceId = ref.watch(_selectedSourceIdProvider);
+    final sources = ref.watch(knowledgeSourcesProvider(const KnowledgePageQuery(limit: 50)));
+    final memorySnapshot = ref.watch(memorySnapshotProvider);
     final isDesktop = MediaQuery.sizeOf(context).width >= 1100;
     final isTablet = MediaQuery.sizeOf(context).width >= 780;
 
-    final docs = _buildDocuments(bases);
-    final frequent = docs.take(3).toList();
-    final recent = docs.take(4).toList();
+    Future<void> refresh() async {
+      ref.invalidate(knowledgeSourcesProvider);
+      ref.invalidate(knowledgeStatsProvider);
+      ref.invalidate(knowledgeHealthProvider);
+      if (selectedSourceId != null) {
+        ref.invalidate(knowledgeSourceDocumentsProvider(selectedSourceId));
+      }
+    }
+
+    final leftNav = _KnowledgeLeftNav(
+      sources: sources,
+      selectedId: selectedSourceId,
+      onSelect: (id) => ref.read(_selectedSourceIdProvider.notifier).state = id,
+      onRetry: () => ref.invalidate(knowledgeSourcesProvider),
+    );
+
+    final mainWorkspace = _KnowledgeMainWorkspace(selectedSourceId: selectedSourceId);
+
+    final rightPanel = _KnowledgeRightPanel(memorySnapshot: memorySnapshot);
 
     return Column(
       children: [
         const AiNavBar(),
         Expanded(
-          child: Container(
-            margin: const EdgeInsets.all(AppSpacing.md),
-            child: isDesktop
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: _KnowledgeLeftNav(
-                          bases: bases,
-                          selected: selected,
-                          onSelect: (kb) => ref.read(selectedKnowledgeProvider.notifier).state = kb,
+          child: PullToRefresh(
+            onRefresh: refresh,
+            child: Container(
+              margin: const EdgeInsets.all(AppSpacing.md),
+              child: isDesktop
+                  ? SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 3, child: leftNav),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(flex: 7, child: mainWorkspace),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(flex: 4, child: rightPanel),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        flex: 7,
-                        child: _KnowledgeMainWorkspace(
-                          selected: selected,
-                          recent: recent,
-                          frequent: frequent,
-                          related: docs.skip(1).take(3).toList(),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        flex: 4,
-                        child: _KnowledgeRightPanel(
-                          selected: selected,
-                          model: model,
-                          docCount: docs.length,
-                          sourceCount: bases.length,
-                        ),
-                      ),
-                    ],
-                  )
-                : ListView(
-                    children: [
-                      _KnowledgeMainWorkspace(
-                        selected: selected,
-                        recent: recent,
-                        frequent: frequent,
-                        related: docs.skip(1).take(3).toList(),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      _KnowledgeRightPanel(
-                        selected: selected,
-                        model: model,
-                        docCount: docs.length,
-                        sourceCount: bases.length,
-                      ),
-                      if (isTablet) ...[
+                    )
+                  : ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        mainWorkspace,
                         const SizedBox(height: AppSpacing.md),
-                        _KnowledgeLeftNav(
-                          bases: bases,
-                          selected: selected,
-                          onSelect: (kb) => ref.read(selectedKnowledgeProvider.notifier).state = kb,
-                        ),
+                        rightPanel,
+                        if (isTablet) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          leftNav,
+                        ],
                       ],
-                    ],
-                  ),
+                    ),
+            ),
           ),
         ),
       ],
     );
   }
-
-  List<_KnowledgeDocument> _buildDocuments(List<AiKnowledgeBase> bases) {
-    if (bases.isEmpty) {
-      return const [];
-    }
-
-    final primary = bases.first;
-    final docs = <_KnowledgeDocument>[];
-    for (var i = 0; i < bases.length; i++) {
-      final kb = bases[i];
-      docs.add(
-        _KnowledgeDocument(
-          title: '${kb.name} Governance Playbook',
-          tags: [
-            _category(kb),
-            i.isEven ? 'Executive' : 'Operations',
-            'Memory',
-          ],
-          aiSummary:
-              'AI summary: ${kb.description}. This collection contains high-value knowledge used for executive response generation.',
-          lastUpdated: _relative(kb.lastSynced),
-          confidence: 88 + (i % 10),
-          source: kb.name,
-        ),
-      );
-    }
-
-    docs.add(
-      _KnowledgeDocument(
-        title: 'Company Strategy Memory Index',
-        tags: const ['Company Documents', 'Priority', 'Shared'],
-        aiSummary:
-            'AI summary: Strategic initiatives, quarterly goals, and board-level directives mapped into retrieval memory.',
-        lastUpdated: _relative(primary.lastSynced.subtract(const Duration(hours: 4))),
-        confidence: 93,
-        source: 'Executive Repository',
-      ),
-    );
-
-    docs.add(
-      _KnowledgeDocument(
-        title: 'Personal Decision Notes',
-        tags: const ['Personal Memory', 'Private', 'Recent'],
-        aiSummary:
-            'AI summary: Individual guidance preferences and decision heuristics for concise action-first responses.',
-        lastUpdated: _relative(primary.lastSynced.subtract(const Duration(hours: 2))),
-        confidence: 90,
-        source: 'User Memory Scope',
-      ),
-    );
-
-    return docs;
-  }
-
-  String _relative(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) {
-      return '${diff.inMinutes}m ago';
-    }
-    if (diff.inHours < 24) {
-      return '${diff.inHours}h ago';
-    }
-    return '${diff.inDays}d ago';
-  }
-
-  String _category(AiKnowledgeBase kb) {
-    final lower = kb.name.toLowerCase();
-    if (lower.contains('operations')) {
-      return 'Knowledge Bases';
-    }
-    if (lower.contains('grid')) {
-      return 'Company Documents';
-    }
-    return 'Shared Memory';
-  }
 }
+
+final _selectedSourceIdProvider = StateProvider<String?>((ref) => null);
 
 class _KnowledgeLeftNav extends StatelessWidget {
   const _KnowledgeLeftNav({
-    required this.bases,
-    required this.selected,
+    required this.sources,
+    required this.selectedId,
     required this.onSelect,
+    required this.onRetry,
   });
 
-  final List<AiKnowledgeBase> bases;
-  final AiKnowledgeBase selected;
-  final ValueChanged<AiKnowledgeBase> onSelect;
+  final AsyncValue<PaginatedKnowledgeResult<KnowledgeSource>> sources;
+  final String? selectedId;
+  final ValueChanged<String?> onSelect;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final sections = <(String, IconData, int)>[
-      ('Knowledge Bases', Icons.menu_book_outlined, bases.length),
-      ('Uploaded Files', Icons.upload_file_rounded, 18),
-      ('Company Documents', Icons.domain_verification_outlined, 42),
-      ('Personal Memory', Icons.person_outline_rounded, 12),
-      ('Shared Memory', Icons.people_outline_rounded, 27),
-    ];
-
     return AiPanel(
       highlighted: true,
       header: Row(
         children: [
           Text(
-            'Knowledge Navigation',
+            'Knowledge Sources',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
           ),
           const Spacer(),
-          const AiSuggestionChip(label: 'Memory', icon: Icons.memory_rounded),
+          const AiSuggestionChip(label: 'Live', icon: Icons.cloud_done_outlined),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < sections.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: _NavTile(
-                label: sections[i].$1,
-                icon: sections[i].$2,
-                count: sections[i].$3,
-                selected: i == 0,
-              ),
-            ),
-          const SizedBox(height: AppSpacing.sm),
-          const Divider(height: 1),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Knowledge Bases',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          for (final kb in bases)
+      child: AsyncValueView<PaginatedKnowledgeResult<KnowledgeSource>>(
+        value: sources,
+        onRetry: onRetry,
+        isEmpty: (result) => result.items.isEmpty,
+        empty: (context) => const AiEmptyState(
+          title: 'No knowledge sources yet',
+          subtitle: 'Connect a CRM stream, upload documents, or sync an integration to populate the graph.',
+          icon: Icons.menu_book_outlined,
+        ),
+        data: (context, result) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.xs),
               child: AiKnowledgeCard(
-                title: kb.name,
-                description: kb.description,
-                documents: kb.documentCount,
-                category: kb.id == selected.id ? 'Active' : 'Linked',
-                lastSynced: _relative(kb.lastSynced),
-                selected: kb.id == selected.id,
-                onTap: () => onSelect(kb),
+                title: 'All Sources',
+                description: 'View documents across every connected source',
+                documents: result.items.length,
+                category: selectedId == null ? 'Active' : 'All',
+                lastSynced: 'now',
+                selected: selectedId == null,
+                onTap: () => onSelect(null),
               ),
             ),
-          if (bases.isEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            const AiLoadingState(lines: 2),
+            for (final source in result.items)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: AiKnowledgeCard(
+                  title: source.name,
+                  description: source.description ?? source.type,
+                  documents: 0,
+                  category: source.status,
+                  lastSynced: source.lastIndexedAt == null ? 'never' : _relative(source.lastIndexedAt!),
+                  selected: source.id == selectedId,
+                  onTap: () => onSelect(source.id),
+                ),
+              ),
           ],
-        ],
+        ),
       ),
     );
   }
 
-  String _relative(DateTime dt) {
+  String _relative(String iso) {
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) {
+      return iso;
+    }
     final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 60) {
       return '${diff.inMinutes}m ago';
@@ -260,292 +177,112 @@ class _KnowledgeLeftNav extends StatelessWidget {
   }
 }
 
-class _KnowledgeMainWorkspace extends StatelessWidget {
-  const _KnowledgeMainWorkspace({
-    required this.selected,
-    required this.recent,
-    required this.frequent,
-    required this.related,
-  });
+class _KnowledgeMainWorkspace extends ConsumerWidget {
+  const _KnowledgeMainWorkspace({required this.selectedSourceId});
 
-  final AiKnowledgeBase selected;
-  final List<_KnowledgeDocument> recent;
-  final List<_KnowledgeDocument> frequent;
-  final List<_KnowledgeDocument> related;
+  final String? selectedSourceId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final searchState = ref.watch(knowledgeSearchControllerProvider);
+    final searchQuery = ref.watch(knowledgeSearchQueryProvider);
+
     return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       children: [
         AiPanel(
           highlighted: true,
-          header: Row(
-            children: [
-              Text(
-                'Executive AI Memory Workspace',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const Spacer(),
-              AiSuggestionChip(
-                label: selected.name,
-                icon: Icons.menu_book_outlined,
-              ),
-            ],
+          header: Text(
+            'Semantic Search',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const VoltxTextField(
-                hint: 'Search memory, documents, and semantic knowledge...',
+              VoltxTextField(
+                hint: 'Ask the knowledge graph anything...',
                 prefixIcon: Icons.search_rounded,
+                onChanged: (value) {
+                  ref.read(knowledgeSearchQueryProvider.notifier).state = value;
+                },
+                onSubmitted: (value) {
+                  ref.read(knowledgeSearchControllerProvider.notifier).search(value);
+                },
               ),
               const SizedBox(height: AppSpacing.sm),
-              AiContextCard(
-                label: 'AI Summary',
-                value:
-                    'This workspace is healthy. High-confidence sources are connected, memory freshness is within SLA, and related collections are ready for retrieval.',
+              Wrap(
+                spacing: AppSpacing.xs,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: searchState.isLoading
+                        ? null
+                        : () => ref.read(knowledgeSearchControllerProvider.notifier).search(searchQuery),
+                    icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                    label: const Text('Search'),
+                  ),
+                  if (searchState.hasSearched)
+                    OutlinedButton(
+                      onPressed: () {
+                        ref.read(knowledgeSearchControllerProvider.notifier).clear();
+                        ref.read(knowledgeSearchQueryProvider.notifier).state = '';
+                      },
+                      child: const Text('Clear'),
+                    ),
+                ],
               ),
             ],
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        _DocumentSection(
-          title: 'Recent Documents',
-          subtitle: 'Latest updates used in executive reasoning',
-          documents: recent,
-        ),
-        const SizedBox(height: AppSpacing.md),
-        _DocumentSection(
-          title: 'Frequently Used',
-          subtitle: 'High-frequency memory artifacts',
-          documents: frequent,
-        ),
-        const SizedBox(height: AppSpacing.md),
-        _CollectionSection(
-          title: 'Smart Collections',
-          subtitle: 'AI-curated clusters by relevance and usage',
-          items: const [
-            ('Executive Briefing Pack', '14 docs · high confidence'),
-            ('Operations Risk Cluster', '9 docs · active this week'),
-            ('Helios Program Memory', '7 docs · strategic'),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        _DocumentSection(
-          title: 'Related Knowledge',
-          subtitle: 'Cross-linked context for better reasoning',
-          documents: related,
-        ),
+        if (searchState.hasSearched)
+          _SearchResultsSection(state: searchState)
+        else
+          _SourceDocumentsSection(sourceId: selectedSourceId),
       ],
     );
   }
 }
 
-class _KnowledgeRightPanel extends StatelessWidget {
-  const _KnowledgeRightPanel({
-    required this.selected,
-    required this.model,
-    required this.docCount,
-    required this.sourceCount,
-  });
+class _SearchResultsSection extends StatelessWidget {
+  const _SearchResultsSection({required this.state});
 
-  final AiKnowledgeBase selected;
-  final AiModel model;
-  final int docCount;
-  final int sourceCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final lastSync = _relative(selected.lastSynced);
-    final tokenUsed = (docCount * 640).clamp(1200, 64000);
-
-    return ListView(
-      children: [
-        AiPanel(
-          header: Text(
-            'Memory Status',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          child: Column(
-            children: [
-              const AiContextCard(label: 'Memory Status', value: 'Healthy · synchronized'),
-              const SizedBox(height: AppSpacing.xs),
-              const AiContextCard(label: 'Embeddings Status', value: 'Indexed · up to date'),
-              const SizedBox(height: AppSpacing.xs),
-              const AiContextCard(label: 'Knowledge Health', value: '94% quality confidence'),
-              const SizedBox(height: AppSpacing.xs),
-              AiContextCard(label: 'Last Sync', value: lastSync),
-              const SizedBox(height: AppSpacing.xs),
-              TokenUsageIndicator(tokensUsed: tokenUsed, contextWindow: model.contextWindow),
-              const SizedBox(height: AppSpacing.xs),
-              AiContextCard(label: 'Connected Sources', value: '$sourceCount sources connected'),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        const AiMemoryCard(
-          title: 'Executive Memory Indicators',
-          summary: 'Signals influencing current retrieval and AI synthesis.',
-          items: [
-            'Decision style: concise action-first summaries',
-            'Priority initiative: Helios rollout',
-            'Risk sensitivity: North region volatility',
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        AiPanel(
-          header: Text(
-            'Connected Sources',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          child: Column(
-            children: const [
-              AiContextCard(label: 'Source', value: 'Operations Manual Repository'),
-              SizedBox(height: AppSpacing.xs),
-              AiContextCard(label: 'Source', value: 'Grid Topology Data Lake'),
-              SizedBox(height: AppSpacing.xs),
-              AiContextCard(label: 'Source', value: 'Quarterly Reports Workspace'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _relative(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) {
-      return '${diff.inMinutes}m ago';
-    }
-    if (diff.inHours < 24) {
-      return '${diff.inHours}h ago';
-    }
-    return '${diff.inDays}d ago';
-  }
-}
-
-class _DocumentSection extends StatelessWidget {
-  const _DocumentSection({
-    required this.title,
-    required this.subtitle,
-    required this.documents,
-  });
-
-  final String title;
-  final String subtitle;
-  final List<_KnowledgeDocument> documents;
+  final KnowledgeSearchState state;
 
   @override
   Widget build(BuildContext context) {
     return AiPanel(
-      header: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 2),
-          Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-        ],
+      header: Text(
+        'Search Results',
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
       ),
-      child: documents.isEmpty
-          ? const Column(
-              children: [
-                AiEmptyState(
-                  title: 'No documents available',
-                  subtitle: 'When knowledge is indexed, executive document cards will appear here.',
-                  icon: Icons.description_outlined,
-                ),
-                SizedBox(height: AppSpacing.sm),
-                AiLoadingState(lines: 2),
-              ],
-            )
-          : Column(
-              children: [
-                for (final doc in documents)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: _KnowledgeDocumentCard(document: doc),
-                  ),
-              ],
-            ),
+      child: state.isLoading
+          ? const AiLoadingState(lines: 3)
+          : state.errorMessage != null
+              ? InlineErrorCard(message: state.errorMessage!)
+              : state.results.isEmpty
+                  ? const AiEmptyState(
+                      title: 'No matches found',
+                      subtitle: 'Try a different phrasing or broaden your query.',
+                      icon: Icons.search_off_rounded,
+                    )
+                  : Column(
+                      children: [
+                        for (final result in state.results)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: _SearchResultCard(result: result),
+                          ),
+                      ],
+                    ),
     );
   }
 }
 
-class _CollectionSection extends StatelessWidget {
-  const _CollectionSection({
-    required this.title,
-    required this.subtitle,
-    required this.items,
-  });
+class _SearchResultCard extends StatelessWidget {
+  const _SearchResultCard({required this.result});
 
-  final String title;
-  final String subtitle;
-  final List<(String, String)> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return AiPanel(
-      header: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 2),
-          Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ),
-      child: Column(
-        children: [
-          for (final item in items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: AiContextCard(label: item.$1, value: item.$2),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NavTile extends StatelessWidget {
-  const _NavTile({
-    required this.label,
-    required this.icon,
-    required this.count,
-    required this.selected,
-  });
-
-  final String label;
-  final IconData icon;
-  final int count;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return AiPanel(
-      highlighted: selected,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-      child: Row(
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
-          AiSuggestionChip(label: '$count'),
-        ],
-      ),
-    );
-  }
-}
-
-class _KnowledgeDocumentCard extends StatelessWidget {
-  const _KnowledgeDocumentCard({required this.document});
-
-  final _KnowledgeDocument document;
+  final KnowledgeSearchResult result;
 
   @override
   Widget build(BuildContext context) {
@@ -559,48 +296,28 @@ class _KnowledgeDocumentCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  document.title,
+                  result.citation.documentTitle,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
               AiSuggestionChip(
-                label: '${document.confidence}% confidence',
+                label: '${(result.confidence * 100).round()}% confidence',
                 icon: Icons.verified_rounded,
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            spacing: AppSpacing.xs,
-            runSpacing: AppSpacing.xs,
-            children: [
-              for (final tag in document.tags)
-                AiSuggestionChip(label: tag, icon: Icons.tag_rounded),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            document.aiSummary,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          Text(result.content, style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
               Expanded(
-                child: AiContextCard(label: 'Last Updated', value: document.lastUpdated),
+                child: AiContextCard(label: 'Source', value: result.citation.sourceName),
               ),
               const SizedBox(width: AppSpacing.xs),
-              Expanded(child: AiContextCard(label: 'Source', value: document.source)),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.xs,
-            runSpacing: AppSpacing.xs,
-            children: const [
-              AiSuggestionChip(label: 'Open', icon: Icons.open_in_new_rounded),
-              AiSuggestionChip(label: 'Summarize', icon: Icons.auto_awesome_rounded),
-              AiSuggestionChip(label: 'Pin', icon: Icons.push_pin_outlined),
+              Expanded(
+                child: AiContextCard(label: 'Type', value: result.citation.sourceType),
+              ),
             ],
           ),
         ],
@@ -609,20 +326,165 @@ class _KnowledgeDocumentCard extends StatelessWidget {
   }
 }
 
-class _KnowledgeDocument {
-  const _KnowledgeDocument({
-    required this.title,
-    required this.tags,
-    required this.aiSummary,
-    required this.lastUpdated,
-    required this.confidence,
-    required this.source,
-  });
+class _SourceDocumentsSection extends ConsumerWidget {
+  const _SourceDocumentsSection({required this.sourceId});
 
-  final String title;
-  final List<String> tags;
-  final String aiSummary;
-  final String lastUpdated;
-  final int confidence;
-  final String source;
+  final String? sourceId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (sourceId == null) {
+      return const AiPanel(
+        child: AiEmptyState(
+          title: 'Select a source',
+          subtitle: 'Choose a knowledge source from the left to view its indexed documents.',
+          icon: Icons.folder_open_outlined,
+        ),
+      );
+    }
+
+    final documents = ref.watch(knowledgeSourceDocumentsProvider(sourceId!));
+
+    return AiPanel(
+      header: Text(
+        'Indexed Documents',
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      child: AsyncValueView<PaginatedKnowledgeResult<KnowledgeDocument>>(
+        value: documents,
+        onRetry: () => ref.invalidate(knowledgeSourceDocumentsProvider(sourceId!)),
+        isEmpty: (result) => result.items.isEmpty,
+        empty: (context) => const AiEmptyState(
+          title: 'No documents indexed yet',
+          subtitle: 'Documents will appear here once this source finishes indexing.',
+          icon: Icons.description_outlined,
+        ),
+        data: (context, result) => Column(
+          children: [
+            for (final document in result.items)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: AiPanel(
+                  highlighted: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              document.title,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          AiSuggestionChip(label: document.status, icon: Icons.description_outlined),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        document.contentType,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      if (document.error != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          document.error!,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Theme.of(context).colorScheme.error),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _KnowledgeRightPanel extends ConsumerWidget {
+  const _KnowledgeRightPanel({required this.memorySnapshot});
+
+  final dynamic memorySnapshot;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(knowledgeStatsProvider);
+    final health = ref.watch(knowledgeHealthProvider);
+
+    return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        AiPanel(
+          header: Text(
+            'Knowledge Graph Health',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          child: AsyncValueView(
+            value: health,
+            onRetry: () => ref.invalidate(knowledgeHealthProvider),
+            data: (context, result) => Column(
+              children: [
+                AiContextCard(
+                  label: 'Status',
+                  value: result.healthy ? 'Healthy' : 'Needs attention',
+                ),
+                for (final reason in result.reasons) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  AiContextCard(label: 'Reason', value: reason),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        AiPanel(
+          header: Text(
+            'Index Statistics',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          child: AsyncValueView(
+            value: stats,
+            onRetry: () => ref.invalidate(knowledgeStatsProvider),
+            data: (context, result) => Column(
+              children: [
+                AiContextCard(label: 'Sources', value: '${result.indexSize.sourceCount}'),
+                const SizedBox(height: AppSpacing.xs),
+                AiContextCard(label: 'Documents', value: '${result.indexSize.documentCount}'),
+                const SizedBox(height: AppSpacing.xs),
+                AiContextCard(label: 'Chunks', value: '${result.indexSize.chunkCount}'),
+                const SizedBox(height: AppSpacing.xs),
+                AiContextCard(label: 'Entities', value: '${result.indexSize.entityCount}'),
+                const SizedBox(height: AppSpacing.xs),
+                AiContextCard(
+                  label: 'Avg. search latency',
+                  value: '${result.retrieval.averageLatencyMs.round()}ms',
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                AiContextCard(
+                  label: 'Cache hit rate',
+                  value: '${(result.retrieval.cacheHitRate * 100).round()}%',
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if ((memorySnapshot.recentHighlights as List).isNotEmpty)
+          AiMemoryCard(
+            title: 'Executive Memory Indicators',
+            summary: memorySnapshot.statusLabel as String,
+            items: (memorySnapshot.recentHighlights as List).cast<String>(),
+          ),
+      ],
+    );
+  }
 }

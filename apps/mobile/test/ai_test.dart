@@ -1,18 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:voltx_mobile/features/ai/data/catalog/ai_static_catalog.dart';
 import 'package:voltx_mobile/features/ai/data/mock/mock_ai_data.dart';
 import 'package:voltx_mobile/features/ai/presentation/providers/ai_providers.dart';
 
 void main() {
+  group('AI static catalog', () {
+    test('has models and suggested prompts', () {
+      expect(AiStaticCatalog.models.length, greaterThanOrEqualTo(2));
+      expect(AiStaticCatalog.suggestedPrompts.length, 4);
+    });
+  });
+
   group('AI mock data', () {
-    test('has models agents and conversations', () {
-      expect(MockAiData.models.length, greaterThanOrEqualTo(2));
+    test('has agents and conversations for the no-binding fallback path', () {
       expect(MockAiData.agents.length, greaterThanOrEqualTo(2));
       expect(MockAiData.conversations.length, greaterThanOrEqualTo(3));
-    });
-
-    test('suggested prompts are available', () {
-      expect(MockAiData.suggestedPrompts.length, 4);
     });
   });
 
@@ -60,7 +63,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final model = MockAiData.models[1];
+      final model = AiStaticCatalog.models[1];
       container.read(selectedModelProvider.notifier).state = model;
       expect(container.read(selectedModelProvider).id, model.id);
 

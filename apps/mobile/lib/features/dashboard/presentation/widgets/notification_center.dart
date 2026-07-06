@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import '../../../../shared/widgets/empty_state.dart';
 import '../../../../theme/components/voltx_button.dart';
 import '../../../../theme/components/voltx_card.dart';
 import '../../../../theme/tokens/spacing.dart';
@@ -27,6 +28,14 @@ class NotificationCenter extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notifications = ref.watch(dashboardNotificationsProvider);
     final unread = notifications.where((n) => !n.read).length;
+
+    if (notifications.isEmpty) {
+      return const EmptyState(
+        icon: Icons.notifications_none_rounded,
+        title: 'No notifications',
+        message: "You're all caught up. New activity will appear here.",
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

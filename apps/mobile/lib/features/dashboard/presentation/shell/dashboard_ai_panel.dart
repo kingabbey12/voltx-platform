@@ -4,6 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../../theme/components/voltx_motion.dart';
 import '../../../../theme/tokens/spacing.dart';
 import '../../../../theme/voltx_theme.dart';
+import '../../data/models/dashboard_models.dart';
 import '../providers/dashboard_providers.dart';
 
 /// Right collapsible AI assistant panel for desktop.
@@ -15,6 +16,18 @@ class DashboardAiPanel extends ConsumerWidget {
     final colors = context.voltxColors;
     final scheme = Theme.of(context).colorScheme;
     final messages = ref.watch(aiChatMessagesProvider);
+    final insights = ref.watch(dashboardInsightsProvider);
+    final kpis = ref.watch(dashboardKpisProvider);
+    DashboardKpi? memoryKpi;
+    for (final item in kpis) {
+      if (item.label == 'AI Context') {
+        memoryKpi = item;
+        break;
+      }
+    }
+    final avgConfidence = insights.isEmpty
+      ? 0
+      : (insights.fold<int>(0, (sum, item) => sum + item.confidence) / insights.length).round();
 
     return Container(
       width: AppSpacing.sidePanelWidth,
@@ -71,6 +84,7 @@ class DashboardAiPanel extends ConsumerWidget {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, size: 20),
+                    tooltip: 'Close AI panel',
                     onPressed: () =>
                         ref.read(dashboardShellProvider.notifier).setAiPanelOpen(false),
                   ),
@@ -82,10 +96,16 @@ class DashboardAiPanel extends ConsumerWidget {
               child: Wrap(
                 spacing: AppSpacing.xs,
                 runSpacing: AppSpacing.xxs,
-                children: const [
-                  _PanelChip(label: 'Context Synced', icon: Icons.memory_rounded),
-                  _PanelChip(label: 'Confidence 92%', icon: Icons.verified_rounded),
-                ],
+                  children: [
+                    _PanelChip(
+                      label: memoryKpi == null ? 'Context loading' : '${memoryKpi.value} memories',
+                      icon: Icons.memory_rounded,
+                    ),
+                    _PanelChip(
+                      label: avgConfidence == 0 ? 'Confidence n/a' : 'Confidence $avgConfidence%',
+                      icon: Icons.verified_rounded,
+                    ),
+                  ],
               ),
             ),
             Divider(height: 1, color: colors.borderSubtle),

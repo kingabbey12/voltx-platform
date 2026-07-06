@@ -1,14 +1,17 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Res } from '@nestjs/common';
-import { ApiConsumes, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, HttpCode, HttpStatus, Post, Res, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
+import { AUTH_GUARDS } from '../../common/guards/protected.guards';
 import { AIChatRequestDto } from './dto/ai-chat.dto';
-import { AIRuntimeService } from './runtime/ai-runtime.service';
+import { AIGatewayService } from './gateway/ai-gateway.service';
 import { formatSseEvent } from './streaming/sse-event.formatter';
 
 @ApiTags('AI')
+@ApiBearerAuth('JWT')
+@UseGuards(...AUTH_GUARDS)
 @Controller('ai')
 export class AIController {
-  constructor(private readonly aiRuntimeService: AIRuntimeService) {}
+  constructor(private readonly aiGatewayService: AIGatewayService) {}
 
   @Post('chat')
   @HttpCode(HttpStatus.OK)
@@ -28,7 +31,8 @@ export class AIController {
     });
 
     try {
-      for await (const event of this.aiRuntimeService.streamChat({
+      for await (const event of this.aiGatewayService.streamChat({
+        requestType: 'CHAT',
         conversationId: dto.conversationId,
         provider: dto.provider,
         model: dto.model,

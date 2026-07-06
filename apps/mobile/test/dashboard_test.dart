@@ -12,10 +12,6 @@ void main() {
     test('search results are searchable', () {
       expect(MockDashboardData.searchResults.length, greaterThan(0));
     });
-
-    test('command palette has navigation items', () {
-      expect(MockDashboardData.commandPaletteItems.length, greaterThanOrEqualTo(6));
-    });
   });
 
   group('Dashboard providers', () {

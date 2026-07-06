@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
+import { AIGatewayService } from '../gateway/ai-gateway.service';
+import { AiGatewayStreamEvent } from '../gateway/ai-gateway-stream-event.types';
 import { MemoryService } from '../memory/memory.service';
 import { AIMessage, AIProviderName } from '../models/ai-model.types';
 import { ModelRegistryService } from '../models/model-registry.service';
-import { AIRuntimeService } from '../runtime/ai-runtime.service';
+import { drainToReturnValue, isAbortError } from '../streaming/drain-generator';
 import {
   ConversationRepository,
   PaginatedConversations,
@@ -29,7 +31,7 @@ export class ConversationService {
   constructor(
     private readonly conversationRepository: ConversationRepository,
     private readonly modelRegistryService: ModelRegistryService,
-    private readonly aiRuntimeService: AIRuntimeService,
+    private readonly aiGatewayService: AIGatewayService,
     private readonly memoryService: MemoryService,
     private readonly auditService: AuditService,
   ) {}
@@ -117,9 +119,29 @@ export class ConversationService {
     conversationId: string,
     dto: CreateMessageDto,
   ): Promise<CreateConversationMessageResponseDto> {
+    return drainToReturnValue(this.streamMessageTurn(conversationId, dto));
+  }
+
+  /**
+   * Same conversation-turn logic as createMessage, expressed as a generator
+   * so it can be consumed either by draining it for a single JSON response
+   * (createMessage, unchanged external behavior) or by streaming each
+   * yielded event live over SSE (the new streaming endpoint). There is
+   * exactly one implementation of this turn's persistence and orchestration
+   * — the two entry points differ only in how they consume it.
+   */
+  async *streamMessageTurn(
+    conversationId: string,
+    dto: CreateMessageDto,
+    signal?: AbortSignal,
+  ): AsyncGenerator<AiGatewayStreamEvent, CreateConversationMessageResponseDto> {
+    yield { type: 'status', status: 'queued' };
+
     const conversation = await this.getConversationOrThrow(conversationId);
     const history =
       await this.conversationRepository.findAllMessagesForConversation(conversationId);
+
+    yield { type: 'status', status: 'processing' };
 
     const userMessage = await this.conversationRepository.createMessage({
       conversationId,
@@ -156,32 +178,43 @@ export class ConversationService {
     let providerUsed = conversation.provider;
     let modelUsed = conversation.model;
 
-    for await (const event of this.aiRuntimeService.streamChat({
-      conversationId,
-      provider: conversation.provider as AIProviderName,
-      model: conversation.model,
-      conversationHistory: history.map(toAIMessage),
-      userPrompt: dto.content,
-      systemPrompt: dto.systemPrompt,
-      workspaceContext: dto.workspaceContext,
-      toolResults: dto.toolResults,
-      temperature: dto.temperature,
-      maxOutputTokens: dto.maxOutputTokens,
-    })) {
-      providerUsed = event.provider;
-      modelUsed = event.model;
+    yield { type: 'status', status: 'streaming' };
 
-      if (event.type === 'content_delta') {
-        assistantContent += event.delta;
-      }
+    try {
+      for await (const event of this.aiGatewayService.streamChat({
+        requestType: 'CONVERSATION_MESSAGE',
+        conversationId,
+        provider: conversation.provider as AIProviderName,
+        model: conversation.model,
+        conversationHistory: history.map(toAIMessage),
+        userPrompt: dto.content,
+        systemPrompt: dto.systemPrompt,
+        workspaceContext: dto.workspaceContext,
+        toolResults: dto.toolResults,
+        temperature: dto.temperature,
+        maxOutputTokens: dto.maxOutputTokens,
+        signal,
+      })) {
+        providerUsed = event.provider;
+        modelUsed = event.model;
 
-      if (event.type === 'message_end') {
-        finishReason = event.finishReason;
-        if (event.outputText && event.outputText.trim().length > 0) {
-          assistantContent = event.outputText;
+        if (event.type === 'content_delta') {
+          assistantContent += event.delta;
         }
-        tokenUsage = toUsageRecord(event.usage);
+
+        if (event.type === 'message_end') {
+          finishReason = event.finishReason;
+          if (event.outputText && event.outputText.trim().length > 0) {
+            assistantContent = event.outputText;
+          }
+          tokenUsage = toUsageRecord(event.usage);
+        }
+
+        yield { type: 'provider_event', event };
       }
+    } catch (error) {
+      yield { type: 'status', status: isAbortError(error) ? 'cancelled' : 'failed' };
+      throw error;
     }
 
     const assistantMessage = assistantContent.trim().length
@@ -222,6 +255,8 @@ export class ConversationService {
         },
       });
     }
+
+    yield { type: 'status', status: 'completed' };
 
     return {
       userMessage: MessageResponseDto.fromEntity(userMessage),

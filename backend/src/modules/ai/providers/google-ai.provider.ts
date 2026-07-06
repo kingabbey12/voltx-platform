@@ -9,6 +9,7 @@ import {
   AIModelDefinition,
   AIProviderChatRequest,
   AIStreamEvent,
+  AIUsage,
 } from '../models/ai-model.types';
 import { parseSseStream } from '../streaming/sse-parser';
 import { AIProvider, AIProviderError } from './ai-provider.interface';
@@ -16,6 +17,7 @@ import {
   createStreamingResponse,
   fetchJsonObject,
   getArray,
+  getNumber,
   getRecord,
   getString,
   isRecord,
@@ -81,6 +83,7 @@ export class GoogleAIProvider implements AIProvider {
       model: request.model,
       outputText: extractGeminiText(payload),
       finishReason: extractGeminiFinishReason(payload),
+      usage: extractGeminiUsage(payload),
     };
   }
 
@@ -107,6 +110,9 @@ export class GoogleAIProvider implements AIProvider {
       },
     );
 
+    let finishReason: string | undefined;
+    let usage: AIUsage | undefined;
+
     for await (const event of parseSseStream(stream)) {
       const payload = parseJsonRecord(event.data);
       const delta = extractGeminiText(payload);
@@ -121,24 +127,19 @@ export class GoogleAIProvider implements AIProvider {
         };
       }
 
-      const finishReason = extractGeminiFinishReason(payload);
-      if (finishReason) {
-        yield {
-          type: 'message_end',
-          provider: this.name,
-          model: request.model,
-          finishReason,
-          outputText,
-        };
-        return;
-      }
+      finishReason ??= extractGeminiFinishReason(payload);
+      // usageMetadata is cumulative per chunk, so the last chunk's value
+      // (not the first finishReason-bearing one) is the final count.
+      usage = extractGeminiUsage(payload) ?? usage;
     }
 
     yield {
       type: 'message_end',
       provider: this.name,
       model: request.model,
+      finishReason,
       outputText,
+      usage,
     };
   }
 
@@ -257,6 +258,22 @@ function extractGeminiFinishReason(payload: Record<string, unknown>): string | u
   const candidates = getArray(payload, 'candidates');
   const firstCandidate = candidates?.[0];
   return isRecord(firstCandidate) ? getString(firstCandidate, 'finishReason') : undefined;
+}
+
+// Gemini includes `usageMetadata` on every response (streamed chunks carry
+// the running total, so the last chunk seen is authoritative) — without
+// reading it, token usage / cost tracking would silently report zero for
+// every real (non-mocked) Google chat call, streaming or not.
+function extractGeminiUsage(payload: Record<string, unknown>): AIUsage | undefined {
+  const usageMetadata = getRecord(payload, 'usageMetadata');
+  if (!usageMetadata) {
+    return undefined;
+  }
+  return {
+    inputTokens: getNumber(usageMetadata, 'promptTokenCount'),
+    outputTokens: getNumber(usageMetadata, 'candidatesTokenCount'),
+    totalTokens: getNumber(usageMetadata, 'totalTokenCount'),
+  };
 }
 
 function parseJsonRecord(value: string): Record<string, unknown> {

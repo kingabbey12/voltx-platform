@@ -17,6 +17,9 @@ import '../features/ai/presentation/screens/ai_chat_screen.dart';
 import '../features/ai/presentation/screens/ai_history_screen.dart';
 import '../features/ai/presentation/screens/ai_home_screen.dart';
 import '../features/ai/presentation/screens/ai_knowledge_screen.dart';
+import '../features/integrations/presentation/screens/integrations_screen.dart';
+import '../features/organizations/presentation/screens/accept_invitation_screen.dart';
+import '../features/organizations/presentation/screens/invite_teammate_screen.dart';
 import '../features/dashboard/presentation/screens/executive_dashboard_screen.dart';
 import '../features/dashboard/presentation/screens/notifications_screen.dart';
 import '../features/dashboard/presentation/screens/profile_screen.dart';
@@ -39,7 +42,6 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = ValueNotifier<int>(0);
 
   ref.listen(authSessionProvider, (previous, next) {
-    debugPrint('[AUTH][ROUTER][session_change] previous=${previous?.email ?? 'null'} next=${next?.email ?? 'null'}');
     refreshNotifier.value++;
   });
 
@@ -51,12 +53,28 @@ final routerProvider = Provider<GoRouter>((ref) {
     debugLogDiagnostics: false,
     refreshListenable: refreshNotifier,
     redirect: (context, state) {
+      // On a cold start, iOS/Android deliver a `voltx://...` launch URL to
+      // the platform navigation channel before DeepLinkService's own
+      // app_links listener gets a chance to translate it — go_router tries
+      // to match that raw external URI as if it were an in-app path and
+      // throws GoException("no routes for location: voltx://..."). Rewrite
+      // it to the real in-app route here, at the earliest point go_router
+      // gives us a hook, rather than relying solely on DeepLinkService
+      // (which still handles the case where the app is already running).
+      if (state.uri.scheme == 'voltx') {
+        if (state.uri.host == 'invitations' && state.uri.path.startsWith('/accept')) {
+          final token = state.uri.queryParameters['token'];
+          return token != null
+              ? '${AppRoutes.acceptInvitation}?token=${Uri.encodeQueryComponent(token)}'
+              : AppRoutes.acceptInvitation;
+        }
+        return AppRoutes.splash;
+      }
+
       final session = ref.read(authSessionProvider);
       final location = state.matchedLocation;
-      debugPrint('[AUTH][ROUTER][redirect] location=$location hasSession=${session != null}');
 
       if (AppRoutes.isProtectedRoute(location) && session == null) {
-        debugPrint('[AUTH][ROUTER][redirect] -> ${AppRoutes.welcome} reason=protected_without_session');
         return AppRoutes.welcome;
       }
 
@@ -67,17 +85,14 @@ final routerProvider = Provider<GoRouter>((ref) {
               location == AppRoutes.verifyEmail ||
               location == AppRoutes.forgotPassword ||
               location == AppRoutes.resetPassword)) {
-        debugPrint('[AUTH][ROUTER][redirect] -> ${AppRoutes.dashboard} reason=session_on_auth_route');
         return AppRoutes.dashboard;
       }
 
       if (location == AppRoutes.home) {
-        debugPrint('[AUTH][ROUTER][redirect] -> ${AppRoutes.dashboard} reason=home_alias');
         return AppRoutes.dashboard;
       }
 
       if (location == AppRoutes.dashboardAi) {
-        debugPrint('[AUTH][ROUTER][redirect] -> ${AppRoutes.aiChat} reason=dashboard_ai_alias');
         return AppRoutes.aiChat;
       }
 
@@ -141,6 +156,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             state: state,
             child: VerifyEmailScreen(token: token),
           );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.acceptInvitation,
+        name: 'acceptInvitation',
+        builder: (context, state) {
+          final token = state.uri.queryParameters['token'];
+          return AcceptInvitationScreen(token: token);
         },
       ),
       ShellRoute(
@@ -211,6 +234,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path: AppRoutes.aiIntegrations,
+            name: 'aiIntegrations',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: IntegrationsScreen(),
+            ),
+          ),
+          GoRoute(
             path: AppRoutes.aiHistory,
             name: 'aiHistory',
             pageBuilder: (context, state) => const NoTransitionPage(
@@ -271,6 +301,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'settings',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: SettingsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.manageTeam,
+            name: 'manageTeam',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: InviteTeammateScreen(),
             ),
           ),
         ],

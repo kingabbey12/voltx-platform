@@ -276,4 +276,83 @@ describe('AuthController (e2e)', () => {
       .send({ refreshToken })
       .expect(401);
   });
+
+  it('GET /api/v1/auth/my-organizations lists every active membership', async () => {
+    const { accessToken, organization } = await authenticateContext(
+      app,
+      prisma,
+      usersRepository,
+      'owner',
+    );
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/auth/my-organizations')
+      .set(bearerAuthHeaders(accessToken))
+      .expect(200);
+
+    const body = response.body as ApiSuccessResponse<
+      Array<{ organizationId: string; roleKey: string }>
+    >;
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].organizationId).toBe(organization.id);
+    expect(body.data[0].roleKey).toBe('owner');
+  });
+
+  it('POST /api/v1/auth/switch-organization reissues tokens scoped to a second active membership', async () => {
+    const first = await authenticateContext(app, prisma, usersRepository, 'owner');
+
+    const secondOrg = await authenticateContext(app, prisma, usersRepository, 'owner', {
+      email: `second.org.owner.${Date.now()}@example.com`,
+    });
+
+    // Add the first user as a member of the second organization directly
+    // (no invitation flow needed for this test — that path is covered in
+    // invitation.e2e-spec.ts).
+    const memberRole = await prisma.system.role.findUniqueOrThrow({ where: { key: 'member' } });
+    await prisma.system.membership.create({
+      data: {
+        organizationId: secondOrg.organization.id,
+        userId: first.user.id,
+        roleId: memberRole.id,
+        status: 'ACTIVE',
+      },
+    });
+
+    const orgs = await request(app.getHttpServer())
+      .get('/api/v1/auth/my-organizations')
+      .set(bearerAuthHeaders(first.accessToken))
+      .expect(200);
+    expect((orgs.body as ApiSuccessResponse<Array<{ organizationId: string }>>).data).toHaveLength(
+      2,
+    );
+
+    const switchResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/switch-organization')
+      .set(bearerAuthHeaders(first.accessToken))
+      .send({ organizationId: secondOrg.organization.id })
+      .expect(200);
+    const switchBody = (switchResponse.body as ApiSuccessResponse<LoginResponseDto>).data;
+    expect(switchBody.user.email).toBe(first.user.email);
+
+    const me = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set(bearerAuthHeaders(switchBody.accessToken))
+      .expect(200);
+    const meBody = (me.body as ApiSuccessResponse<AuthMeResponseDto>).data;
+    expect(meBody.organizationId).toBe(secondOrg.organization.id);
+    expect(meBody.roles).toContain('member');
+  });
+
+  it('POST /api/v1/auth/switch-organization rejects a non-member organization', async () => {
+    const { accessToken } = await authenticateContext(app, prisma, usersRepository, 'owner');
+    const otherOrg = await authenticateContext(app, prisma, usersRepository, 'owner', {
+      email: `unrelated.org.${Date.now()}@example.com`,
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/switch-organization')
+      .set(bearerAuthHeaders(accessToken))
+      .send({ organizationId: otherOrg.organization.id })
+      .expect(403);
+  });
 });

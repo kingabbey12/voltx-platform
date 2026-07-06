@@ -3,6 +3,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import '../../../../core/analytics/analytics_service.dart';
 import '../../../../router/routes.dart';
 import '../../../../theme/tokens/spacing.dart';
 import '../../../../theme/voltx_theme.dart';
@@ -80,6 +81,7 @@ class SignUpScreen extends HookConsumerWidget {
         final isSuccess = ref.read(signUpFormProvider).valueOrNull == 'signed_up';
         if (isSuccess && context.mounted) {
           hasCompletedSignUp.value = true;
+          ref.read(analyticsServiceProvider).logEvent('sign_up_success');
           context.go(AppRoutes.dashboard);
         }
       } finally {
@@ -127,6 +129,7 @@ class SignUpScreen extends HookConsumerWidget {
                     obscurePassword.value = !obscurePassword.value,
                 validator: (v) =>
                     AuthValidators.confirmPassword(v, passwordController.text),
+                onSubmitted: (_) => submit(),
               ),
               if (actionState.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.sm),

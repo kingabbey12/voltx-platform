@@ -8,7 +8,7 @@ import '../../../../theme/tokens/spacing.dart';
 import '../../../../theme/voltx_theme.dart';
 import '../providers/dashboard_providers.dart';
 
-/// Global search with live mock results.
+/// Global search with live backend-derived results.
 class GlobalSearch extends ConsumerWidget {
   const GlobalSearch({super.key});
 

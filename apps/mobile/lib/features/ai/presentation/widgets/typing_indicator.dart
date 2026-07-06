@@ -1,24 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'ai_workspace_components.dart';
-import '../../../../theme/components/voltx_motion.dart';
-
-/// Animated typing indicator for streaming responses.
-class TypingIndicator extends StatelessWidget {
-  const TypingIndicator({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AiStreamingIndicator(),
-        SizedBox(width: 8),
-        VoltxTypingDots(),
-      ],
-    );
-  }
-}
 
 /// Token usage indicator bar.
 class TokenUsageIndicator extends StatelessWidget {

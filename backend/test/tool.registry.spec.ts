@@ -48,4 +48,44 @@ describe('ToolRegistry', () => {
   it('throws for unknown tools', () => {
     expect(() => registry.get('missing')).toThrow(NotFoundException);
   });
+
+  describe('registerDynamicSource', () => {
+    const dynamicTool: AITool = {
+      name: 'integration_slack_post_message',
+      description: '[Slack] Post a message.',
+      inputSchema: { type: 'object', properties: {} },
+      execute: jest.fn(),
+    };
+
+    it('includes tools from a registered dynamic source in list()', () => {
+      registry.registerDynamicSource({ listTools: () => [dynamicTool] });
+      const names = registry.list().map((tool) => tool.name);
+      expect(names).toEqual(
+        expect.arrayContaining(['calculator', 'integration_slack_post_message']),
+      );
+    });
+
+    it('resolves a dynamic tool by name via get()', () => {
+      registry.registerDynamicSource({ listTools: () => [dynamicTool] });
+      expect(registry.get('integration_slack_post_message')).toBe(dynamicTool);
+    });
+
+    it('still resolves static tools when a dynamic source is registered', () => {
+      registry.registerDynamicSource({ listTools: () => [dynamicTool] });
+      expect(registry.get('calculator')).toBe(tools[0]);
+    });
+
+    it('merges tools from multiple dynamic sources', () => {
+      const secondTool: AITool = { ...dynamicTool, name: 'integration_github_create_issue' };
+      registry.registerDynamicSource({ listTools: () => [dynamicTool] });
+      registry.registerDynamicSource({ listTools: () => [secondTool] });
+      const names = registry.list().map((tool) => tool.name);
+      expect(names).toEqual(
+        expect.arrayContaining([
+          'integration_slack_post_message',
+          'integration_github_create_issue',
+        ]),
+      );
+    });
+  });
 });

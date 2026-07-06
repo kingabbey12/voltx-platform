@@ -10,7 +10,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { ApiSuccessResponseDto } from '../../../../common/dto/api-response.dto';
 import { SalesAiActionSuccessResponseDto } from '../../dto/sales-ai.dto';
 import { ContactEntity } from '../entities/contact.entity';
@@ -63,7 +63,7 @@ export class CreateContactDto {
   metadata?: Record<string, unknown>;
 }
 
-export class UpdateContactDto extends CreateContactDto {}
+export class UpdateContactDto extends PartialType(CreateContactDto) {}
 
 export class ListContactsQueryDto {
   @ApiPropertyOptional({ example: 1, default: 1 })

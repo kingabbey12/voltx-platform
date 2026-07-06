@@ -251,6 +251,15 @@ export class AgentRunResponseDto {
   @ApiProperty({ example: { inputTokens: 120, outputTokens: 80, totalTokens: 200 } })
   tokenUsage!: Record<string, unknown>;
 
+  @ApiProperty({ example: 3, description: 'Current or final step number reached in this run.' })
+  currentStep!: number;
+
+  @ApiProperty({ example: 3, description: 'Number of reason/decide iterations executed.' })
+  iterationCount!: number;
+
+  @ApiProperty({ example: 2, description: 'Number of tool calls executed.' })
+  toolCallCount!: number;
+
   @ApiProperty({ example: '2026-07-04T00:00:00.000Z' })
   startedAt!: string;
 
@@ -275,6 +284,9 @@ export class AgentRunResponseDto {
     dto.input = entity.input;
     dto.output = entity.output;
     dto.tokenUsage = entity.tokenUsage;
+    dto.currentStep = entity.currentStep;
+    dto.iterationCount = entity.iterationCount;
+    dto.toolCallCount = entity.toolCallCount;
     dto.startedAt = entity.startedAt.toISOString();
     dto.completedAt = entity.completedAt ? entity.completedAt.toISOString() : null;
     dto.durationMs = entity.durationMs;

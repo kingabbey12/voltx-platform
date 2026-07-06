@@ -27,7 +27,6 @@ class SalesCopilotPanelScreen extends HookConsumerWidget {
         const SalesPageQuery(limit: 100, filters: {'type': 'MEETING'}),
       ),
     );
-    final copilotState = ref.watch(salesCopilotControllerProvider);
     final promptController = useTextEditingController();
     final isWide = currentBreakpoint(context) != AppBreakpoint.compact;
 
@@ -64,10 +63,7 @@ class SalesCopilotPanelScreen extends HookConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            SalesAiResultCard(
-              state: copilotState,
-              onClear: () => ref.read(salesCopilotControllerProvider.notifier).clear(),
-            ),
+            const SalesCopilotResult(),
             const SizedBox(height: AppSpacing.lg),
             if (isWide)
               Row(

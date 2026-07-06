@@ -71,12 +71,21 @@ class DashboardShell extends ConsumerWidget {
       return DashboardShortcuts(
         child: Scaffold(
           drawer: const DashboardMobileDrawer(),
-          body: Column(
-            children: [
-              const OfflineBanner(),
-              const DashboardCommandBar(compact: true),
-              Expanded(child: child),
-            ],
+          // Without this, the command bar's menu/search/notification/profile
+          // buttons render inside the system status bar's touch-intercepting
+          // region on edge-to-edge Android (confirmed via `dumpsys window` —
+          // the real status bar inset is taller than where these controls
+          // were drawn), so taps there never reach Flutter at all, even
+          // though the icons are visually present.
+          body: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                const OfflineBanner(),
+                const DashboardCommandBar(compact: true),
+                Expanded(child: child),
+              ],
+            ),
           ),
           bottomNavigationBar: VoltxNavigationBar(
             selectedIndex: _mobileIndex(location),

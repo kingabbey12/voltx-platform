@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import '../../../../router/routes.dart';
+import '../../../auth/data/models/auth_organization_membership.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../../shared/widgets/async_value_view.dart';
+import '../../../../theme/components/voltx_button.dart';
 import '../../../../theme/components/voltx_card.dart';
 import '../../../../theme/tokens/spacing.dart';
 import '../../../../theme/voltx_theme.dart';
@@ -48,7 +53,7 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        user?.email ?? 'demo@voltx.io',
+                        user?.email ?? 'No active session',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: colors.textSecondary,
                             ),
@@ -93,8 +98,104 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Organizations', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.xs),
+          const _OrganizationSwitcherCard(),
+          if (user?.permissions.contains('organization.invite') ?? false) ...[
+            const SizedBox(height: AppSpacing.md),
+            VoltxButton(
+              label: 'Manage team',
+              icon: Icons.group_add_outlined,
+              variant: VoltxButtonVariant.secondary,
+              isExpanded: true,
+              onPressed: () => context.push(AppRoutes.manageTeam),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _OrganizationSwitcherCard extends ConsumerWidget {
+  const _OrganizationSwitcherCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authSessionProvider);
+    final memberships = ref.watch(myOrganizationsProvider);
+    final switchState = ref.watch(orgSwitchControllerProvider);
+
+    return VoltxCard(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: AsyncValueView(
+          value: memberships,
+          onRetry: () => ref.invalidate(myOrganizationsProvider),
+          loadingHeight: 80,
+          data: (context, orgs) {
+            if (switchState.errorMessage != null) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    switchState.errorMessage!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  _buildOrgList(context, ref, orgs, user?.organizationId, switchState.isLoading),
+                ],
+              );
+            }
+            return _buildOrgList(context, ref, orgs, user?.organizationId, switchState.isLoading);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrgList(
+    BuildContext context,
+    WidgetRef ref,
+    List<AuthOrganizationMembership> orgs,
+    String? currentOrganizationId,
+    bool isSwitching,
+  ) {
+    final colors = context.voltxColors;
+    return Column(
+      children: [
+        for (final org in orgs)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              org.organizationId == currentOrganizationId
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: org.organizationId == currentOrganizationId ? Theme.of(context).colorScheme.primary : null,
+            ),
+            title: Text(org.organizationName),
+            subtitle: Text(
+              org.roleName,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
+            ),
+            trailing: isSwitching ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ) : null,
+            onTap: org.organizationId == currentOrganizationId || isSwitching
+                ? null
+                : () async {
+                    final success =
+                        await ref.read(orgSwitchControllerProvider.notifier).switchTo(org.organizationId);
+                    if (success && context.mounted) {
+                      invalidateOrganizationScopedProviders(ref);
+                      context.go(AppRoutes.dashboard);
+                    }
+                  },
+          ),
+      ],
     );
   }
 }

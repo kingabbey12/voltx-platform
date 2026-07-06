@@ -15,6 +15,7 @@ export interface ExecuteToolRequest {
   input: Record<string, unknown>;
   timeoutMs?: number;
   retries?: number;
+  signal?: AbortSignal;
 }
 
 export interface ToolExecutionRecord {
@@ -141,6 +142,7 @@ export class ToolService {
         conversationId: request.conversationId,
         timeoutMs: request.timeoutMs,
         retries: request.retries,
+        signal: request.signal,
       });
 
       const completedAt = new Date();

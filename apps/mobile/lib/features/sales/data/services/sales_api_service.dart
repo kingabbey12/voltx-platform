@@ -254,7 +254,9 @@ SalesException mapToSalesException(Object error) {
     return error;
   }
   if (error is NetworkException) {
-    return SalesException(error.message);
+    return SalesException(
+      error.statusCode == null ? friendlyNetworkFailureMessage(error) : error.message,
+    );
   }
   return const SalesException('Unable to complete sales request.');
 }

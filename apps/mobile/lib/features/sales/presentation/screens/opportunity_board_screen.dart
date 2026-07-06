@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/widgets/async_value_view.dart';
+import '../../../../shared/widgets/pull_to_refresh.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../theme/tokens/spacing.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
@@ -19,146 +21,177 @@ class OpportunityBoardScreen extends ConsumerWidget {
     }
 
     final stage = ref.watch(opportunityStageFilterProvider);
-    final opportunities = ref.watch(
-      opportunitiesProvider(
-        SalesPageQuery(
-          limit: 100,
-          filters: {
-            'stage': ?stage,
-          },
-        ),
-      ),
+    final opportunitiesQuery = SalesPageQuery(
+      limit: 100,
+      filters: {'stage': ?stage},
     );
-    final copilotState = ref.watch(salesCopilotControllerProvider);
+    final opportunities = ref.watch(opportunitiesProvider(opportunitiesQuery));
     final isMobile = currentBreakpoint(context) == AppBreakpoint.compact;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: ResponsiveLayout(
-        maxContentWidth: 1500,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Pipeline Intelligence Board',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Monitor stage flow, identify deal risk, and launch AI guidance without opening individual records.',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.xs,
-              children: [
-                FilterChip(
-                  label: const Text('All'),
-                  selected: stage == null,
-                  onSelected: (_) => ref.read(opportunityStageFilterProvider.notifier).state = null,
+    return PullToRefresh(
+      onRefresh: () async => ref.invalidate(opportunitiesProvider),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: ResponsiveLayout(
+          maxContentWidth: 1500,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Pipeline Intelligence Board',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
-                for (final value in salesOpportunityStages)
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Monitor stage flow, identify deal risk, and launch AI guidance without opening individual records.',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Wrap(
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.xs,
+                children: [
                   FilterChip(
-                    label: Text(value.replaceAll('_', ' ')),
-                    selected: stage == value,
+                    label: const Text('All'),
+                    selected: stage == null,
                     onSelected: (_) =>
-                        ref.read(opportunityStageFilterProvider.notifier).state = value,
+                        ref
+                                .read(opportunityStageFilterProvider.notifier)
+                                .state =
+                            null,
                   ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
+                  for (final value in salesOpportunityStages)
+                    FilterChip(
+                      label: Text(value.replaceAll('_', ' ')),
+                      selected: stage == value,
+                      onSelected: (_) =>
+                          ref
+                                  .read(opportunityStageFilterProvider.notifier)
+                                  .state =
+                              value,
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
               SalesSectionCard(
                 title: 'Forecast Widgets',
                 subtitle: 'Real-time board health by probability and value',
-                child: _ForecastWidgets(opportunities: opportunities),
+                child: _ForecastWidgets(
+                  opportunities: opportunities,
+                  onRetry: () => ref.invalidate(opportunitiesProvider),
+                ),
               ),
               const SizedBox(height: AppSpacing.md),
-            SalesAiResultCard(
-              state: copilotState,
-              onClear: () => ref.read(salesCopilotControllerProvider.notifier).clear(),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            opportunities.when(
-              data: (page) {
-                final grouped = {
-                  for (final value in salesOpportunityStages)
-                    value: page.items.where((item) => item.stage == value).toList(),
-                };
+              const SalesCopilotResult(),
+              const SizedBox(height: AppSpacing.lg),
+              opportunities.when(
+                data: (page) {
+                  final grouped = {
+                    for (final value in salesOpportunityStages)
+                      value: page.items
+                          .where((item) => item.stage == value)
+                          .toList(),
+                  };
 
-                if (isMobile) {
-                  return Column(
-                    children: grouped.entries.map((entry) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: SalesSectionCard(
-                          title: entry.key.replaceAll('_', ' '),
-                          subtitle: '${entry.value.length} opportunities · ${_stageAmount(entry.value)}',
-                          child: entry.value.isEmpty
-                              ? const SalesEmptyState(
-                                  title: 'No deals in this stage',
-                                  subtitle: 'As deals advance, this lane will populate automatically.',
-                                  icon: Icons.filter_none_rounded,
-                                )
-                              : Column(
-                                  children: entry.value
-                                      .map((item) => _OpportunityCard(item: item))
-                                      .toList(),
-                                ),
-                        ),
-                      );
-                    }).toList(),
-                  );
-                }
-
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: grouped.entries.map((entry) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: AppSpacing.md),
-                        child: SizedBox(
-                          width: 280,
+                  if (isMobile) {
+                    return Column(
+                      children: grouped.entries.map((entry) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
                           child: SalesSectionCard(
                             title: entry.key.replaceAll('_', ' '),
-                            subtitle: '${entry.value.length} opportunities · ${_stageAmount(entry.value)}',
+                            subtitle:
+                                '${entry.value.length} opportunities · ${_stageAmount(entry.value)}',
                             child: entry.value.isEmpty
                                 ? const SalesEmptyState(
                                     title: 'No deals in this stage',
-                                    subtitle: 'Pipeline movement will appear here.',
-                                    icon: Icons.inbox_outlined,
+                                    subtitle:
+                                        'As deals advance, this lane will populate automatically.',
+                                    icon: Icons.filter_none_rounded,
                                   )
                                 : Column(
-                                    children:
-                                        entry.value.map((item) => _OpportunityCard(item: item)).toList(),
+                                    children: entry.value
+                                        .map(
+                                          (item) =>
+                                              _OpportunityCard(item: item),
+                                        )
+                                        .toList(),
                                   ),
                           ),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      }).toList(),
+                    );
+                  }
+
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: grouped.entries.map((entry) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: AppSpacing.md),
+                          child: SizedBox(
+                            width: 280,
+                            child: SalesSectionCard(
+                              title: entry.key.replaceAll('_', ' '),
+                              subtitle:
+                                  '${entry.value.length} opportunities · ${_stageAmount(entry.value)}',
+                              child: entry.value.isEmpty
+                                  ? const SalesEmptyState(
+                                      title: 'No deals in this stage',
+                                      subtitle:
+                                          'Pipeline movement will appear here.',
+                                      icon: Icons.inbox_outlined,
+                                    )
+                                  : Column(
+                                      children: entry.value
+                                          .map(
+                                            (item) =>
+                                                _OpportunityCard(item: item),
+                                          )
+                                          .toList(),
+                                    ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  );
+                },
+                loading: () => const SalesSectionCard(
+                  title: 'Loading board',
+                  subtitle: 'Building stage intelligence',
+                  child: Column(
+                    children: [
+                      SalesSkeletonLine(),
+                      SizedBox(height: AppSpacing.sm),
+                      SalesSkeletonLine(),
+                    ],
                   ),
-                );
-              },
-              loading: () => const SalesSectionCard(
-                title: 'Loading board',
-                subtitle: 'Building stage intelligence',
-                child: Column(
-                  children: [
-                    SalesSkeletonLine(),
-                    SizedBox(height: AppSpacing.sm),
-                    SalesSkeletonLine(),
-                  ],
+                ),
+                error: (error, _) => SalesSectionCard(
+                  title: 'Unable to load opportunities',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(AsyncValueView.friendlyMessageFor(error)),
+                      const SizedBox(height: AppSpacing.sm),
+                      OutlinedButton.icon(
+                        onPressed: () => ref.invalidate(
+                          opportunitiesProvider(opportunitiesQuery),
+                        ),
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              error: (error, _) => SalesSectionCard(
-                title: 'Unable to load opportunities',
-                child: Text(error.toString()),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -179,7 +212,8 @@ class _SalesAccessRequired extends StatelessWidget {
           subtitle: 'Opportunity board is unavailable for this account.',
           child: SalesEmptyState(
             title: 'No permission to load opportunities',
-            subtitle: 'Grant sales.opportunity.read to enable pipeline board access.',
+            subtitle:
+                'Grant sales.opportunity.read to enable pipeline board access.',
             icon: Icons.lock_outline_rounded,
           ),
         ),
@@ -257,9 +291,10 @@ class _OpportunityCard extends ConsumerWidget {
 }
 
 class _ForecastWidgets extends StatelessWidget {
-  const _ForecastWidgets({required this.opportunities});
+  const _ForecastWidgets({required this.opportunities, this.onRetry});
 
   final AsyncValue<PaginatedSalesResult<SalesOpportunity>> opportunities;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -273,13 +308,17 @@ class _ForecastWidgets extends StatelessWidget {
           );
         }
 
-        final total = page.items.fold<double>(0, (sum, item) => sum + (item.amount ?? 0));
+        final total = page.items.fold<double>(
+          0,
+          (sum, item) => sum + (item.amount ?? 0),
+        );
         final weighted = page.items.fold<double>(
           0,
           (sum, item) => sum + ((item.amount ?? 0) * (item.probability / 100)),
         );
         final risky = page.items.where((item) => item.probability < 40).length;
-        final best = [...page.items]..sort((a, b) => b.probability.compareTo(a.probability));
+        final best = [...page.items]
+          ..sort((a, b) => b.probability.compareTo(a.probability));
 
         return Wrap(
           spacing: AppSpacing.md,
@@ -305,7 +344,8 @@ class _ForecastWidgets extends StatelessWidget {
             ),
             SalesRecommendationCard(
               title: 'Top Confidence Deal',
-              body: '${best.first.title} · ${best.first.probability}% confidence',
+              body:
+                  '${best.first.title} · ${best.first.probability}% confidence',
               icon: Icons.trending_up_rounded,
               action: SalesProbabilityBar(value: best.first.probability),
             ),
@@ -319,7 +359,10 @@ class _ForecastWidgets extends StatelessWidget {
           SalesSkeletonLine(),
         ],
       ),
-      error: (error, _) => Text(error.toString()),
+      error: (error, _) => InlineErrorCard(
+        message: AsyncValueView.friendlyMessageFor(error),
+        onRetry: onRetry,
+      ),
     );
   }
 }

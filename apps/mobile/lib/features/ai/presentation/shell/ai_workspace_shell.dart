@@ -104,6 +104,7 @@ class AiChatLayout extends HookConsumerWidget {
                 title: 'Conversation Sidebar',
                 trailing: IconButton(
                   icon: const Icon(Icons.view_sidebar_rounded, size: 16),
+                  tooltip: 'Toggle conversation history',
                   onPressed: () => ref.read(aiShellLayoutProvider.notifier).toggleHistoryPanel(),
                 ),
                 child: ConversationList(
@@ -219,30 +220,32 @@ class _MobileBottomActions extends StatelessWidget {
         color: colors.surfaceElevated,
         border: Border(top: BorderSide(color: colors.borderSubtle)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          TextButton.icon(
-            onPressed: onContext,
-            icon: const Icon(Icons.tune_rounded, size: 18),
-            label: const Text('Context'),
-          ),
-          TextButton.icon(
-            onPressed: onHistory,
-            icon: const Icon(Icons.history_rounded, size: 18),
-            label: const Text('History'),
-          ),
-          TextButton.icon(
-            onPressed: onKnowledge,
-            icon: const Icon(Icons.menu_book_outlined, size: 18),
-            label: const Text('Knowledge'),
-          ),
-          TextButton.icon(
-            onPressed: onAgents,
-            icon: const Icon(Icons.smart_toy_outlined, size: 18),
-            label: const Text('Agents'),
-          ),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            TextButton.icon(
+              onPressed: onContext,
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: const Text('Context'),
+            ),
+            TextButton.icon(
+              onPressed: onHistory,
+              icon: const Icon(Icons.history_rounded, size: 18),
+              label: const Text('History'),
+            ),
+            TextButton.icon(
+              onPressed: onKnowledge,
+              icon: const Icon(Icons.menu_book_outlined, size: 18),
+              label: const Text('Knowledge'),
+            ),
+            TextButton.icon(
+              onPressed: onAgents,
+              icon: const Icon(Icons.smart_toy_outlined, size: 18),
+              label: const Text('Agents'),
+            ),
+          ],
+        ),
       ),
     );
   }

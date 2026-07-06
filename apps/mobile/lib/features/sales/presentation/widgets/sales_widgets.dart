@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../theme/components/voltx_card.dart';
@@ -196,6 +197,23 @@ class SalesStatusChip extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
       ),
+    );
+  }
+}
+
+/// Watches [salesCopilotControllerProvider] itself so the 6 screens that
+/// render a copilot result panel don't have to `ref.watch` it at the top
+/// of their own `build()` — that would rebuild the entire screen (lists,
+/// forms, everything) on every copilot state change instead of just this
+/// card.
+class SalesCopilotResult extends ConsumerWidget {
+  const SalesCopilotResult({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SalesAiResultCard(
+      state: ref.watch(salesCopilotControllerProvider),
+      onClear: () => ref.read(salesCopilotControllerProvider.notifier).clear(),
     );
   }
 }

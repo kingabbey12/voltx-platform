@@ -5,8 +5,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../../router/routes.dart';
 import '../../../../theme/components/voltx_text_field.dart';
-import '../../../../theme/tokens/spacing.dart';
-import '../../data/constants/auth_constants.dart';
 import '../../utils/auth_validators.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_form.dart';
@@ -94,7 +92,7 @@ class VerifyEmailScreen extends HookConsumerWidget {
                 controller: tokenController,
                 label: 'Verification code',
                 hint: 'Enter 6+ character code',
-                helper: 'Mock: any code with 6+ characters',
+                helper: 'Enter the verification code sent to your email.',
                 textInputAction: TextInputAction.done,
                 prefixIcon: Icons.verified_outlined,
                 validator: AuthValidators.verificationToken,
@@ -104,16 +102,6 @@ class VerifyEmailScreen extends HookConsumerWidget {
                 label: 'Verify Email',
                 formState: formState,
                 onPressed: submit,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              TextButton(
-                onPressed: formState.isLoading
-                    ? null
-                    : () {
-                        tokenController.text =
-                            AuthMockCredentials.validVerifyToken;
-                      },
-                child: const Text('Use demo verification code'),
               ),
             ],
           ),

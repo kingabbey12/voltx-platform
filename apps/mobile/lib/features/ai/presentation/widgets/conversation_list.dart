@@ -23,6 +23,7 @@ class ConversationList extends ConsumerWidget {
     final conversations = ref.watch(conversationsProvider);
     final activeId = ref.watch(activeConversationIdProvider);
     final query = ref.watch(conversationSearchProvider);
+    final memorySnapshot = ref.watch(memorySnapshotProvider);
     final pinned = conversations.where((c) => c.pinned).toList();
     final recent = conversations.where((c) => !c.pinned).toList();
     final totalMessages = conversations.fold<int>(0, (sum, item) => sum + item.messageCount);
@@ -42,8 +43,8 @@ class ConversationList extends ConsumerWidget {
               label: '$totalMessages messages',
               icon: Icons.timeline_rounded,
             ),
-            const AiSuggestionChip(
-              label: 'Memory synced',
+            AiSuggestionChip(
+              label: 'Memory ${memorySnapshot.totalMemories}',
               icon: Icons.memory_rounded,
             ),
           ],

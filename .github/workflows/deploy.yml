@@ -1,0 +1,107 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options: [staging, production]
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy.yml'
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-push:
+    name: Build & push image
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tag
+        id: meta
+        run: echo "image=ghcr.io/${{ github.repository }}/backend:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          target: production
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}
+            ghcr.io/${{ github.repository }}/backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  migrate-and-deploy:
+    name: Migrate & deploy
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      # Runs from the checked-out source (has the Prisma CLI as a
+      # devDependency) against the target environment's database — kept
+      # as an explicit, auditable step rather than baked into the image's
+      # entrypoint, so migrations run exactly once per deploy regardless
+      # of how many replicas the next step brings up.
+      - name: Install dependencies
+        working-directory: backend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run database migrations
+        working-directory: backend
+        run: pnpm prisma:migrate:deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # Idempotent sync (deletes+recreates each role's permission set from
+      # the current PERMISSION_DEFINITIONS/ROLE_DEFINITIONS) — without this,
+      # a permission added to the catalog after the last deploy silently
+      # 403s every request that needs it until someone re-seeds by hand.
+      - name: Sync permission catalog
+        working-directory: backend
+        run: pnpm prisma:seed
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # Deployment target (ECS/Fly/Render/Kubernetes/etc.) is intentionally
+      # not hardcoded here — wire in whichever action matches where this
+      # actually gets hosted, pointing it at the image built above:
+      #   ${{ needs.build-and-push.outputs.image }}
+      - name: Deploy
+        run: |
+          echo "Deploying ${{ needs.build-and-push.outputs.image }} to ${{ github.event.inputs.environment || 'staging' }}"
+          echo "Wire this step to your hosting target (ECS/Fly/Render/Kubernetes/...)."

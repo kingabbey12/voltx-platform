@@ -9,6 +9,7 @@ import {
   AIModelDefinition,
   AIProviderChatRequest,
   AIStreamEvent,
+  AIUsage,
 } from '../models/ai-model.types';
 import { parseSseStream } from '../streaming/sse-parser';
 import { AIProvider, AIProviderError } from './ai-provider.interface';
@@ -130,6 +131,9 @@ export class AnthropicProvider implements AIProvider {
       signal: request.signal,
     });
 
+    let inputTokens: number | undefined;
+    let outputTokens: number | undefined;
+
     for await (const event of parseSseStream(stream)) {
       const payload = parseJsonRecord(event.data);
       const delta = getString(getRecord(payload, 'delta') ?? {}, 'text');
@@ -143,6 +147,24 @@ export class AnthropicProvider implements AIProvider {
         };
       }
 
+      // message_start carries the prompt's input_tokens; each message_delta
+      // carries the cumulative output_tokens so far — the last one seen
+      // before message_stop is the final count. Without reading these,
+      // token usage / cost tracking would silently report zero for every
+      // real (non-mocked) streaming chat call.
+      if (event.event === 'message_start') {
+        const usageRecord = getRecord(getRecord(payload, 'message') ?? {}, 'usage');
+        if (usageRecord) {
+          inputTokens = getNumber(usageRecord, 'input_tokens');
+        }
+      }
+      if (event.event === 'message_delta') {
+        const usageRecord = getRecord(payload, 'usage');
+        if (usageRecord) {
+          outputTokens = getNumber(usageRecord, 'output_tokens');
+        }
+      }
+
       if (event.event === 'message_stop') {
         yield {
           type: 'message_end',
@@ -150,6 +172,7 @@ export class AnthropicProvider implements AIProvider {
           model: request.model,
           finishReason: getString(payload, 'type'),
           outputText,
+          usage: this.toUsage(inputTokens, outputTokens),
         };
         return;
       }
@@ -160,7 +183,17 @@ export class AnthropicProvider implements AIProvider {
       provider: this.name,
       model: request.model,
       outputText,
+      usage: this.toUsage(inputTokens, outputTokens),
     };
+  }
+
+  private toUsage(inputTokens?: number, outputTokens?: number): AIUsage | undefined {
+    if (inputTokens === undefined && outputTokens === undefined) {
+      return undefined;
+    }
+    const input = inputTokens ?? 0;
+    const output = outputTokens ?? 0;
+    return { inputTokens: input, outputTokens: output, totalTokens: input + output };
   }
 
   embeddings(_request: AIEmbeddingRequest): Promise<AIEmbeddingResponse> {

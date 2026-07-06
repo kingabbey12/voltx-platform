@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../router/routes.dart';
+import '../../../../shared/widgets/async_value_view.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../theme/tokens/spacing.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
@@ -23,17 +24,10 @@ class LeadDetailsScreen extends ConsumerWidget {
     }
 
     final lead = ref.watch(leadDetailProvider(leadId));
-    final opportunities = ref.watch(
-      opportunitiesProvider(
-        SalesPageQuery(limit: 20, filters: {'leadId': leadId}),
-      ),
-    );
-    final activities = ref.watch(
-      activitiesProvider(
-        SalesPageQuery(limit: 20, filters: {'leadId': leadId}),
-      ),
-    );
-    final copilotState = ref.watch(salesCopilotControllerProvider);
+    final opportunitiesQuery = SalesPageQuery(limit: 20, filters: {'leadId': leadId});
+    final activitiesQuery = SalesPageQuery(limit: 20, filters: {'leadId': leadId});
+    final opportunities = ref.watch(opportunitiesProvider(opportunitiesQuery));
+    final activities = ref.watch(activitiesProvider(activitiesQuery));
     final isWide = currentBreakpoint(context) != AppBreakpoint.compact;
 
     return SingleChildScrollView(
@@ -94,10 +88,7 @@ class LeadDetailsScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.lg),
-              SalesAiResultCard(
-                state: copilotState,
-                onClear: () => ref.read(salesCopilotControllerProvider.notifier).clear(),
-              ),
+              const SalesCopilotResult(),
               const SizedBox(height: AppSpacing.lg),
               SalesSectionCard(
                 title: 'AI Lead Summary',
@@ -154,7 +145,10 @@ class LeadDetailsScreen extends ConsumerWidget {
                                   }).toList(),
                                 ),
                           loading: () => const SalesSkeletonLine(),
-                          error: (error, _) => Text(error.toString()),
+                          error: (error, _) => InlineErrorCard(
+                            message: AsyncValueView.friendlyMessageFor(error),
+                            onRetry: () => ref.invalidate(opportunitiesProvider(opportunitiesQuery)),
+                          ),
                         ),
                       ),
                     ),
@@ -186,7 +180,10 @@ class LeadDetailsScreen extends ConsumerWidget {
                                   }).toList(),
                                 ),
                           loading: () => const SalesSkeletonLine(),
-                          error: (error, _) => Text(error.toString()),
+                          error: (error, _) => InlineErrorCard(
+                            message: AsyncValueView.friendlyMessageFor(error),
+                            onRetry: () => ref.invalidate(activitiesProvider(activitiesQuery)),
+                          ),
                         ),
                       ),
                     ),
@@ -218,7 +215,10 @@ class LeadDetailsScreen extends ConsumerWidget {
                             }).toList(),
                           ),
                     loading: () => const SalesSkeletonLine(),
-                    error: (error, _) => Text(error.toString()),
+                    error: (error, _) => InlineErrorCard(
+                      message: AsyncValueView.friendlyMessageFor(error),
+                      onRetry: () => ref.invalidate(opportunitiesProvider(opportunitiesQuery)),
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -242,7 +242,10 @@ class LeadDetailsScreen extends ConsumerWidget {
                             }).toList(),
                           ),
                     loading: () => const SalesSkeletonLine(),
-                    error: (error, _) => Text(error.toString()),
+                    error: (error, _) => InlineErrorCard(
+                      message: AsyncValueView.friendlyMessageFor(error),
+                      onRetry: () => ref.invalidate(activitiesProvider(activitiesQuery)),
+                    ),
                   ),
                 ),
               ],
@@ -260,7 +263,10 @@ class LeadDetailsScreen extends ConsumerWidget {
           ),
           error: (error, _) => SalesSectionCard(
             title: 'Unable to load lead',
-            child: Text(error.toString()),
+            child: InlineErrorCard(
+              message: AsyncValueView.friendlyMessageFor(error),
+              onRetry: () => ref.invalidate(leadDetailProvider(leadId)),
+            ),
           ),
         ),
       ),

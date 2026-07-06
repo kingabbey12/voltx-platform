@@ -3,7 +3,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../../theme/tokens/spacing.dart';
 import '../../../../theme/components/voltx_motion.dart';
-import '../../data/models/dashboard_models.dart';
 import '../providers/dashboard_providers.dart';
 import 'dashboard_v2_components.dart';
 import 'dashboard_v2_tokens.dart';
@@ -15,7 +14,19 @@ class ExecutiveCharts extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final kpis = ref.watch(dashboardKpisProvider);
+    final revenueSeries = ref.watch(dashboardRevenueSeriesProvider);
+    final pipelineSeries = ref.watch(dashboardPipelineSeriesProvider);
+    final forecastSeries = ref.watch(dashboardForecastSeriesProvider);
     final t = DashboardV2Tokens.of(context);
+
+    String kpiValue(String label, String fallback) {
+      for (final kpi in kpis) {
+        if (kpi.label.toLowerCase() == label.toLowerCase()) {
+          return kpi.value;
+        }
+      }
+      return fallback;
+    }
 
     return DashboardGlassCard(
       child: Column(
@@ -44,28 +55,28 @@ class ExecutiveCharts extends ConsumerWidget {
                 final left = _ChartBlock(
                   title: 'Revenue Chart',
                   tone: t.success,
-                  values: _shapeForTrend(KpiTrend.up),
-                  legend: const [
-                    ('Revenue', '4.8M'),
-                    ('Target', '4.5M'),
+                  values: revenueSeries,
+                  legend: [
+                    ('Revenue', kpiValue('Revenue', '--')),
+                    ('Pipeline', kpiValue('Pipeline', '--')),
                   ],
                 );
                 final middle = _ChartBlock(
                   title: 'Pipeline Chart',
                   tone: t.primary,
-                  values: const [0.22, 0.34, 0.38, 0.46, 0.6, 0.68, 0.8],
-                  legend: const [
-                    ('Qualified', '126'),
-                    ('At Risk', '18'),
+                  values: pipelineSeries,
+                  legend: [
+                    ('Leads', kpiValue('Leads', '--')),
+                    ('Contacts', kpiValue('Contacts', '--')),
                   ],
                 );
                 final right = _ChartBlock(
                   title: 'Forecast',
                   tone: t.warning,
-                  values: const [0.5, 0.56, 0.6, 0.63, 0.66, 0.71, 0.76],
-                  legend: const [
-                    ('Forecast', '5.1M'),
-                    ('Confidence', '91%'),
+                  values: forecastSeries,
+                  legend: [
+                    ('Activities', kpiValue('Activities', '--')),
+                    ('AI Context', kpiValue('AI Context', '--')),
                   ],
                 );
 
@@ -98,13 +109,6 @@ class ExecutiveCharts extends ConsumerWidget {
     );
   }
 
-  static List<double> _shapeForTrend(KpiTrend trend) {
-    return switch (trend) {
-      KpiTrend.up => const [0.24, 0.34, 0.45, 0.57, 0.63, 0.76, 0.9],
-      KpiTrend.down => const [0.92, 0.84, 0.78, 0.7, 0.58, 0.48, 0.34],
-      KpiTrend.neutral => const [0.52, 0.54, 0.5, 0.52, 0.53, 0.51, 0.52],
-    };
-  }
 }
 
 class _ChartBlock extends StatelessWidget {

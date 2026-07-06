@@ -7,6 +7,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { captureException } from '../../error-reporting';
+import { AIProviderError } from '../../modules/ai/providers/ai-provider.interface';
 import { API_VERSION } from '../constants/api.constants';
 import { REQUEST_ID_HEADER } from '../constants/request-id.constants';
 import { ERROR_CODES, getDefaultErrorCode } from '../errors/error-codes';
@@ -36,11 +38,26 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
+    // AIProviderError is a plain Error (not an HttpException, since it's
+    // thrown from deep inside provider/runtime code with no HTTP context),
+    // so without this check it would fall through to a generic 500 —
+    // hiding the real, actionable cause (quota exceeded, provider rate
+    // limited, provider outage) from every caller, including the mobile
+    // app's error-message mapping and any on-call engineer reading a
+    // client-reported error rather than the server log.
     const status =
-      exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : exception instanceof AIProviderError
+          ? HttpStatus.SERVICE_UNAVAILABLE
+          : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const exceptionResponse: unknown =
-      exception instanceof HttpException ? exception.getResponse() : 'Internal server error';
+      exception instanceof HttpException
+        ? exception.getResponse()
+        : exception instanceof AIProviderError
+          ? { code: ERROR_CODES.aiServiceUnavailable, message: exception.message }
+          : 'Internal server error';
 
     const requestIdHeader = request.headers[REQUEST_ID_HEADER];
     const requestId = typeof requestIdHeader === 'string' ? requestIdHeader : undefined;
@@ -55,6 +72,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         },
         exception instanceof Error ? exception.message : 'Unhandled exception',
       );
+      captureException(exception);
     }
 
     const body: ErrorResponseBody = {

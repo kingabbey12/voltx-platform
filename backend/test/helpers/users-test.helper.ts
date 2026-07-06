@@ -42,6 +42,9 @@ export async function resetAuthTestData(prisma: PrismaService): Promise<void> {
   await ignoreMissingTable(() => prisma.system.verificationToken.deleteMany());
   await ignoreMissingTable(() => prisma.system.refreshToken.deleteMany());
   await ignoreMissingTable(() => prisma.system.membership.deleteMany());
+  // Invitation.invitedByUserId/acceptedByUserId restrict user deletion (only
+  // organizationId cascades), so this must run before user.deleteMany().
+  await ignoreMissingTable(() => prisma.system.invitation.deleteMany());
   await ignoreMissingTable(() => prisma.system.rolePermission.deleteMany());
   await ignoreMissingTable(() => prisma.system.user.deleteMany());
   await ignoreMissingTable(() => prisma.system.organization.deleteMany());

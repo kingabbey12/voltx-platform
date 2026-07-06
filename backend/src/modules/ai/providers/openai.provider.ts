@@ -8,6 +8,7 @@ import {
   AIModelDefinition,
   AIProviderChatRequest,
   AIStreamEvent,
+  AIUsage,
 } from '../models/ai-model.types';
 import { parseSseStream } from '../streaming/sse-parser';
 import { AIProvider, AIProviderError } from './ai-provider.interface';
@@ -47,6 +48,14 @@ const OPENAI_MODELS: AIModelDefinition[] = [
     supportsStreaming: false,
     supportsEmbeddings: true,
   },
+  {
+    id: 'text-embedding-3-small',
+    provider: 'openai',
+    family: 'gpt-5',
+    displayName: 'Text Embedding 3 Small',
+    supportsStreaming: false,
+    supportsEmbeddings: true,
+  },
 ];
 
 @Injectable()
@@ -66,6 +75,29 @@ export class OpenAIProvider implements AIProvider {
     );
   }
 
+  /**
+   * OpenRouter exposes an OpenAI-compatible chat/completions API at the same
+   * shape, so pointing OPENAI_BASE_URL at it is a valid way to run this
+   * provider through OpenRouter — but OpenRouter requires provider-prefixed
+   * model slugs (e.g. "openai/gpt-4o-mini"), while this provider's own
+   * catalog IDs ("gpt-5-mini") are unprefixed and used as stable identifiers
+   * everywhere else (seeded agents, DTOs, mobile UI). Translate only the
+   * literal string sent over the wire when routed through OpenRouter, so
+   * the rest of the system is unaffected either way.
+   */
+  private wireModel(modelId: string): string {
+    if (!this.baseUrl.includes('openrouter.ai')) {
+      return modelId;
+    }
+    const openRouterModels: Record<string, string> = {
+      'gpt-5': 'openai/gpt-4o',
+      'gpt-5-mini': 'openai/gpt-4o-mini',
+      'text-embedding-3-large': 'openai/text-embedding-3-large',
+      'text-embedding-3-small': 'openai/text-embedding-3-small',
+    };
+    return openRouterModels[modelId] ?? modelId;
+  }
+
   async chat(request: AIProviderChatRequest): Promise<AIChatResponse> {
     this.assertConfigured();
 
@@ -73,7 +105,7 @@ export class OpenAIProvider implements AIProvider {
       method: 'POST',
       headers: this.buildHeaders(),
       body: JSON.stringify({
-        model: request.model,
+        model: this.wireModel(request.model),
         messages: request.messages.map((message) => ({
           role: message.role,
           content: message.content,
@@ -126,8 +158,12 @@ export class OpenAIProvider implements AIProvider {
       method: 'POST',
       headers: this.buildHeaders(),
       body: JSON.stringify({
-        model: request.model,
+        model: this.wireModel(request.model),
         stream: true,
+        // Without this, OpenAI never includes a `usage` field on any
+        // streamed chunk — token usage / cost tracking would silently
+        // report zero for every real (non-mocked) streaming chat call.
+        stream_options: { include_usage: true },
         messages: request.messages.map((message) => ({
           role: message.role,
           content: message.content,
@@ -140,6 +176,9 @@ export class OpenAIProvider implements AIProvider {
       }),
       signal: request.signal,
     });
+
+    let finishReason: string | undefined;
+    let usage: AIUsage | undefined;
 
     for await (const event of parseSseStream(stream)) {
       if (event.data === '[DONE]') {
@@ -161,16 +200,20 @@ export class OpenAIProvider implements AIProvider {
         };
       }
 
-      const finishReason = choiceRecord ? getString(choiceRecord, 'finish_reason') : undefined;
-      if (finishReason) {
-        yield {
-          type: 'message_end',
-          provider: this.name,
-          model: request.model,
-          finishReason,
-          outputText,
+      finishReason ??= choiceRecord ? getString(choiceRecord, 'finish_reason') : undefined;
+
+      // The usage-bearing chunk (enabled by stream_options above) arrives
+      // with an empty `choices` array, typically as the last chunk before
+      // [DONE] — after the finish_reason chunk, not instead of it — so
+      // this must keep iterating rather than returning as soon as
+      // finishReason is seen.
+      const usageRecord = getRecord(payload, 'usage');
+      if (usageRecord) {
+        usage = {
+          inputTokens: getNumber(usageRecord, 'prompt_tokens'),
+          outputTokens: getNumber(usageRecord, 'completion_tokens'),
+          totalTokens: getNumber(usageRecord, 'total_tokens'),
         };
-        return;
       }
     }
 
@@ -178,7 +221,9 @@ export class OpenAIProvider implements AIProvider {
       type: 'message_end',
       provider: this.name,
       model: request.model,
+      finishReason,
       outputText,
+      usage,
     };
   }
 
@@ -189,7 +234,7 @@ export class OpenAIProvider implements AIProvider {
       method: 'POST',
       headers: this.buildHeaders(),
       body: JSON.stringify({
-        model: request.model,
+        model: this.wireModel(request.model),
         input: request.input,
       }),
       signal: request.signal,

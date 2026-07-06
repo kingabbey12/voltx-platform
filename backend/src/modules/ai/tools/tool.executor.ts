@@ -8,6 +8,7 @@ export interface ExecuteToolInput {
   conversationId: string;
   timeoutMs?: number;
   retries?: number;
+  signal?: AbortSignal;
 }
 
 export interface ExecuteToolResult {
@@ -32,9 +33,14 @@ export class ToolExecutor {
     while (true) {
       const startedAt = Date.now();
       const controller = new AbortController();
+      let timedOut = false;
       const timeout = setTimeout(() => {
+        timedOut = true;
         controller.abort();
       }, timeoutMs);
+
+      const onExternalAbort = () => controller.abort();
+      input.signal?.addEventListener('abort', onExternalAbort);
 
       try {
         const output = await tool.execute(input.input, {
@@ -63,7 +69,15 @@ export class ToolExecutor {
       } catch (error) {
         clearTimeout(timeout);
 
-        if (controller.signal.aborted) {
+        if (input.signal?.aborted) {
+          throw new ToolExecutionError(
+            `Tool "${tool.name}" was cancelled`,
+            'tool_cancelled',
+            false,
+          );
+        }
+
+        if (timedOut) {
           throw new ToolExecutionError(
             `Tool "${tool.name}" timed out after ${timeoutMs}ms`,
             'tool_timeout',
@@ -84,6 +98,8 @@ export class ToolExecutor {
           error instanceof Error ? error.message : 'Tool execution failed',
           'tool_execution_failed',
         );
+      } finally {
+        input.signal?.removeEventListener('abort', onExternalAbort);
       }
     }
   }

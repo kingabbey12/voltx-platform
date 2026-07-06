@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { MembershipStatus, OrganizationStatus, UserStatus } from '@prisma/client';
@@ -7,7 +12,7 @@ import { OrganizationRepository } from '../organization/organization.repository'
 import { generateUniqueOrganizationSlug } from '../organization/utils/organization-slug.util';
 import { UsersRepository } from '../users/users.repository';
 import { UserResponseDto } from '../users/dto/user-response.dto';
-import { AuthContextRepository } from './auth-context.repository';
+import { AuthContextRepository, MembershipSummary } from './auth-context.repository';
 import { AuthRepository } from './auth.repository';
 import { ACCESS_TOKEN_EXPIRES_IN } from './constants/auth.constants';
 import {
@@ -195,6 +200,35 @@ export class AuthService {
     };
   }
 
+  async myOrganizations(userId: string): Promise<MembershipSummary[]> {
+    return this.authContextRepository.listActiveMembershipsForUser(userId);
+  }
+
+  async switchOrganization(
+    currentUser: CurrentUser,
+    organizationId: string,
+  ): Promise<LoginResponseDto> {
+    const membership = await this.authContextRepository.findActiveMembershipContext(
+      currentUser.id,
+      organizationId,
+    );
+
+    if (!membership) {
+      throw new ForbiddenException('You are not an active member of that organization');
+    }
+
+    const tokens = await this.issueTokens(currentUser.id, membership.organizationId);
+    const profile = await this.usersRepository.findById(currentUser.id);
+    if (!profile) {
+      throw new UnauthorizedException('Authenticated user not found');
+    }
+
+    return {
+      ...tokens,
+      user: UserResponseDto.fromEntity(profile),
+    };
+  }
+
   async verifyEmail(token: string): Promise<VerifyEmailResponseDto> {
     const { userId } = await this.verificationTokenService.consumeEmailVerificationToken(token);
     const emailVerifiedAt = await this.authRepository.markEmailVerified(userId);
@@ -229,7 +263,11 @@ export class AuthService {
     };
   }
 
-  private async issueTokens(userId: string, organizationId: string): Promise<AuthTokensDto> {
+  /** Public so InvitationService can log a user in immediately after they
+   * accept an invitation by creating a brand-new account (the invitation
+   * token itself is the proof of email ownership in that case, exactly
+   * like register() creating a session on account creation). */
+  async issueTokens(userId: string, organizationId: string): Promise<AuthTokensDto> {
     const payload: JwtAccessPayload = {
       sub: userId,
       org: organizationId,

@@ -23,6 +23,57 @@ class ApiClient {
     );
   }
 
+  Future<List<T>> getList<T>(
+    String path, {
+    required T Function(Map<String, dynamic> json) fromJson,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    return _requestList(
+      () => _dio.get<Map<String, dynamic>>(path, queryParameters: queryParameters),
+      fromJson,
+    );
+  }
+
+  /// Same envelope-unwrapping as [getList] but for POST endpoints whose
+  /// `data` is a plain array (e.g. `/knowledge/search`) rather than a
+  /// paginated `{items, total, ...}` object.
+  Future<List<T>> postList<T>(
+    String path, {
+    required T Function(Map<String, dynamic> json) fromJson,
+    Object? data,
+  }) async {
+    return _requestList(
+      () => _dio.post<Map<String, dynamic>>(path, data: data),
+      fromJson,
+    );
+  }
+
+  Future<List<T>> _requestList<T>(
+    Future<Response<Map<String, dynamic>>> Function() send,
+    T Function(Map<String, dynamic> json) fromJson,
+  ) async {
+    try {
+      final response = await send();
+      final envelope = ApiResponse<List<dynamic>>.fromJson(
+        (data) => List<dynamic>.from(data as List),
+        response.data ?? <String, dynamic>{},
+      );
+      if (!envelope.success) {
+        throw const NetworkException(
+          message: 'Request failed',
+          type: NetworkExceptionType.server,
+        );
+      }
+      return envelope.data
+          .map((item) => fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    } on DioException catch (error) {
+      throw NetworkException.fromDioException(error);
+    } on NetworkException {
+      rethrow;
+    }
+  }
+
   Future<T> post<T>(
     String path, {
     required T Function(Map<String, dynamic> json) fromJson,

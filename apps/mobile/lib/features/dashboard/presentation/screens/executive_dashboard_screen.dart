@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import '../../../../shared/widgets/pull_to_refresh.dart';
 import '../../../../theme/tokens/spacing.dart';
 import '../../data/models/dashboard_models.dart';
 import '../providers/dashboard_providers.dart';
@@ -54,98 +55,95 @@ class ExecutiveDashboardScreen extends ConsumerWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            t.backdrop,
-            t.panel.withValues(alpha: 0.36),
-            t.backdrop,
-          ],
+          colors: [t.backdrop, t.panel.withValues(alpha: 0.36), t.backdrop],
         ),
       ),
-      child: SingleChildScrollView(
-        padding: t.pagePadding,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1380),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const GreetingHeader(),
-                const SizedBox(height: AppSpacing.lg),
-                const KpiCards(),
-                const SizedBox(height: AppSpacing.lg),
-                if (threeColumn)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Expanded(flex: 6, child: ExecutiveCharts()),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        flex: 4,
-                        child: _CenterColumn(
-                          activities: activities,
-                          notifications: notifications,
-                          unread: unread,
-                          timeFormatter: _timeSlot,
-                          agoFormatter: _timeAgo,
+      child: PullToRefresh(
+        onRefresh: () async => refreshDashboardData(ref),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: t.pagePadding,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1380),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const GreetingHeader(),
+                  const SizedBox(height: AppSpacing.lg),
+                  const KpiCards(),
+                  const SizedBox(height: AppSpacing.lg),
+                  if (threeColumn)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Expanded(flex: 6, child: ExecutiveCharts()),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          flex: 4,
+                          child: _CenterColumn(
+                            activities: activities,
+                            notifications: notifications,
+                            unread: unread,
+                            timeFormatter: _timeSlot,
+                            agoFormatter: _timeAgo,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        flex: 4,
-                        child: _RightColumn(
-                          insights: insights,
-                          activities: activities,
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          flex: 4,
+                          child: _RightColumn(
+                            insights: insights,
+                            activities: activities,
+                          ),
                         ),
-                      ),
-                    ],
-                  )
-                else ...[
-                  const ExecutiveCharts(),
-                  const SizedBox(height: AppSpacing.md),
-                  _CenterColumn(
-                    activities: activities,
-                    notifications: notifications,
-                    unread: unread,
-                    timeFormatter: _timeSlot,
-                    agoFormatter: _timeAgo,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  _RightColumn(
-                    insights: insights,
-                    activities: activities,
-                  ),
+                      ],
+                    )
+                  else ...[
+                    const ExecutiveCharts(),
+                    const SizedBox(height: AppSpacing.md),
+                    _CenterColumn(
+                      activities: activities,
+                      notifications: notifications,
+                      unread: unread,
+                      timeFormatter: _timeSlot,
+                      agoFormatter: _timeAgo,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _RightColumn(insights: insights, activities: activities),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  if (bottomThreeColumn)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Expanded(flex: 5, child: RecentProjects()),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          flex: 4,
+                          child: _TeamActivityPanel(
+                            projects: projects,
+                            activities: activities,
+                            agoFormatter: _timeAgo,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        const Expanded(flex: 4, child: QuickActions()),
+                      ],
+                    )
+                  else ...[
+                    const RecentProjects(),
+                    const SizedBox(height: AppSpacing.md),
+                    _TeamActivityPanel(
+                      projects: projects,
+                      activities: activities,
+                      agoFormatter: _timeAgo,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    const QuickActions(),
+                  ],
                 ],
-                const SizedBox(height: AppSpacing.lg),
-                if (bottomThreeColumn)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Expanded(flex: 5, child: RecentProjects()),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        flex: 4,
-                        child: _TeamActivityPanel(
-                          projects: projects,
-                          activities: activities,
-                          agoFormatter: _timeAgo,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      const Expanded(flex: 4, child: QuickActions()),
-                    ],
-                  )
-                else ...[
-                  const RecentProjects(),
-                  const SizedBox(height: AppSpacing.md),
-                  _TeamActivityPanel(
-                    projects: projects,
-                    activities: activities,
-                    agoFormatter: _timeAgo,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  const QuickActions(),
-                ],
-              ],
+              ),
             ),
           ),
         ),
@@ -216,7 +214,8 @@ class _CenterColumn extends StatelessWidget {
                                 item.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
                                       color: t.textPrimary,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -226,9 +225,8 @@ class _CenterColumn extends StatelessWidget {
                                 item.subtitle,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: t.textSecondary,
-                                    ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: t.textSecondary),
                               ),
                             ],
                           ),
@@ -271,13 +269,17 @@ class _CenterColumn extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: t.panelStrong.withValues(alpha: 0.58),
                       borderRadius: BorderRadius.circular(t.radiusLg),
-                      border: Border.all(color: t.border.withValues(alpha: 0.8)),
+                      border: Border.all(
+                        color: t.border.withValues(alpha: 0.8),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
-                          note.read ? Icons.mark_email_read_rounded : Icons.mark_email_unread_rounded,
+                          note.read
+                              ? Icons.mark_email_read_rounded
+                              : Icons.mark_email_unread_rounded,
                           size: 16,
                           color: note.read ? t.textTertiary : t.warning,
                         ),
@@ -290,7 +292,8 @@ class _CenterColumn extends StatelessWidget {
                                 note.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
                                       color: t.textPrimary,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -300,9 +303,8 @@ class _CenterColumn extends StatelessWidget {
                                 note.body,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: t.textSecondary,
-                                    ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: t.textSecondary),
                               ),
                             ],
                           ),
@@ -310,7 +312,8 @@ class _CenterColumn extends StatelessWidget {
                         const SizedBox(width: AppSpacing.xs),
                         Text(
                           agoFormatter(note.timestamp),
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
                                 color: t.textTertiary,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -327,10 +330,7 @@ class _CenterColumn extends StatelessWidget {
 }
 
 class _RightColumn extends StatelessWidget {
-  const _RightColumn({
-    required this.insights,
-    required this.activities,
-  });
+  const _RightColumn({required this.insights, required this.activities});
 
   final List<DashboardInsight> insights;
   final List<DashboardActivity> activities;
@@ -338,7 +338,10 @@ class _RightColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DashboardV2Tokens.of(context);
-    final alerts = activities.where((a) => a.type == ActivityType.alert).take(3).toList();
+    final alerts = activities
+        .where((a) => a.type == ActivityType.alert)
+        .take(3)
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -369,12 +372,18 @@ class _RightColumn extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: t.warning.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(t.radiusLg),
-                      border: Border.all(color: t.warning.withValues(alpha: 0.28)),
+                      border: Border.all(
+                        color: t.warning.withValues(alpha: 0.28),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.warning_amber_rounded, color: t.warning, size: 16),
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: t.warning,
+                          size: 16,
+                        ),
                         const SizedBox(width: AppSpacing.xs),
                         Expanded(
                           child: Column(
@@ -384,7 +393,8 @@ class _RightColumn extends StatelessWidget {
                                 alert.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
                                       color: t.textPrimary,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -394,9 +404,8 @@ class _RightColumn extends StatelessWidget {
                                 alert.subtitle,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: t.textSecondary,
-                                    ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: t.textSecondary),
                               ),
                             ],
                           ),
@@ -432,7 +441,9 @@ class _RightColumn extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: t.panelStrong.withValues(alpha: 0.58),
                       borderRadius: BorderRadius.circular(t.radiusLg),
-                      border: Border.all(color: t.border.withValues(alpha: 0.8)),
+                      border: Border.all(
+                        color: t.border.withValues(alpha: 0.8),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,7 +456,8 @@ class _RightColumn extends StatelessWidget {
                                 insight.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
                                       color: t.textPrimary,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -455,9 +467,8 @@ class _RightColumn extends StatelessWidget {
                                 insight.summary,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: t.textSecondary,
-                                    ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: t.textSecondary),
                               ),
                             ],
                           ),
@@ -512,7 +523,9 @@ class _TeamActivityPanel extends StatelessWidget {
             for (var i = 0; i < projects.take(4).length; i++)
               _TeamMemberTile(
                 project: projects[i],
-                referenceActivity: activities.isEmpty ? null : activities[i % activities.length],
+                referenceActivity: activities.isEmpty
+                    ? null
+                    : activities[i % activities.length],
                 agoFormatter: agoFormatter,
               ),
         ],
@@ -558,18 +571,18 @@ class _TeamMemberTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: t.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: t.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   project.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: t.textSecondary,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: t.textSecondary),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 ClipRRect(
@@ -590,9 +603,9 @@ class _TeamMemberTile extends StatelessWidget {
                 ? 'Now'
                 : agoFormatter(referenceActivity!.timestamp),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: t.textTertiary,
-                  fontWeight: FontWeight.w700,
-                ),
+              color: t.textTertiary,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),

@@ -14,17 +14,40 @@ import { createSwaggerDocument, setupSwagger } from '../config/swagger.config';
 export function configureApp(app: INestApplication): void {
   const configService = app.get(ConfigService);
   const requestBodyLimit = configService.get<string>('security.requestBodyLimit', '1mb');
+  const corsAllowedOrigins = configService.get<string[]>('security.corsAllowedOrigins', []);
 
   app.use(requestIdMiddleware);
   app.useLogger(app.get(Logger));
   app.use(
     helmet({
+      // The API serves only JSON to native/mobile clients plus the Swagger
+      // UI at /api/docs — CSP would need per-route relaxation for Swagger's
+      // inline scripts/styles and buys little for a non-HTML-rendering API,
+      // so it stays off. Every other helmet default (HSTS, X-Frame-Options,
+      // X-Content-Type-Options, etc.) still applies.
       contentSecurityPolicy: false,
       crossOriginResourcePolicy: false,
     }),
   );
+  app.enableCors({
+    // Closed by default: an empty allowlist means no browser origin is
+    // trusted with credentials until CORS_ALLOWED_ORIGINS is set. Native
+    // mobile clients (Dio) never send an Origin header and are unaffected.
+    origin: corsAllowedOrigins.length > 0 ? corsAllowedOrigins : false,
+    credentials: true,
+  });
   app.use(compression());
-  app.use(json({ limit: requestBodyLimit, inflate: true }));
+  app.use(
+    json({
+      limit: requestBodyLimit,
+      inflate: true,
+      // Webhook signature verification (Slack/GitHub/Stripe/generic) needs the
+      // exact raw bytes — a re-serialized JSON body would break HMAC checks.
+      verify: (request, _response, buffer) => {
+        (request as unknown as { rawBody?: Buffer }).rawBody = buffer;
+      },
+    }),
+  );
   app.use(urlencoded({ extended: true, limit: requestBodyLimit, inflate: true }));
   app.setGlobalPrefix('api', {
     exclude: [

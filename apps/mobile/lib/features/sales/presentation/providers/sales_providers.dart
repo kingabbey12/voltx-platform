@@ -48,17 +48,9 @@ final opportunitiesProvider =
   return ref.watch(salesRepositoryProvider).listOpportunities(query);
 });
 
-final opportunityDetailProvider = FutureProvider.family<SalesOpportunity, String>((ref, id) {
-  return ref.watch(salesRepositoryProvider).getOpportunity(id);
-});
-
 final activitiesProvider =
     FutureProvider.family<PaginatedSalesResult<SalesActivity>, SalesPageQuery>((ref, query) {
   return ref.watch(salesRepositoryProvider).listActivities(query);
-});
-
-final activityDetailProvider = FutureProvider.family<SalesActivity, String>((ref, id) {
-  return ref.watch(salesRepositoryProvider).getActivity(id);
 });
 
 final leadSearchProvider = StateProvider<String>((ref) => '');
