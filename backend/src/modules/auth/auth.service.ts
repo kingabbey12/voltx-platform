@@ -190,6 +190,7 @@ export class AuthService {
     }
 
     const userDto = UserResponseDto.fromEntity(profile);
+    const organization = await this.organizationRepository.findById();
 
     return {
       ...userDto,
@@ -197,6 +198,7 @@ export class AuthService {
       membershipId: currentUser.membershipId,
       roles: currentUser.roles,
       permissions: currentUser.permissions,
+      onboardingCompleted: organization?.onboardingCompletedAt != null,
     };
   }
 

@@ -106,6 +106,23 @@ export class OrganizationService {
     }
   }
 
+  async completeOnboarding(id: string): Promise<OrganizationResponseDto> {
+    this.tenantContextService.assertOrganizationAccess(id);
+
+    const entity = await this.organizationRepository.completeOnboarding();
+    if (!entity) {
+      throw new NotFoundException(`Organization with id "${id}" not found`);
+    }
+
+    await this.auditService.record({
+      action: 'complete_onboarding',
+      resource: 'organization',
+      resourceId: entity.id,
+    });
+
+    return OrganizationResponseDto.fromEntity(entity);
+  }
+
   async remove(id: string): Promise<OrganizationResponseDto> {
     this.tenantContextService.assertOrganizationAccess(id);
 

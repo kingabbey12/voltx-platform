@@ -128,6 +128,7 @@ model Organization {
   timezone               String                  @default("UTC")
   status                 OrganizationStatus      @default(ACTIVE)
   settings               Json                    @default("{}")
+  onboardingCompletedAt  DateTime?               @map("onboarding_completed_at")
   createdAt              DateTime                @default(now()) @map("created_at")
   updatedAt              DateTime                @updatedAt @map("updated_at")
   deletedAt              DateTime?               @map("deleted_at")

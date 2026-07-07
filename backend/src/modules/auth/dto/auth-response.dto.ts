@@ -32,6 +32,9 @@ export class AuthMeResponseDto extends UserResponseDto {
 
   @ApiProperty({ example: ['user.read', 'organization.read'] })
   permissions!: string[];
+
+  @ApiProperty({ example: false })
+  onboardingCompleted!: boolean;
 }
 
 export class MyOrganizationResponseDto {

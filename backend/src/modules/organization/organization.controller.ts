@@ -103,6 +103,23 @@ export class OrganizationController {
     return this.organizationService.update(id, dto);
   }
 
+  @Post(':id/complete-onboarding')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('organization.update')
+  @ApiOperation({
+    summary: 'Mark onboarding complete for an organization',
+    description: 'Idempotent — calling this more than once has no further effect.',
+  })
+  @ApiCreatedResponse({
+    description: 'Onboarding marked complete',
+    type: OrganizationSuccessResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'Organization not found' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
+  completeOnboarding(@Param('id', ParseUUIDPipe) id: string): Promise<OrganizationResponseDto> {
+    return this.organizationService.completeOnboarding(id);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @UseGuards(...AUTH_GUARDS, PermissionGuard)

@@ -166,6 +166,25 @@ export class OrganizationRepository {
     return toOrganizationEntity(record);
   }
 
+  async completeOnboarding(): Promise<OrganizationEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const existing = await this.findById();
+    if (!existing) {
+      return null;
+    }
+
+    if (existing.onboardingCompletedAt) {
+      return existing;
+    }
+
+    const record = await this.prisma.system.organization.update({
+      where: { id: tenant.organizationId },
+      data: { onboardingCompletedAt: new Date() },
+    });
+
+    return toOrganizationEntity(record);
+  }
+
   async softDelete(): Promise<OrganizationEntity | null> {
     const tenant = this.tenantContextService.getOrThrow();
     const existing = await this.findById();

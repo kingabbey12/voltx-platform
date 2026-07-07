@@ -63,6 +63,13 @@ export class OrganizationResponseDto {
   })
   settings!: Record<string, unknown>;
 
+  @ApiPropertyOptional({
+    example: '2026-07-05T12:00:00.000Z',
+    nullable: true,
+    description: 'When the organization completed onboarding, or null if not yet complete.',
+  })
+  onboardingCompletedAt!: string | null;
+
   @ApiProperty({ example: '2026-07-03T00:00:00.000Z' })
   createdAt!: string;
 
@@ -80,6 +87,7 @@ export class OrganizationResponseDto {
     dto.timezone = entity.timezone;
     dto.status = entity.status;
     dto.settings = entity.settings;
+    dto.onboardingCompletedAt = entity.onboardingCompletedAt?.toISOString() ?? null;
     dto.createdAt = entity.createdAt.toISOString();
     dto.updatedAt = entity.updatedAt.toISOString();
     return dto;

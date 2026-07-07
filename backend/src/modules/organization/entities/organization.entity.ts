@@ -10,6 +10,7 @@ export class OrganizationEntity {
   timezone!: string;
   status!: OrganizationStatus;
   settings!: Record<string, unknown>;
+  onboardingCompletedAt!: Date | null;
   createdAt!: Date;
   updatedAt!: Date;
   deletedAt!: Date | null;

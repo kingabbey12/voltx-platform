@@ -23,6 +23,7 @@ describe('OrganizationService', () => {
     timezone: 'America/New_York',
     status: OrganizationStatus.ACTIVE,
     settings: { theme: 'dark' },
+    onboardingCompletedAt: null,
     createdAt: new Date('2026-07-03T00:00:00.000Z'),
     updatedAt: new Date('2026-07-03T00:00:00.000Z'),
     deletedAt: null,
@@ -52,6 +53,7 @@ describe('OrganizationService', () => {
             findAll: jest.fn(),
             update: jest.fn(),
             softDelete: jest.fn(),
+            completeOnboarding: jest.fn(),
           },
         },
         {
@@ -145,6 +147,30 @@ describe('OrganizationService', () => {
       const result = await service.update(organizationEntity.id, { name: 'Acme Inc.' });
 
       expect(result.name).toBe('Acme Inc.');
+    });
+  });
+
+  describe('completeOnboarding', () => {
+    it('marks onboarding complete', async () => {
+      repository.completeOnboarding.mockResolvedValue({
+        ...organizationEntity,
+        onboardingCompletedAt: new Date('2026-07-07T00:00:00.000Z'),
+      });
+
+      const result = await service.completeOnboarding(organizationEntity.id);
+
+      expect(result.onboardingCompletedAt).toBe('2026-07-07T00:00:00.000Z');
+      expect(tenantContextService.assertOrganizationAccess).toHaveBeenCalledWith(
+        organizationEntity.id,
+      );
+    });
+
+    it('throws NotFoundException when organization does not exist', async () => {
+      repository.completeOnboarding.mockResolvedValue(null);
+
+      await expect(service.completeOnboarding(organizationEntity.id)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
