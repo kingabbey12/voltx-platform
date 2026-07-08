@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AIModule } from '../ai/ai.module';
 import { AgentModule } from '../ai/agents/agent.module';
+import { ToolModule } from '../ai/tools/tool.module';
 import { AuthModule } from '../auth/auth.module';
 import { WorkflowDefinitionValidatorService } from './definition/workflow-definition-validator.service';
 import { WorkflowEngineService } from './engine/workflow-engine.service';
@@ -28,9 +29,10 @@ import { WorkflowService } from './workflow.service';
 import { WorkflowStepRunRepository } from './workflow-step-run.repository';
 import { WorkflowRepository } from './workflow.repository';
 import { WorkflowVersionRepository } from './workflow-version.repository';
+import { WorkflowToolSourceService } from './tools/workflow-tool-source.service';
 
 @Module({
-  imports: [AIModule, AgentModule, AuthModule],
+  imports: [AIModule, AgentModule, AuthModule, ToolModule],
   controllers: [WorkflowController],
   providers: [
     WorkflowRepository,
@@ -58,6 +60,7 @@ import { WorkflowVersionRepository } from './workflow-version.repository';
     WorkflowSchedulerService,
     WorkflowScheduleService,
     WorkflowService,
+    WorkflowToolSourceService,
   ],
   exports: [WorkflowService, WorkflowEventBusService, StepExecutorRegistry],
 })

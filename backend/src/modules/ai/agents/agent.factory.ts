@@ -84,6 +84,76 @@ export class AgentFactory {
         enabled: true,
       },
       {
+        // Default agent for the AI Command Center — read/search tools
+        // only. The Command Center starts every session against this
+        // agent; mutating actions (create_task, create_simple_workflow)
+        // are only reachable via "Voltx Operator" below, which the
+        // frontend switches to solely after the user explicitly confirms
+        // they want the AI to take real actions. Two agents rather than a
+        // per-request tool override because RunAutonomousAgentDto has no
+        // tool-restriction field — the agent's configured toolNames is the
+        // only lever, so the confirmation gate has to be "which agent",
+        // not "which tools this one call gets".
+        name: 'Voltx Operator (Read-Only)',
+        description: 'Searches CRM data and workflow history — cannot create or change anything.',
+        systemPrompt:
+          "You are the Voltx Operator, in read-only mode. You have real read access to this organization's CRM (companies, contacts, leads, opportunities, activities) and workflow run history. " +
+          'Use your tools to answer with real data rather than guessing — search before you claim a fact about deals, tasks, or leads. ' +
+          'You cannot create or change anything right now. If the user asks you to take an action (create a task, build a workflow), tell them to enable "Allow actions" first.',
+        provider,
+        model,
+        configuration: {
+          kind: 'system',
+          systemAgentKey: 'voltx_operator_readonly',
+          toolNames: [
+            'datetime',
+            'calculator',
+            'json',
+            'search_opportunities',
+            'search_overdue_activities',
+            'search_leads',
+            'list_failed_workflow_runs',
+          ],
+          temperature: 0.15,
+          maxOutputTokens: 3072,
+        },
+        enabled: true,
+      },
+      {
+        // Full-capability counterpart — same brain, same read tools, plus
+        // real mutating tools. Only ever invoked after explicit user
+        // confirmation (see AiCommandCenter's confirm gate on the
+        // frontend); never the default.
+        name: 'Voltx Operator',
+        description:
+          'The workspace-wide operator behind the AI Command Center — searches CRM data, creates tasks, and drafts workflows across every module on request.',
+        systemPrompt:
+          "You are the Voltx Operator, an autonomous assistant with real read and write access to this organization's CRM (companies, contacts, leads, opportunities, activities) and workflows. " +
+          'Use your tools to answer questions with real data rather than guessing — search before you claim a fact about deals, tasks, or leads. ' +
+          'Before creating or changing anything (a task, a workflow), state your plan clearly in your reasoning so the user understands what you are about to do. ' +
+          'Be concise, cite the concrete records/counts your tools returned, and never claim to have taken an action you did not actually call a tool for.',
+        provider,
+        model,
+        configuration: {
+          kind: 'system',
+          systemAgentKey: 'voltx_operator',
+          toolNames: [
+            'datetime',
+            'calculator',
+            'json',
+            'search_opportunities',
+            'search_overdue_activities',
+            'create_task',
+            'search_leads',
+            'create_simple_workflow',
+            'list_failed_workflow_runs',
+          ],
+          temperature: 0.15,
+          maxOutputTokens: 3072,
+        },
+        enabled: true,
+      },
+      {
         name: 'Operations Assistant',
         description: 'Supports operational workflows, status checks, and process recommendations.',
         systemPrompt:

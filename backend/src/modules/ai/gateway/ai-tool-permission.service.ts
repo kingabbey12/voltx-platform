@@ -16,6 +16,12 @@ export const TOOL_PERMISSION_REQUIREMENTS: Readonly<Record<string, string | null
   json: null,
   http_get: null,
   http_post: null,
+  search_opportunities: 'sales.opportunity.read',
+  search_overdue_activities: 'sales.activity.read',
+  create_task: 'sales.activity.create',
+  search_leads: 'sales.lead.read',
+  create_simple_workflow: 'workflow.create',
+  list_failed_workflow_runs: 'workflow.read',
 };
 
 @Injectable()

@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter",
+    "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --background: 240 20% 99%;
+  --foreground: 240 10% 6%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 6%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 6%;
+
+  --primary: 243 75% 55%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 240 10% 95%;
+  --secondary-foreground: 240 10% 12%;
+
+  --muted: 240 8% 95%;
+  --muted-foreground: 240 5% 40%;
+
+  --accent: 190 85% 42%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  --success: 152 60% 36%;
+  --success-foreground: 0 0% 100%;
+
+  --warning: 38 92% 42%;
+  --warning-foreground: 0 0% 100%;
+
+  --border: 240 8% 90%;
+  --input: 240 8% 88%;
+  --ring: 243 75% 55%;
+
+  --sidebar: 240 15% 97%;
+  --sidebar-foreground: 240 10% 15%;
+  --sidebar-border: 240 8% 90%;
+
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: 240 21% 5%;
+  --foreground: 240 20% 97%;
+
+  --card: 240 18% 7%;
+  --card-foreground: 240 20% 97%;
+
+  --popover: 240 18% 7%;
+  --popover-foreground: 240 20% 97%;
+
+  --primary: 243 90% 68%;
+  --primary-foreground: 240 20% 8%;
+
+  --secondary: 240 14% 13%;
+  --secondary-foreground: 240 20% 95%;
+
+  --muted: 240 12% 13%;
+  --muted-foreground: 240 8% 65%;
+
+  --accent: 190 95% 60%;
+  --accent-foreground: 240 20% 8%;
+
+  --destructive: 0 72% 58%;
+  --destructive-foreground: 0 0% 100%;
+
+  --success: 152 55% 48%;
+  --success-foreground: 240 20% 8%;
+
+  --warning: 38 92% 55%;
+  --warning-foreground: 240 20% 8%;
+
+  --border: 240 12% 16%;
+  --input: 240 12% 18%;
+  --ring: 243 90% 68%;
+
+  --sidebar: 240 20% 6%;
+  --sidebar-foreground: 240 15% 88%;
+  --sidebar-border: 240 12% 14%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    @apply bg-primary/25 text-foreground;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .glass-panel {
+    @apply bg-card/70 backdrop-blur-xl border border-border/70;
+  }
+}

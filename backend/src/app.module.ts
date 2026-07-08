@@ -20,6 +20,7 @@ import { HealthModule } from './modules/health/health.module';
 import { IntegrationModule } from './modules/integrations/integration.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
+import { OperatorModule } from './modules/ai/operator/operator.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -66,6 +67,7 @@ import { WorkflowModule } from './modules/workflows/workflow.module';
     HealthModule,
     IntegrationModule,
     KnowledgeModule,
+    OperatorModule,
     OrganizationModule,
     PermissionsModule,
     RolesModule,

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AgentModule } from '../ai/agents/agent.module';
 import { AIModule } from '../ai/ai.module';
+import { ToolModule } from '../ai/tools/tool.module';
 import { CompaniesController } from './companies/companies.controller';
 import { CompaniesRepository } from './companies/companies.repository';
 import { CompaniesService } from './companies/companies.service';
@@ -17,9 +18,10 @@ import { ActivitiesController } from './activities/activities.controller';
 import { ActivitiesRepository } from './activities/activities.repository';
 import { ActivitiesService } from './activities/activities.service';
 import { SalesAiService } from './sales-ai.service';
+import { SalesToolSourceService } from './tools/sales-tool-source.service';
 
 @Module({
-  imports: [AIModule, AgentModule],
+  imports: [AIModule, AgentModule, ToolModule],
   controllers: [
     CompaniesController,
     ContactsController,
@@ -29,6 +31,7 @@ import { SalesAiService } from './sales-ai.service';
   ],
   providers: [
     SalesAiService,
+    SalesToolSourceService,
     CompaniesRepository,
     CompaniesService,
     ContactsRepository,
