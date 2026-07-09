@@ -4,7 +4,7 @@ import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { HeartPulse, Link2, Plug, RefreshCw, Trash2 } from "lucide-react";
+import { CheckCircle2, HeartPulse, Link2, Plug, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,12 +19,14 @@ import {
   useCreateApiKeyConnection,
   useDeleteConnection,
   useHealthCheckConnection,
+  useInitiateOAuth,
   useIntegrations,
   useSyncConnection,
 } from "@/hooks/use-integrations";
 import { API_KEY_PROVIDER_KEYS, OAUTH_PROVIDER_KEYS } from "@/lib/api/integrations";
 import { friendlyErrorMessage } from "@/lib/api/api-error";
 import { formatRelativeTime } from "@/lib/format";
+import { GOOGLE_PROVIDER_KEYS, googleOAuthRedirectUri } from "@/lib/google-oauth";
 
 const connectSchema = z.object({
   provider: z.enum(API_KEY_PROVIDER_KEYS),
@@ -48,6 +50,7 @@ export default function IntegrationsPage() {
   const healthCheck = useHealthCheckConnection();
   const sync = useSyncConnection();
   const deleteConnection = useDeleteConnection();
+  const initiateOAuth = useInitiateOAuth();
 
   const form = useForm<ConnectFormValues>({
     resolver: zodResolver(connectSchema),
@@ -70,9 +73,29 @@ export default function IntegrationsPage() {
     }
   }
 
-  const connectedOAuthProviders = new Set(
-    data?.items.filter((c) => c.status === "CONNECTED").map((c) => c.provider),
-  );
+  const connectionsByProvider = new Map(data?.items.map((c) => [c.provider, c]));
+
+  async function handleConnectGoogle(provider: string) {
+    try {
+      const result = await initiateOAuth.mutateAsync({
+        provider,
+        displayName: providerLabel(provider),
+        redirectUri: googleOAuthRedirectUri(),
+      });
+      window.location.href = result.authorizationUrl;
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error));
+    }
+  }
+
+  async function handleDisconnect(connectionId: string) {
+    try {
+      await deleteConnection.mutateAsync(connectionId);
+      toast.success("Disconnected");
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error));
+    }
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
@@ -177,14 +200,84 @@ export default function IntegrationsPage() {
       </div>
 
       <div className="mt-8">
+        <h2 className="text-sm font-medium text-muted-foreground">Google</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Real Google OAuth — each connects independently with only the permissions it needs.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          {GOOGLE_PROVIDER_KEYS.map((provider) => {
+            const connection = connectionsByProvider.get(provider);
+            const isConnected = connection?.status === "CONNECTED";
+
+            return (
+              <Card key={provider} className="p-3.5">
+                <div className="flex items-start gap-2.5">
+                  <div
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                      isConnected ? "bg-success/15 text-success" : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    {isConnected ? <CheckCircle2 className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium">{providerLabel(provider)}</p>
+                    {isConnected ? (
+                      <>
+                        <p className="truncate text-[11px] text-success">Connected</p>
+                        {connection?.externalAccountId && (
+                          <p className="truncate text-[10px] text-muted-foreground">
+                            {connection.externalAccountId}
+                          </p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground">
+                          {connection?.lastSyncAt
+                            ? `Synced ${formatRelativeTime(connection.lastSyncAt)}`
+                            : "Not yet synced"}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground">Not connected</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  {isConnected && connection ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-full text-xs text-destructive hover:text-destructive"
+                      onClick={() => handleDisconnect(connection.id)}
+                      isLoading={deleteConnection.isPending}
+                    >
+                      Disconnect
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      className="h-7 w-full text-xs"
+                      onClick={() => handleConnectGoogle(provider)}
+                      isLoading={initiateOAuth.isPending}
+                    >
+                      Connect
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-8">
         <h2 className="text-sm font-medium text-muted-foreground">Available via secure web sign-in</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Google, Microsoft, and Slack require OAuth app credentials that haven&apos;t been
+          Microsoft, Slack, and GitHub require OAuth app credentials that haven&apos;t been
           configured for this environment yet — connecting them will be enabled once that setup
           is complete.
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-          {OAUTH_PROVIDER_KEYS.map((provider) => (
+          {OAUTH_PROVIDER_KEYS.filter((provider) => !provider.startsWith("GOOGLE_")).map((provider) => (
             <Card key={provider} className="p-3">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
@@ -192,9 +285,7 @@ export default function IntegrationsPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-medium">{providerLabel(provider)}</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {connectedOAuthProviders.has(provider) ? "Connected" : "Not connected"}
-                  </p>
+                  <p className="text-[10px] text-muted-foreground">Not connected</p>
                 </div>
               </div>
             </Card>
@@ -208,8 +299,8 @@ export default function IntegrationsPage() {
             <DialogTitle>Connect an integration</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            OAuth providers (Google, Microsoft, Slack) aren&apos;t connectable yet — this form
-            covers API-key-based providers.
+            Google connects via the OAuth cards below; Microsoft, Slack, and GitHub aren&apos;t
+            connectable yet. This form covers API-key-based providers.
           </p>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">

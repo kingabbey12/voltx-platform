@@ -40,10 +40,13 @@ export const integrationsApi = {
   }) => apiClient.post<IntegrationConnection>("/integrations/connections", input),
 
   initiateOAuth: (input: { provider: string; displayName: string; redirectUri: string }) =>
-    apiClient.post<{ authorizationUrl: string; state: string }>(
+    apiClient.post<{ connectionId: string; authorizationUrl: string }>(
       "/integrations/connections/oauth/initiate",
       input,
     ),
+
+  completeOAuth: (input: { connectionId: string; code: string; redirectUri: string }) =>
+    apiClient.post<IntegrationConnection>("/integrations/connections/oauth/complete", input),
 
   healthCheck: (id: string) =>
     apiClient.post<{ healthy: boolean; latencyMs: number; message?: string }>(

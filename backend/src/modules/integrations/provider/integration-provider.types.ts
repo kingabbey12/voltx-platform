@@ -151,6 +151,16 @@ export interface IntegrationProvider {
 
   checkHealth(context: IntegrationActionContext): Promise<IntegrationHealthResult>;
 
+  /**
+   * Optional: resolve a human-readable identifier (typically the
+   * connected account's email) for the credential just obtained via
+   * OAuth. Called once, right after token exchange, so the connection
+   * can display "connected as x@example.com" instead of only a status
+   * badge. Providers that don't implement this simply show no account
+   * identity — never fabricated.
+   */
+  resolveAccountIdentity?(credential: IntegrationCredentialValue): Promise<string | undefined>;
+
   /** Only required when supportsWebhooks is true. */
   verifyWebhookSignature?(
     headers: Record<string, string>,

@@ -4,9 +4,11 @@ import { IntegrationProviderError } from '../../provider/integration-provider.ty
 import { requestJson } from '../../provider/integration-http-client.util';
 import { asString } from '../../provider/input-coercion.util';
 import { googleOAuthConfig } from '../../provider/oauth-provider-configs';
+import { resolveGoogleAccountEmail } from './google-account-identity.util';
 import {
   IntegrationActionContext,
   IntegrationActionDescriptor,
+  IntegrationCredentialValue,
   IntegrationHealthResult,
   IntegrationParsedEvent,
   IntegrationPollResult,
@@ -39,6 +41,7 @@ export class GoogleGmailConnector implements IntegrationProvider {
     this.oauthConfig = googleOAuthConfig(configService, [
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/userinfo.email',
     ]);
   }
 
@@ -102,6 +105,10 @@ export class GoogleGmailConnector implements IntegrationProvider {
           'unknown_action',
         );
     }
+  }
+
+  resolveAccountIdentity(credential: IntegrationCredentialValue): Promise<string | undefined> {
+    return resolveGoogleAccountEmail(credential);
   }
 
   async checkHealth(context: IntegrationActionContext): Promise<IntegrationHealthResult> {

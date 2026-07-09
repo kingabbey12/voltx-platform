@@ -3,9 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { requestJson } from '../../provider/integration-http-client.util';
 import { asString, asOptionalString } from '../../provider/input-coercion.util';
 import { googleOAuthConfig } from '../../provider/oauth-provider-configs';
+import { resolveGoogleAccountEmail } from './google-account-identity.util';
 import {
   IntegrationActionContext,
   IntegrationActionDescriptor,
+  IntegrationCredentialValue,
   IntegrationHealthResult,
   IntegrationParsedEvent,
   IntegrationPollResult,
@@ -42,7 +44,12 @@ export class GoogleCalendarConnector implements IntegrationProvider {
     this.oauthConfig = googleOAuthConfig(configService, [
       'https://www.googleapis.com/auth/calendar.events',
       'https://www.googleapis.com/auth/calendar.readonly',
+      'https://www.googleapis.com/auth/userinfo.email',
     ]);
+  }
+
+  resolveAccountIdentity(credential: IntegrationCredentialValue): Promise<string | undefined> {
+    return resolveGoogleAccountEmail(credential);
   }
 
   listActions(): IntegrationActionDescriptor[] {

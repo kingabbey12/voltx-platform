@@ -144,9 +144,12 @@ export class IntegrationConnectionService {
       expiresAt: token.expiresAt ?? null,
     });
 
+    const externalAccountId = await provider.resolveAccountIdentity?.(credential);
+
     const updated = await this.integrationConnectionRepository.update(connection.id, {
       status: 'CONNECTED',
       lastError: null,
+      ...(externalAccountId ? { externalAccountId } : {}),
     });
 
     this.integrationEventBusService.publish({

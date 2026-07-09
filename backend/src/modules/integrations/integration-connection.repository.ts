@@ -21,6 +21,7 @@ export interface CreateIntegrationConnectionData {
 export interface UpdateIntegrationConnectionData {
   displayName?: string;
   status?: IntegrationConnectionStatus;
+  externalAccountId?: string;
   config?: Record<string, unknown>;
   lastHealthCheckAt?: Date;
   lastHealthStatus?: IntegrationHealthStatus;
@@ -186,6 +187,9 @@ export class IntegrationConnectionRepository {
       data: {
         ...(data.displayName !== undefined ? { displayName: data.displayName } : {}),
         ...(data.status !== undefined ? { status: data.status } : {}),
+        ...(data.externalAccountId !== undefined
+          ? { externalAccountId: data.externalAccountId }
+          : {}),
         ...(data.config !== undefined ? { config: data.config } : {}),
         ...(data.lastHealthCheckAt !== undefined
           ? { lastHealthCheckAt: data.lastHealthCheckAt }
@@ -209,6 +213,9 @@ export class IntegrationConnectionRepository {
       data: {
         ...(data.displayName !== undefined ? { displayName: data.displayName } : {}),
         ...(data.status !== undefined ? { status: data.status } : {}),
+        ...(data.externalAccountId !== undefined
+          ? { externalAccountId: data.externalAccountId }
+          : {}),
         ...(data.config !== undefined ? { config: data.config } : {}),
         ...(data.lastHealthCheckAt !== undefined
           ? { lastHealthCheckAt: data.lastHealthCheckAt }

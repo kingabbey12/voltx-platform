@@ -36,3 +36,15 @@ export function useDeleteConnection() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integrations"] }),
   });
 }
+
+export function useInitiateOAuth() {
+  return useMutation({ mutationFn: integrationsApi.initiateOAuth });
+}
+
+export function useCompleteOAuth() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: integrationsApi.completeOAuth,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integrations"] }),
+  });
+}
