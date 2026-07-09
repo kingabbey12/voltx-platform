@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { OrganizationStatus, Prisma } from '@prisma/client';
+import { CompanySize, OrganizationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { OrganizationEntity } from './entities/organization.entity';
@@ -9,8 +9,17 @@ export interface CreateOrganizationData {
   name: string;
   slug: string;
   logoUrl?: string;
+  email?: string;
+  website?: string;
   industry?: string;
   country?: string;
+  state?: string;
+  city?: string;
+  companySize?: CompanySize;
+  primaryGoals?: string[];
+  currency?: string;
+  language?: string;
+  phone?: string;
   timezone?: string;
   status?: OrganizationStatus;
   settings?: Record<string, unknown>;
@@ -19,8 +28,17 @@ export interface CreateOrganizationData {
 export interface UpdateOrganizationData {
   name?: string;
   logoUrl?: string | null;
+  email?: string | null;
+  website?: string | null;
   industry?: string | null;
   country?: string | null;
+  state?: string | null;
+  city?: string | null;
+  companySize?: CompanySize | null;
+  primaryGoals?: string[];
+  currency?: string | null;
+  language?: string | null;
+  phone?: string | null;
   timezone?: string;
   status?: OrganizationStatus;
   settings?: Record<string, unknown>;
@@ -54,8 +72,17 @@ export class OrganizationRepository {
         name: data.name,
         slug: data.slug,
         logoUrl: data.logoUrl,
+        email: data.email,
+        website: data.website,
         industry: data.industry,
         country: data.country,
+        state: data.state,
+        city: data.city,
+        companySize: data.companySize,
+        primaryGoals: data.primaryGoals ?? [],
+        currency: data.currency,
+        language: data.language,
+        phone: data.phone,
         timezone: data.timezone ?? 'UTC',
         status: data.status ?? OrganizationStatus.ACTIVE,
         settings: toJsonValue(data.settings) ?? {},
@@ -142,11 +169,38 @@ export class OrganizationRepository {
     if (data.logoUrl !== undefined) {
       updateData.logoUrl = data.logoUrl;
     }
+    if (data.email !== undefined) {
+      updateData.email = data.email;
+    }
+    if (data.website !== undefined) {
+      updateData.website = data.website;
+    }
     if (data.industry !== undefined) {
       updateData.industry = data.industry;
     }
     if (data.country !== undefined) {
       updateData.country = data.country;
+    }
+    if (data.state !== undefined) {
+      updateData.state = data.state;
+    }
+    if (data.city !== undefined) {
+      updateData.city = data.city;
+    }
+    if (data.companySize !== undefined) {
+      updateData.companySize = data.companySize;
+    }
+    if (data.primaryGoals !== undefined) {
+      updateData.primaryGoals = data.primaryGoals;
+    }
+    if (data.currency !== undefined) {
+      updateData.currency = data.currency;
+    }
+    if (data.language !== undefined) {
+      updateData.language = data.language;
+    }
+    if (data.phone !== undefined) {
+      updateData.phone = data.phone;
     }
     if (data.timezone !== undefined) {
       updateData.timezone = data.timezone;

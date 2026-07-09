@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { OrganizationStatus } from '@prisma/client';
+import { CompanySize, OrganizationStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { OrganizationEntity } from '../entities/organization.entity';
@@ -44,11 +44,38 @@ export class OrganizationResponseDto {
   @ApiPropertyOptional({ example: 'https://cdn.example.com/logos/acme.png', nullable: true })
   logoUrl!: string | null;
 
-  @ApiPropertyOptional({ example: 'Technology', nullable: true })
+  @ApiPropertyOptional({ example: 'hello@acme.com', nullable: true })
+  email!: string | null;
+
+  @ApiPropertyOptional({ example: 'https://acme.com', nullable: true })
+  website!: string | null;
+
+  @ApiPropertyOptional({ example: 'Software / SaaS', nullable: true })
   industry!: string | null;
 
   @ApiPropertyOptional({ example: 'US', nullable: true })
   country!: string | null;
+
+  @ApiPropertyOptional({ example: 'CA', nullable: true })
+  state!: string | null;
+
+  @ApiPropertyOptional({ example: 'San Francisco', nullable: true })
+  city!: string | null;
+
+  @ApiPropertyOptional({ enum: CompanySize, nullable: true })
+  companySize!: CompanySize | null;
+
+  @ApiProperty({ example: ['SALES', 'CRM'], type: [String] })
+  primaryGoals!: string[];
+
+  @ApiPropertyOptional({ example: 'USD', nullable: true })
+  currency!: string | null;
+
+  @ApiPropertyOptional({ example: 'en', nullable: true })
+  language!: string | null;
+
+  @ApiPropertyOptional({ example: '+14155551234', nullable: true })
+  phone!: string | null;
 
   @ApiProperty({ example: 'America/New_York' })
   timezone!: string;
@@ -82,8 +109,17 @@ export class OrganizationResponseDto {
     dto.name = entity.name;
     dto.slug = entity.slug;
     dto.logoUrl = entity.logoUrl;
+    dto.email = entity.email;
+    dto.website = entity.website;
     dto.industry = entity.industry;
     dto.country = entity.country;
+    dto.state = entity.state;
+    dto.city = entity.city;
+    dto.companySize = entity.companySize;
+    dto.primaryGoals = entity.primaryGoals;
+    dto.currency = entity.currency;
+    dto.language = entity.language;
+    dto.phone = entity.phone;
     dto.timezone = entity.timezone;
     dto.status = entity.status;
     dto.settings = entity.settings;

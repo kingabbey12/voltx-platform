@@ -13,6 +13,16 @@ enum OrganizationStatus {
   SUSPENDED
 }
 
+enum CompanySize {
+  JUST_ME
+  EMPLOYEES_2_10
+  EMPLOYEES_11_50
+  EMPLOYEES_51_200
+  EMPLOYEES_201_500
+  EMPLOYEES_501_1000
+  EMPLOYEES_1000_PLUS
+}
+
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -123,8 +133,17 @@ model Organization {
   name                   String
   slug                   String                  @unique
   logoUrl                String?                 @map("logo_url")
+  email                  String?
+  website                String?
   industry               String?
   country                String?
+  state                  String?
+  city                   String?
+  companySize            CompanySize?            @map("company_size")
+  primaryGoals           String[]                @default([]) @map("primary_goals")
+  currency               String?
+  language               String?
+  phone                  String?
   timezone               String                  @default("UTC")
   status                 OrganizationStatus      @default(ACTIVE)
   settings               Json                    @default("{}")
@@ -153,28 +172,28 @@ model Organization {
 }
 
 model User {
-  id                 String              @id @default(uuid()) @db.Uuid
-  email              String              @unique
-  passwordHash       String?             @map("password_hash")
-  firstName          String              @map("first_name")
-  lastName           String              @map("last_name")
-  avatarUrl          String?             @map("avatar_url")
-  phoneNumber        String?             @map("phone_number")
-  jobTitle           String?             @map("job_title")
-  status             UserStatus          @default(ACTIVE)
-  lastLoginAt        DateTime?           @map("last_login_at")
-  emailVerifiedAt    DateTime?           @map("email_verified_at")
-  createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @updatedAt @map("updated_at")
-  deletedAt          DateTime?           @map("deleted_at")
-  memberships        Membership[]
-  refreshTokens      RefreshToken[]
-  verificationTokens VerificationToken[]
-  conversations      Conversation[]
-  memories           Memory[]
-  aiUsageLogs        AiUsageLog[]
-  sentInvitations     Invitation[]       @relation("InvitationInvitedBy")
-  acceptedInvitations Invitation[]       @relation("InvitationAcceptedBy")
+  id                  String              @id @default(uuid()) @db.Uuid
+  email               String              @unique
+  passwordHash        String?             @map("password_hash")
+  firstName           String              @map("first_name")
+  lastName            String              @map("last_name")
+  avatarUrl           String?             @map("avatar_url")
+  phoneNumber         String?             @map("phone_number")
+  jobTitle            String?             @map("job_title")
+  status              UserStatus          @default(ACTIVE)
+  lastLoginAt         DateTime?           @map("last_login_at")
+  emailVerifiedAt     DateTime?           @map("email_verified_at")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  deletedAt           DateTime?           @map("deleted_at")
+  memberships         Membership[]
+  refreshTokens       RefreshToken[]
+  verificationTokens  VerificationToken[]
+  conversations       Conversation[]
+  memories            Memory[]
+  aiUsageLogs         AiUsageLog[]
+  sentInvitations     Invitation[]        @relation("InvitationInvitedBy")
+  acceptedInvitations Invitation[]        @relation("InvitationAcceptedBy")
 
   @@index([status])
   @@map("users")

@@ -8,6 +8,7 @@ import { OnboardingProgress } from "@/components/onboarding/onboarding-progress"
 import { BusinessInfoStep } from "@/components/onboarding/business-info-step";
 import { ConnectAppsStep } from "@/components/onboarding/connect-apps-step";
 import { CompleteStep } from "@/components/onboarding/complete-step";
+import { cn } from "@/lib/utils";
 
 type Step = "business-info" | "connect-apps" | "complete";
 
@@ -35,10 +36,10 @@ export default function OnboardingPage() {
         <span className="text-lg font-semibold tracking-tight">Voltx</span>
       </div>
 
-      <div className="w-full max-w-[440px]">
+      <div className={cn("w-full transition-[max-width] duration-300", step === "business-info" ? "max-w-2xl" : "max-w-[440px]")}>
         <OnboardingProgress currentIndex={STEP_INDEX[step]} />
 
-        <div className="mt-8 rounded-2xl border border-border bg-card p-8 shadow-lg">
+        <div className="mt-8 rounded-2xl border border-border bg-card p-8 shadow-lg sm:p-10">
           <AnimatePresence mode="wait">
             <motion.div
               key={step}
