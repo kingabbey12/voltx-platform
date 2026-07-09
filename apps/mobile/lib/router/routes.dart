@@ -7,6 +7,7 @@ abstract final class AppRoutes {
   static const String forgotPassword = '/auth/forgot-password';
   static const String resetPassword = '/auth/reset-password';
   static const String verifyEmail = '/auth/verify-email';
+  static const String onboarding = '/onboarding';
   static const String home = '/home';
   static const String dashboard = '/dashboard';
   static const String dashboardAi = '/dashboard/ai';
@@ -45,6 +46,7 @@ abstract final class AppRoutes {
   };
 
   static const Set<String> protectedRoutes = {
+    onboarding,
     home,
     dashboard,
     dashboardAi,

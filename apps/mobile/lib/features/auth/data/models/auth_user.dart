@@ -10,6 +10,7 @@ class AuthUser {
     this.roles = const [],
     this.permissions = const [],
     this.avatarUrl,
+    this.onboardingCompleted = false,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
@@ -29,6 +30,7 @@ class AuthUser {
               .toList() ??
           const [],
       avatarUrl: json['avatarUrl'] as String?,
+      onboardingCompleted: json['onboardingCompleted'] as bool? ?? false,
     );
   }
 
@@ -41,6 +43,7 @@ class AuthUser {
   final List<String> roles;
   final List<String> permissions;
   final String? avatarUrl;
+  final bool onboardingCompleted;
 
   String get displayName => '$firstName $lastName'.trim();
 
@@ -52,6 +55,7 @@ class AuthUser {
     String? avatarUrl,
     String? firstName,
     String? lastName,
+    bool? onboardingCompleted,
   }) {
     return AuthUser(
       id: id,
@@ -63,6 +67,7 @@ class AuthUser {
       roles: roles ?? this.roles,
       permissions: permissions ?? this.permissions,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
     );
   }
 }

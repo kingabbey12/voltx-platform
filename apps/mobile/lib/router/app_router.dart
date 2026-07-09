@@ -18,6 +18,7 @@ import '../features/ai/presentation/screens/ai_history_screen.dart';
 import '../features/ai/presentation/screens/ai_home_screen.dart';
 import '../features/ai/presentation/screens/ai_knowledge_screen.dart';
 import '../features/integrations/presentation/screens/integrations_screen.dart';
+import '../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../features/organizations/presentation/screens/accept_invitation_screen.dart';
 import '../features/organizations/presentation/screens/invite_teammate_screen.dart';
 import '../features/dashboard/presentation/screens/executive_dashboard_screen.dart';
@@ -85,6 +86,23 @@ final routerProvider = Provider<GoRouter>((ref) {
               location == AppRoutes.verifyEmail ||
               location == AppRoutes.forgotPassword ||
               location == AppRoutes.resetPassword)) {
+        return session.onboardingCompleted ? AppRoutes.dashboard : AppRoutes.onboarding;
+      }
+
+      // Onboarding isn't complete yet — keep the authenticated user on the
+      // onboarding flow no matter which protected route they land on.
+      // acceptInvitation is deliberately exempt: it's designed to work
+      // regardless of auth/onboarding state, and redirecting away from it
+      // mid-token would silently drop the pending invitation.
+      if (session != null &&
+          !session.onboardingCompleted &&
+          location != AppRoutes.onboarding &&
+          location != AppRoutes.acceptInvitation) {
+        return AppRoutes.onboarding;
+      }
+
+      // Onboarding is already done — don't let a stale link back into it.
+      if (session != null && session.onboardingCompleted && location == AppRoutes.onboarding) {
         return AppRoutes.dashboard;
       }
 
@@ -165,6 +183,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           final token = state.uri.queryParameters['token'];
           return AcceptInvitationScreen(token: token);
         },
+      ),
+      GoRoute(
+        path: AppRoutes.onboarding,
+        name: 'onboarding',
+        pageBuilder: (context, state) => authTransitionPage(
+          state: state,
+          child: const OnboardingScreen(),
+        ),
       ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,

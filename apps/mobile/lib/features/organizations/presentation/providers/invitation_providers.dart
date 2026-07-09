@@ -148,6 +148,12 @@ class AcceptInvitationController extends StateNotifier<AsyncValue<AcceptInvitati
               refreshToken: result.tokens.refreshToken,
             );
         _ref.read(authSessionProvider.notifier).setUser(result.user);
+        // The accept-invitation response embeds a bare user (no
+        // organizationId/roles/permissions/onboardingCompleted — those only
+        // exist on /auth/me). Refresh from /auth/me now so RBAC-gated
+        // screens and the onboarding redirect see the real, enriched
+        // session immediately rather than after the next app restart.
+        await _ref.read(authSessionProvider.notifier).restoreSession();
         // Org-scoped providers are invalidated by the screen (needs a
         // WidgetRef) once it observes this state transition to data.
       }
