@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,35 +22,54 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Combobox, type ComboboxGroup } from "@/components/ui/combobox";
 import { Badge } from "@/components/ui/badge";
 import { CopilotButton } from "@/components/ai/copilot-button";
 import {
   useOrganizationProfile,
   useUpdateBusinessInfo,
 } from "@/hooks/use-onboarding";
-import {
-  businessInfoSchema,
-  INDUSTRY_OPTIONS,
-  type BusinessInfoFormValues,
-} from "@/lib/validations/onboarding";
+import { useCountries, useIndustries } from "@/hooks/use-reference-data";
 import { friendlyErrorMessage } from "@/lib/api/api-error";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { pushChunked } from "@/lib/ai/context-engine";
+
+const organizationProfileSchema = z.object({
+  name: z.string().trim().min(2, "Organization name must be at least 2 characters").max(255),
+  industry: z.string().optional(),
+  country: z.string().optional(),
+});
+type OrganizationProfileFormValues = z.infer<typeof organizationProfileSchema>;
 
 export default function GeneralSettingsPage() {
   const { data: organization, isLoading } = useOrganizationProfile();
   const updateBusinessInfo = useUpdateBusinessInfo();
   const user = useAuthStore((state) => state.user);
 
-  const form = useForm<BusinessInfoFormValues>({
-    resolver: zodResolver(businessInfoSchema),
+  const { data: industryGroups } = useIndustries();
+  const { data: countries } = useCountries();
+
+  const industryOptions: ComboboxGroup[] = useMemo(
+    () =>
+      (industryGroups ?? []).map((group) => ({
+        heading: group.category,
+        options: group.items.map((item) => ({ value: item, label: item })),
+      })),
+    [industryGroups],
+  );
+
+  const countryOptions = useMemo(
+    () =>
+      (countries ?? []).map((c) => ({
+        value: c.isoCode,
+        label: `${c.flag} ${c.name}`,
+        keywords: [c.isoCode, c.name],
+      })),
+    [countries],
+  );
+
+  const form = useForm<OrganizationProfileFormValues>({
+    resolver: zodResolver(organizationProfileSchema),
     defaultValues: { name: "", industry: undefined, country: "" },
   });
 
@@ -62,7 +82,7 @@ export default function GeneralSettingsPage() {
     });
   }, [organization, form]);
 
-  async function onSubmit(values: BusinessInfoFormValues) {
+  async function onSubmit(values: OrganizationProfileFormValues) {
     try {
       await updateBusinessInfo.mutateAsync({
         name: values.name,
@@ -109,24 +129,16 @@ export default function GeneralSettingsPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Industry</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      disabled={isLoading}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select an industry" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {INDUSTRY_OPTIONS.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Combobox
+                        options={industryOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Select an industry"
+                        searchPlaceholder="Search industries..."
+                        disabled={isLoading}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -138,7 +150,14 @@ export default function GeneralSettingsPage() {
                   <FormItem>
                     <FormLabel>Country</FormLabel>
                     <FormControl>
-                      <Input disabled={isLoading} {...field} />
+                      <Combobox
+                        options={countryOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Select a country"
+                        searchPlaceholder="Search countries..."
+                        disabled={isLoading}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -23,6 +23,7 @@ import { MetricsModule } from './modules/metrics/metrics.module';
 import { OperatorModule } from './modules/ai/operator/operator.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { ReferenceDataModule } from './modules/reference-data/reference-data.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { UsersModule } from './modules/users/users.module';
@@ -70,6 +71,7 @@ import { WorkflowModule } from './modules/workflows/workflow.module';
     OperatorModule,
     OrganizationModule,
     PermissionsModule,
+    ReferenceDataModule,
     RolesModule,
     SalesModule,
     UsersModule,
