@@ -13,6 +13,11 @@ export const ERROR_CODES = {
   unsupportedMediaType: 'UNSUPPORTED_MEDIA_TYPE',
   internalServerError: 'INTERNAL_SERVER_ERROR',
   aiServiceUnavailable: 'AI_SERVICE_UNAVAILABLE',
+  aiInvalidApiKey: 'AI_INVALID_API_KEY',
+  aiInsufficientCredits: 'AI_INSUFFICIENT_CREDITS',
+  aiRateLimited: 'AI_RATE_LIMITED',
+  aiContextLengthExceeded: 'AI_CONTEXT_LENGTH_EXCEEDED',
+  aiTimeout: 'AI_TIMEOUT',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

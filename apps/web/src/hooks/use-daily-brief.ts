@@ -30,6 +30,9 @@ export function useDailyBrief(organizationId: string | undefined) {
       const result = await agentsApi.runAutonomous(activeSession.readOnlyAgentId, {
         conversationId: activeSession.conversationId,
         objective: BRIEF_OBJECTIVE,
+        // The brief is a short, skimmable digest, not a full report — cap
+        // it well under the Command Center's general tool-call budget.
+        maxOutputTokens: 1500,
       });
 
       const finalText = extractFinalText(result.run.output.outputText);

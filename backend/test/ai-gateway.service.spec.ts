@@ -187,6 +187,49 @@ describe('AIGatewayService', () => {
       );
     });
 
+    it('defaults maxOutputTokens to 2048 for CHAT/CONVERSATION_MESSAGE when the caller passes none', async () => {
+      aiRuntimeService.streamChat.mockImplementation(async function* stream() {
+        await Promise.resolve();
+        yield { type: 'message_end', provider: 'openai', model: 'gpt-5-mini', outputText: 'Hi' };
+      });
+
+      await collect(service.streamChat({ requestType: 'CHAT', userPrompt: 'Hi' }));
+      expect(aiRuntimeService.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({ maxOutputTokens: 2048 }),
+      );
+
+      await collect(service.streamChat({ requestType: 'CONVERSATION_MESSAGE', userPrompt: 'Hi' }));
+      expect(aiRuntimeService.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({ maxOutputTokens: 2048 }),
+      );
+    });
+
+    it('defaults maxOutputTokens to 2000 for AGENT_RUN when the caller passes none', async () => {
+      aiRuntimeService.streamChat.mockImplementation(async function* stream() {
+        await Promise.resolve();
+        yield { type: 'message_end', provider: 'openai', model: 'gpt-5-mini', outputText: 'Hi' };
+      });
+
+      await collect(service.streamChat({ requestType: 'AGENT_RUN', userPrompt: 'Go' }));
+      expect(aiRuntimeService.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({ maxOutputTokens: 2000 }),
+      );
+    });
+
+    it('never overrides an explicit maxOutputTokens passed by the caller', async () => {
+      aiRuntimeService.streamChat.mockImplementation(async function* stream() {
+        await Promise.resolve();
+        yield { type: 'message_end', provider: 'openai', model: 'gpt-5-mini', outputText: 'Hi' };
+      });
+
+      await collect(
+        service.streamChat({ requestType: 'AGENT_RUN', userPrompt: 'Go', maxOutputTokens: 1500 }),
+      );
+      expect(aiRuntimeService.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({ maxOutputTokens: 1500 }),
+      );
+    });
+
     it('never lets a telemetry failure surface as a stream failure', async () => {
       usageService.record.mockRejectedValue(new Error('db unavailable'));
       aiRuntimeService.streamChat.mockImplementation(async function* stream() {

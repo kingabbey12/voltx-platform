@@ -25,8 +25,15 @@ export interface RunAutonomousResult {
 }
 
 export const agentsApi = {
-  runAutonomous: (agentId: string, input: { conversationId: string; objective: string; workspaceContext?: string[] }) =>
-    apiClient.post<RunAutonomousResult>(`/ai/agents/${agentId}/run/autonomous`, input),
+  runAutonomous: (
+    agentId: string,
+    input: {
+      conversationId: string;
+      objective: string;
+      workspaceContext?: string[];
+      maxOutputTokens?: number;
+    },
+  ) => apiClient.post<RunAutonomousResult>(`/ai/agents/${agentId}/run/autonomous`, input),
 
   getRunTree: (runId: string) => apiClient.get<AgentRun[]>(`/ai/agents/runs/${runId}/tree`),
 };

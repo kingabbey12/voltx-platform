@@ -13,6 +13,7 @@ import {
 } from '../models/ai-model.types';
 import { parseSseStream } from '../streaming/sse-parser';
 import { AIProvider, AIProviderError } from './ai-provider.interface';
+import { friendlyMessageForCategory } from './provider-error-classifier';
 import {
   createStreamingResponse,
   extractTextContent,
@@ -70,18 +71,22 @@ export class AnthropicProvider implements AIProvider {
   async chat(request: AIProviderChatRequest): Promise<AIChatResponse> {
     this.assertConfigured();
 
-    const payload = await fetchJsonObject(`${this.baseUrl}/messages`, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify({
-        model: request.model,
-        messages: toAnthropicMessages(request.messages),
-        system: extractSystemPrompt(request.messages),
-        max_tokens: request.maxOutputTokens ?? 1024,
-        ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
-      }),
-      signal: request.signal,
-    });
+    const payload = await fetchJsonObject(
+      `${this.baseUrl}/messages`,
+      {
+        method: 'POST',
+        headers: this.buildHeaders(),
+        body: JSON.stringify({
+          model: request.model,
+          messages: toAnthropicMessages(request.messages),
+          system: extractSystemPrompt(request.messages),
+          max_tokens: request.maxOutputTokens ?? 1024,
+          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+        }),
+        signal: request.signal,
+      },
+      this.name,
+    );
 
     const usageRecord = getRecord(payload, 'usage');
 
@@ -117,19 +122,23 @@ export class AnthropicProvider implements AIProvider {
       messageId,
     };
 
-    const stream = await createStreamingResponse(`${this.baseUrl}/messages`, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify({
-        model: request.model,
-        messages: toAnthropicMessages(request.messages),
-        system: extractSystemPrompt(request.messages),
-        max_tokens: request.maxOutputTokens ?? 1024,
-        stream: true,
-        ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
-      }),
-      signal: request.signal,
-    });
+    const stream = await createStreamingResponse(
+      `${this.baseUrl}/messages`,
+      {
+        method: 'POST',
+        headers: this.buildHeaders(),
+        body: JSON.stringify({
+          model: request.model,
+          messages: toAnthropicMessages(request.messages),
+          system: extractSystemPrompt(request.messages),
+          max_tokens: request.maxOutputTokens ?? 1024,
+          stream: true,
+          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+        }),
+        signal: request.signal,
+      },
+      this.name,
+    );
 
     let inputTokens: number | undefined;
     let outputTokens: number | undefined;
@@ -224,8 +233,11 @@ export class AnthropicProvider implements AIProvider {
   private assertConfigured(): void {
     if (!this.enabled || this.apiKey.length === 0) {
       throw new AIProviderError(
-        'Anthropic provider is not enabled or configured',
+        friendlyMessageForCategory('invalid_api_key'),
         'provider_not_configured',
+        false,
+        'invalid_api_key',
+        'Anthropic provider is not enabled or configured',
       );
     }
   }

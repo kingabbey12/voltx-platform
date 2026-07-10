@@ -12,6 +12,7 @@ import {
 } from '../models/ai-model.types';
 import { parseSseStream } from '../streaming/sse-parser';
 import { AIProvider, AIProviderError } from './ai-provider.interface';
+import { friendlyMessageForCategory } from './provider-error-classifier';
 import {
   createStreamingResponse,
   extractTextContent,
@@ -101,23 +102,27 @@ export class OpenAIProvider implements AIProvider {
   async chat(request: AIProviderChatRequest): Promise<AIChatResponse> {
     this.assertConfigured();
 
-    const payload = await fetchJsonObject(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify({
-        model: this.wireModel(request.model),
-        messages: request.messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-          ...(message.name ? { name: message.name } : {}),
-        })),
-        ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
-        ...(request.maxOutputTokens !== undefined
-          ? { max_completion_tokens: request.maxOutputTokens }
-          : {}),
-      }),
-      signal: request.signal,
-    });
+    const payload = await fetchJsonObject(
+      `${this.baseUrl}/chat/completions`,
+      {
+        method: 'POST',
+        headers: this.buildHeaders(),
+        body: JSON.stringify({
+          model: this.wireModel(request.model),
+          messages: request.messages.map((message) => ({
+            role: message.role,
+            content: message.content,
+            ...(message.name ? { name: message.name } : {}),
+          })),
+          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+          ...(request.maxOutputTokens !== undefined
+            ? { max_completion_tokens: request.maxOutputTokens }
+            : {}),
+        }),
+        signal: request.signal,
+      },
+      this.name,
+    );
 
     const choices = getArray(payload, 'choices');
     const firstChoice = choices?.[0];
@@ -154,28 +159,32 @@ export class OpenAIProvider implements AIProvider {
       messageId,
     };
 
-    const stream = await createStreamingResponse(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify({
-        model: this.wireModel(request.model),
-        stream: true,
-        // Without this, OpenAI never includes a `usage` field on any
-        // streamed chunk — token usage / cost tracking would silently
-        // report zero for every real (non-mocked) streaming chat call.
-        stream_options: { include_usage: true },
-        messages: request.messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-          ...(message.name ? { name: message.name } : {}),
-        })),
-        ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
-        ...(request.maxOutputTokens !== undefined
-          ? { max_completion_tokens: request.maxOutputTokens }
-          : {}),
-      }),
-      signal: request.signal,
-    });
+    const stream = await createStreamingResponse(
+      `${this.baseUrl}/chat/completions`,
+      {
+        method: 'POST',
+        headers: this.buildHeaders(),
+        body: JSON.stringify({
+          model: this.wireModel(request.model),
+          stream: true,
+          // Without this, OpenAI never includes a `usage` field on any
+          // streamed chunk — token usage / cost tracking would silently
+          // report zero for every real (non-mocked) streaming chat call.
+          stream_options: { include_usage: true },
+          messages: request.messages.map((message) => ({
+            role: message.role,
+            content: message.content,
+            ...(message.name ? { name: message.name } : {}),
+          })),
+          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+          ...(request.maxOutputTokens !== undefined
+            ? { max_completion_tokens: request.maxOutputTokens }
+            : {}),
+        }),
+        signal: request.signal,
+      },
+      this.name,
+    );
 
     let finishReason: string | undefined;
     let usage: AIUsage | undefined;
@@ -230,15 +239,19 @@ export class OpenAIProvider implements AIProvider {
   async embeddings(request: AIEmbeddingRequest): Promise<AIEmbeddingResponse> {
     this.assertConfigured();
 
-    const payload = await fetchJsonObject(`${this.baseUrl}/embeddings`, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify({
-        model: this.wireModel(request.model),
-        input: request.input,
-      }),
-      signal: request.signal,
-    });
+    const payload = await fetchJsonObject(
+      `${this.baseUrl}/embeddings`,
+      {
+        method: 'POST',
+        headers: this.buildHeaders(),
+        body: JSON.stringify({
+          model: this.wireModel(request.model),
+          input: request.input,
+        }),
+        signal: request.signal,
+      },
+      this.name,
+    );
 
     const data = getArray(payload, 'data') ?? [];
     const vectors = data
@@ -281,8 +294,11 @@ export class OpenAIProvider implements AIProvider {
   private assertConfigured(): void {
     if (!this.enabled || this.apiKey.length === 0) {
       throw new AIProviderError(
-        'OpenAI provider is not enabled or configured',
+        friendlyMessageForCategory('invalid_api_key'),
         'provider_not_configured',
+        false,
+        'invalid_api_key',
+        'OpenAI provider is not enabled or configured',
       );
     }
   }

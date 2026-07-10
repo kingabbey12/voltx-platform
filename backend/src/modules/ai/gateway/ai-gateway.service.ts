@@ -68,7 +68,7 @@ export class AIGatewayService {
         userPrompt: input.userPrompt,
         toolResults: input.toolResults,
         temperature: input.temperature,
-        maxOutputTokens: input.maxOutputTokens,
+        maxOutputTokens: input.maxOutputTokens ?? defaultMaxOutputTokens(input.requestType),
         signal: input.signal,
       })) {
         resolvedProvider = event.provider;
@@ -262,5 +262,26 @@ export class AIGatewayService {
     } catch (error) {
       this.logger.error({ err: error }, 'Failed to record AI gateway telemetry');
     }
+  }
+}
+
+/**
+ * Applied only when a caller doesn't pass an explicit maxOutputTokens —
+ * without this, OpenAI/Google silently fall back to their own
+ * provider-side default (tens of thousands of tokens for reasoning-style
+ * models), which is where an unset limit was quietly costing far more than
+ * any of these requests actually need. Callers with a genuinely larger
+ * requirement should keep passing an explicit value; this only backstops
+ * the ones that pass none.
+ */
+function defaultMaxOutputTokens(requestType: AiGatewayChatInput['requestType']): number {
+  switch (requestType) {
+    case 'CHAT':
+    case 'CONVERSATION_MESSAGE':
+      return 2048;
+    case 'AGENT_RUN':
+      return 2000;
+    default:
+      return 2048;
   }
 }

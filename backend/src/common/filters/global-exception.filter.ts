@@ -8,10 +8,33 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { captureException } from '../../error-reporting';
-import { AIProviderError } from '../../modules/ai/providers/ai-provider.interface';
+import {
+  AIProviderError,
+  AIProviderErrorCategory,
+} from '../../modules/ai/providers/ai-provider.interface';
 import { API_VERSION } from '../constants/api.constants';
 import { REQUEST_ID_HEADER } from '../constants/request-id.constants';
-import { ERROR_CODES, getDefaultErrorCode } from '../errors/error-codes';
+import { ERROR_CODES, ErrorCode, getDefaultErrorCode } from '../errors/error-codes';
+
+const AI_ERROR_STATUS_BY_CATEGORY: Record<AIProviderErrorCategory, number> = {
+  invalid_api_key: HttpStatus.SERVICE_UNAVAILABLE,
+  insufficient_credits: HttpStatus.SERVICE_UNAVAILABLE,
+  rate_limited: HttpStatus.TOO_MANY_REQUESTS,
+  context_length_exceeded: HttpStatus.BAD_REQUEST,
+  provider_unavailable: HttpStatus.SERVICE_UNAVAILABLE,
+  timeout: HttpStatus.GATEWAY_TIMEOUT,
+  unknown: HttpStatus.SERVICE_UNAVAILABLE,
+};
+
+const AI_ERROR_CODE_BY_CATEGORY: Record<AIProviderErrorCategory, ErrorCode> = {
+  invalid_api_key: ERROR_CODES.aiInvalidApiKey,
+  insufficient_credits: ERROR_CODES.aiInsufficientCredits,
+  rate_limited: ERROR_CODES.aiRateLimited,
+  context_length_exceeded: ERROR_CODES.aiContextLengthExceeded,
+  provider_unavailable: ERROR_CODES.aiServiceUnavailable,
+  timeout: ERROR_CODES.aiTimeout,
+  unknown: ERROR_CODES.aiServiceUnavailable,
+};
 
 interface ErrorResponseBody {
   success: false;
@@ -44,23 +67,46 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // hiding the real, actionable cause (quota exceeded, provider rate
     // limited, provider outage) from every caller, including the mobile
     // app's error-message mapping and any on-call engineer reading a
-    // client-reported error rather than the server log.
+    // client-reported error rather than the server log. exception.message
+    // on an AIProviderError is always the pre-classified, user-safe text
+    // (see provider-error-classifier.ts) — the raw provider response lives
+    // separately on .providerDetail and is only ever logged, never
+    // returned in the response body below.
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
         : exception instanceof AIProviderError
-          ? HttpStatus.SERVICE_UNAVAILABLE
+          ? AI_ERROR_STATUS_BY_CATEGORY[exception.category]
           : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const exceptionResponse: unknown =
       exception instanceof HttpException
         ? exception.getResponse()
         : exception instanceof AIProviderError
-          ? { code: ERROR_CODES.aiServiceUnavailable, message: exception.message }
+          ? { code: AI_ERROR_CODE_BY_CATEGORY[exception.category], message: exception.message }
           : 'Internal server error';
 
     const requestIdHeader = request.headers[REQUEST_ID_HEADER];
     const requestId = typeof requestIdHeader === 'string' ? requestIdHeader : undefined;
+
+    if (exception instanceof AIProviderError) {
+      // Always logged regardless of status — an AIProviderError is never
+      // routine, and this is the one place guaranteed to see every such
+      // error regardless of which call path threw it (some, like
+      // assertConfigured(), never go through provider-http.utils.ts's own
+      // logging at all).
+      this.logger.error(
+        {
+          requestId,
+          path: request.url,
+          category: exception.category,
+          code: exception.code,
+          retryable: exception.retryable,
+          providerDetail: exception.providerDetail,
+        },
+        `AI provider error reached the client boundary: ${exception.category}`,
+      );
+    }
 
     if (status >= 500) {
       this.logger.error(

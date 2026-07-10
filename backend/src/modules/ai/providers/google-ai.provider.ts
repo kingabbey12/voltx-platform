@@ -13,6 +13,7 @@ import {
 } from '../models/ai-model.types';
 import { parseSseStream } from '../streaming/sse-parser';
 import { AIProvider, AIProviderError } from './ai-provider.interface';
+import { friendlyMessageForCategory } from './provider-error-classifier';
 import {
   createStreamingResponse,
   fetchJsonObject,
@@ -70,12 +71,16 @@ export class GoogleAIProvider implements AIProvider {
   async chat(request: AIProviderChatRequest): Promise<AIChatResponse> {
     this.assertConfigured();
 
-    const payload = await fetchJsonObject(this.buildModelUrl(request.model, 'generateContent'), {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify(this.buildChatBody(request)),
-      signal: request.signal,
-    });
+    const payload = await fetchJsonObject(
+      this.buildModelUrl(request.model, 'generateContent'),
+      {
+        method: 'POST',
+        headers: this.buildHeaders(),
+        body: JSON.stringify(this.buildChatBody(request)),
+        signal: request.signal,
+      },
+      this.name,
+    );
 
     return {
       id: randomUUID(),
@@ -108,6 +113,7 @@ export class GoogleAIProvider implements AIProvider {
         body: JSON.stringify(this.buildChatBody(request)),
         signal: request.signal,
       },
+      this.name,
     );
 
     let finishReason: string | undefined;
@@ -149,16 +155,20 @@ export class GoogleAIProvider implements AIProvider {
     const vectors: number[][] = [];
 
     for (const input of request.input) {
-      const payload = await fetchJsonObject(this.buildModelUrl(request.model, 'embedContent'), {
-        method: 'POST',
-        headers: this.buildHeaders(),
-        body: JSON.stringify({
-          content: {
-            parts: [{ text: input }],
-          },
-        }),
-        signal: request.signal,
-      });
+      const payload = await fetchJsonObject(
+        this.buildModelUrl(request.model, 'embedContent'),
+        {
+          method: 'POST',
+          headers: this.buildHeaders(),
+          body: JSON.stringify({
+            content: {
+              parts: [{ text: input }],
+            },
+          }),
+          signal: request.signal,
+        },
+        this.name,
+      );
 
       const embeddingRecord = getRecord(payload, 'embedding');
       const values = embeddingRecord?.values;
@@ -214,8 +224,11 @@ export class GoogleAIProvider implements AIProvider {
   private assertConfigured(): void {
     if (!this.enabled || this.apiKey.length === 0) {
       throw new AIProviderError(
-        'Google AI provider is not enabled or configured',
+        friendlyMessageForCategory('invalid_api_key'),
         'provider_not_configured',
+        false,
+        'invalid_api_key',
+        'Google AI provider is not enabled or configured',
       );
     }
   }

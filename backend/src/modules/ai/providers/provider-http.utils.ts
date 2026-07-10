@@ -1,4 +1,8 @@
+import { Logger } from '@nestjs/common';
 import { AIProviderError } from './ai-provider.interface';
+import { classifyProviderError, extractProviderRequestId } from './provider-error-classifier';
+
+const logger = new Logger('AIProviderHttp');
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -54,16 +58,13 @@ export function extractTextContent(value: unknown): string {
 export async function fetchJsonObject(
   url: string,
   init: RequestInit,
+  providerName: string,
 ): Promise<Record<string, unknown>> {
-  const response = await fetch(url, init);
+  const response = await fetchOrThrowClassified(url, init, providerName);
   const body = await readJsonBody(response);
 
   if (!response.ok) {
-    throw new AIProviderError(
-      extractProviderErrorMessage(body) ?? `Provider request failed with status ${response.status}`,
-      'provider_request_failed',
-      response.status >= 500 || response.status === 429,
-    );
+    throw buildClassifiedError(providerName, response, body);
   }
 
   if (!isRecord(body)) {
@@ -76,16 +77,13 @@ export async function fetchJsonObject(
 export async function createStreamingResponse(
   url: string,
   init: RequestInit,
+  providerName: string,
 ): Promise<ReadableStream<Uint8Array>> {
-  const response = await fetch(url, init);
+  const response = await fetchOrThrowClassified(url, init, providerName);
 
   if (!response.ok) {
     const body = await readJsonBody(response);
-    throw new AIProviderError(
-      extractProviderErrorMessage(body) ?? `Provider request failed with status ${response.status}`,
-      'provider_request_failed',
-      response.status >= 500 || response.status === 429,
-    );
+    throw buildClassifiedError(providerName, response, body);
   }
 
   if (!response.body) {
@@ -93,6 +91,62 @@ export async function createStreamingResponse(
   }
 
   return response.body;
+}
+
+/** Distinguishes a timed-out/aborted/network-level failure (no HTTP response at all) from a normal non-ok HTTP response, since the two need different classification and neither should leak raw fetch/DOM error text to the client. */
+async function fetchOrThrowClassified(
+  url: string,
+  init: RequestInit,
+  providerName: string,
+): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    const isAbort = error instanceof Error && error.name === 'AbortError';
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    logger.error(
+      { provider: providerName, url, isTimeout: isAbort, rawMessage },
+      `AI provider request failed before a response was received (${providerName})`,
+    );
+    const classified = classifyProviderError(undefined, rawMessage, isAbort);
+    throw new AIProviderError(
+      classified.userMessage,
+      'provider_request_failed',
+      classified.retryable,
+      classified.category,
+      rawMessage,
+    );
+  }
+}
+
+function buildClassifiedError(
+  providerName: string,
+  response: Response,
+  body: unknown,
+): AIProviderError {
+  const rawMessage =
+    extractProviderErrorMessage(body) ?? `Provider request failed with status ${response.status}`;
+  const requestId = extractProviderRequestId(response, body);
+  const classified = classifyProviderError(response.status, rawMessage);
+
+  logger.error(
+    {
+      provider: providerName,
+      status: response.status,
+      requestId,
+      category: classified.category,
+      rawMessage,
+    },
+    `AI provider returned an error (${providerName})`,
+  );
+
+  return new AIProviderError(
+    classified.userMessage,
+    'provider_request_failed',
+    classified.retryable,
+    classified.category,
+    rawMessage,
+  );
 }
 
 function extractProviderErrorMessage(payload: unknown): string | undefined {
