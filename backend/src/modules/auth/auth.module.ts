@@ -63,6 +63,7 @@ import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
     DevelopmentAuthGuard,
     JwtAuthGuard,
     UserContextGuard,
+    JwtModule,
   ],
 })
 export class AuthModule {}

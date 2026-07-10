@@ -92,6 +92,13 @@ const CONNECTORS = [
     IntegrationWorkflowRegistrarService,
     IntegrationToolSourceService,
   ],
-  exports: [IntegrationDispatcherService, IntegrationEventBusService],
+  exports: [
+    IntegrationDispatcherService,
+    IntegrationEventBusService,
+    OAuthService,
+    EncryptionService,
+    GoogleGmailConnector,
+    SlackConnector,
+  ],
 })
 export class IntegrationModule {}

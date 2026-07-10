@@ -9,9 +9,11 @@ import { CommandPalette } from "@/components/layout/command-palette";
 import { OrgSwitcher } from "@/components/layout/org-switcher";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useTrackPageVisit } from "@/lib/ai/context-engine";
+import { useCommsRealtime } from "@/hooks/use-comms-realtime";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   useTrackPageVisit();
+  useCommsRealtime();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);

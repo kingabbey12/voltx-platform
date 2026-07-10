@@ -43,6 +43,6 @@ import { SalesToolSourceService } from './tools/sales-tool-source.service';
     ActivitiesRepository,
     ActivitiesService,
   ],
-  exports: [SalesAiService],
+  exports: [SalesAiService, ContactsService],
 })
 export class SalesModule {}

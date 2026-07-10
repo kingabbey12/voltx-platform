@@ -1,6 +1,7 @@
 import {
   Bot,
   Building2,
+  Inbox,
   LayoutDashboard,
   Plug,
   Settings,
@@ -18,10 +19,11 @@ export interface NavItem {
 
 export const mainNav: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, shortcut: "G D" },
+  { label: "Inbox", href: "/inbox", icon: Inbox, shortcut: "G I" },
   { label: "AI Chat", href: "/ai", icon: Bot, shortcut: "G A" },
   { label: "CRM", href: "/crm", icon: Building2, shortcut: "G C" },
   { label: "Workflows", href: "/workflows", icon: Workflow, shortcut: "G W" },
-  { label: "Integrations", href: "/integrations", icon: Plug, shortcut: "G I" },
+  { label: "Integrations", href: "/integrations", icon: Plug, shortcut: "G N" },
 ];
 
 export const secondaryNav: NavItem[] = [

@@ -16,10 +16,12 @@ import { TenantModule } from './common/tenant/tenant.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AgentModule } from './modules/ai/agents/agent.module';
 import { AIModule } from './modules/ai/ai.module';
+import { CommunicationsModule } from './modules/communications/communications.module';
 import { HealthModule } from './modules/health/health.module';
 import { IntegrationModule } from './modules/integrations/integration.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
+import { NotificationModule } from './modules/notifications/notification.module';
 import { OperatorModule } from './modules/ai/operator/operator.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
@@ -65,9 +67,11 @@ import { WorkflowModule } from './modules/workflows/workflow.module';
     AIModule,
     AgentModule,
     AuthModule,
+    CommunicationsModule,
     HealthModule,
     IntegrationModule,
     KnowledgeModule,
+    NotificationModule,
     OperatorModule,
     OrganizationModule,
     PermissionsModule,

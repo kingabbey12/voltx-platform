@@ -64,4 +64,10 @@ export const aiApi = {
       content,
       ...(workspaceContext && workspaceContext.length > 0 ? { workspaceContext } : {}),
     }),
+
+  executeTool: (conversationId: string, toolName: string, input: Record<string, unknown>) =>
+    apiClient.post<{ execution: { status: string }; result: { content: string } }>(
+      "/ai/tools/execute",
+      { conversationId, toolName, input },
+    ),
 };

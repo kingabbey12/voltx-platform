@@ -129,71 +129,76 @@ enum SalesActivityType {
 }
 
 model Organization {
-  id                     String                  @id @default(uuid()) @db.Uuid
-  name                   String
-  slug                   String                  @unique
-  logoUrl                String?                 @map("logo_url")
-  email                  String?
-  website                String?
-  industry               String?
-  country                String?
-  state                  String?
-  city                   String?
-  companySize            CompanySize?            @map("company_size")
-  primaryGoals           String[]                @default([]) @map("primary_goals")
-  currency               String?
-  language               String?
-  phone                  String?
-  timezone               String                  @default("UTC")
-  status                 OrganizationStatus      @default(ACTIVE)
-  settings               Json                    @default("{}")
-  onboardingCompletedAt  DateTime?               @map("onboarding_completed_at")
-  createdAt              DateTime                @default(now()) @map("created_at")
-  updatedAt              DateTime                @updatedAt @map("updated_at")
-  deletedAt              DateTime?               @map("deleted_at")
-  memberships            Membership[]
-  conversations          Conversation[]
-  memories               Memory[]
-  agents                 Agent[]
-  aiUsageLogs            AiUsageLog[]
-  salesCompanies         SalesCompany[]
-  salesContacts          SalesContact[]
-  salesLeads             SalesLead[]
-  salesOpportunities     SalesOpportunity[]
-  salesActivities        SalesActivity[]
-  knowledgeSources       KnowledgeSource[]
-  knowledgeEntities      KnowledgeEntity[]
-  workflows              Workflow[]
-  integrationConnections IntegrationConnection[]
-  invitations            Invitation[]
+  id                      String                   @id @default(uuid()) @db.Uuid
+  name                    String
+  slug                    String                   @unique
+  logoUrl                 String?                  @map("logo_url")
+  email                   String?
+  website                 String?
+  industry                String?
+  country                 String?
+  state                   String?
+  city                    String?
+  companySize             CompanySize?             @map("company_size")
+  primaryGoals            String[]                 @default([]) @map("primary_goals")
+  currency                String?
+  language                String?
+  phone                   String?
+  timezone                String                   @default("UTC")
+  status                  OrganizationStatus       @default(ACTIVE)
+  settings                Json                     @default("{}")
+  onboardingCompletedAt   DateTime?                @map("onboarding_completed_at")
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+  deletedAt               DateTime?                @map("deleted_at")
+  memberships             Membership[]
+  conversations           Conversation[]
+  memories                Memory[]
+  agents                  Agent[]
+  aiUsageLogs             AiUsageLog[]
+  salesCompanies          SalesCompany[]
+  salesContacts           SalesContact[]
+  salesLeads              SalesLead[]
+  salesOpportunities      SalesOpportunity[]
+  salesActivities         SalesActivity[]
+  knowledgeSources        KnowledgeSource[]
+  knowledgeEntities       KnowledgeEntity[]
+  workflows               Workflow[]
+  integrationConnections  IntegrationConnection[]
+  invitations             Invitation[]
+  commsChannelConnections CommsChannelConnection[]
+  commsConversations      CommsConversation[]
+  commsConversationLabels ConversationLabel[]
 
   @@index([status])
   @@map("organizations")
 }
 
 model User {
-  id                  String              @id @default(uuid()) @db.Uuid
-  email               String              @unique
-  passwordHash        String?             @map("password_hash")
-  firstName           String              @map("first_name")
-  lastName            String              @map("last_name")
-  avatarUrl           String?             @map("avatar_url")
-  phoneNumber         String?             @map("phone_number")
-  jobTitle            String?             @map("job_title")
-  status              UserStatus          @default(ACTIVE)
-  lastLoginAt         DateTime?           @map("last_login_at")
-  emailVerifiedAt     DateTime?           @map("email_verified_at")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
-  deletedAt           DateTime?           @map("deleted_at")
-  memberships         Membership[]
-  refreshTokens       RefreshToken[]
-  verificationTokens  VerificationToken[]
-  conversations       Conversation[]
-  memories            Memory[]
-  aiUsageLogs         AiUsageLog[]
-  sentInvitations     Invitation[]        @relation("InvitationInvitedBy")
-  acceptedInvitations Invitation[]        @relation("InvitationAcceptedBy")
+  id                      String              @id @default(uuid()) @db.Uuid
+  email                   String              @unique
+  passwordHash            String?             @map("password_hash")
+  firstName               String              @map("first_name")
+  lastName                String              @map("last_name")
+  avatarUrl               String?             @map("avatar_url")
+  phoneNumber             String?             @map("phone_number")
+  jobTitle                String?             @map("job_title")
+  status                  UserStatus          @default(ACTIVE)
+  lastLoginAt             DateTime?           @map("last_login_at")
+  emailVerifiedAt         DateTime?           @map("email_verified_at")
+  notificationPreferences Json                @default("{}") @map("notification_preferences")
+  createdAt               DateTime            @default(now()) @map("created_at")
+  updatedAt               DateTime            @updatedAt @map("updated_at")
+  deletedAt               DateTime?           @map("deleted_at")
+  memberships             Membership[]
+  refreshTokens           RefreshToken[]
+  verificationTokens      VerificationToken[]
+  conversations           Conversation[]
+  memories                Memory[]
+  aiUsageLogs             AiUsageLog[]
+  sentInvitations         Invitation[]        @relation("InvitationInvitedBy")
+  acceptedInvitations     Invitation[]        @relation("InvitationAcceptedBy")
+  notifications           Notification[]
 
   @@index([status])
   @@map("users")
@@ -597,24 +602,27 @@ model SalesCompany {
 }
 
 model SalesContact {
-  id             String             @id @default(uuid()) @db.Uuid
-  organizationId String             @map("organization_id") @db.Uuid
-  companyId      String?            @map("company_id") @db.Uuid
-  firstName      String             @map("first_name")
-  lastName       String             @map("last_name")
-  email          String?
-  phone          String?
-  jobTitle       String?            @map("job_title")
-  notes          String?
-  metadata       Json               @default("{}")
-  createdAt      DateTime           @default(now()) @map("created_at")
-  updatedAt      DateTime           @updatedAt @map("updated_at")
-  deletedAt      DateTime?          @map("deleted_at")
-  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company        SalesCompany?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  leads          SalesLead[]
-  opportunities  SalesOpportunity[]
-  activities     SalesActivity[]
+  id                     String                 @id @default(uuid()) @db.Uuid
+  organizationId         String                 @map("organization_id") @db.Uuid
+  companyId              String?                @map("company_id") @db.Uuid
+  firstName              String                 @map("first_name")
+  lastName               String                 @map("last_name")
+  email                  String?
+  phone                  String?
+  jobTitle               String?                @map("job_title")
+  notes                  String?
+  metadata               Json                   @default("{}")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+  deletedAt              DateTime?              @map("deleted_at")
+  organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company                SalesCompany?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  leads                  SalesLead[]
+  opportunities          SalesOpportunity[]
+  activities             SalesActivity[]
+  commsConversations     CommsConversation[]
+  commsParticipants      CommsParticipant[]
+  commsChannelIdentities CommsChannelIdentity[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -1479,4 +1487,442 @@ model IntegrationHealthCheck {
   @@index([connectionId])
   @@index([checkedAt])
   @@map("integration_health_checks")
+}
+
+// ============================================================================
+// Unified Communications Platform (Phase 6) — one inbox across email,
+// WhatsApp, SMS, voice, Slack, Teams. `Conversation`/`Message` above are the
+// AI chat models; these are prefixed `Comms` to avoid collision. Follows the
+// same tenant/soft-delete/timestamp conventions as the Integrations models
+// above. Secondary/dependent models (credential, participant, message,
+// attachment, call, recording, transcription, event, identity, reaction,
+// summary) carry organizationId as a plain indexed column without a formal
+// Organization relation, matching IntegrationApiUsageLog/
+// IntegrationHealthCheck — only directly organization-owned entities
+// (ChannelConnection, Conversation, ConversationLabel) get the full relation.
+// ============================================================================
+
+enum CommsChannel {
+  GMAIL
+  OUTLOOK
+  WHATSAPP
+  TWILIO_VOICE
+  TWILIO_SMS
+  SLACK
+  TEAMS
+}
+
+enum CommsChannelConnectionStatus {
+  PENDING
+  CONNECTED
+  ERROR
+  DISCONNECTED
+  REVOKED
+  TOKEN_EXPIRED
+}
+
+enum CommsConversationStatus {
+  OPEN
+  PINNED
+  ARCHIVED
+}
+
+enum CommsConversationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum CommsMessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CommsMessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum CommsParticipantRole {
+  CUSTOMER
+  AGENT
+}
+
+enum CommsCallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CommsCallStatus {
+  RINGING
+  IN_PROGRESS
+  COMPLETED
+  MISSED
+  FAILED
+  VOICEMAIL
+}
+
+enum CommsEventType {
+  DELIVERED
+  READ
+  TYPING
+  REACTION_ADDED
+  REACTION_REMOVED
+}
+
+/// A connected messaging channel (Gmail inbox, Slack workspace, etc).
+/// Mirrors IntegrationConnection deliberately — same OAuth/health/sync
+/// shape — but kept as a separate table since a channel connection means
+/// something different operationally (it owns conversations/messages, not
+/// tool-callable actions) even though the underlying OAuth mechanics reuse
+/// OAuthService/EncryptionService verbatim.
+model CommsChannelConnection {
+  id                String                       @id @default(uuid()) @db.Uuid
+  organizationId    String                       @map("organization_id") @db.Uuid
+  channel           CommsChannel
+  displayName       String                       @map("display_name")
+  status            CommsChannelConnectionStatus @default(PENDING)
+  externalAccountId String?                      @map("external_account_id")
+  config            Json                         @default("{}")
+  lastHealthCheckAt DateTime?                    @map("last_health_check_at")
+  lastHealthStatus  IntegrationHealthStatus      @default(UNKNOWN) @map("last_health_status")
+  lastSyncAt        DateTime?                    @map("last_sync_at")
+  lastError         String?                      @map("last_error")
+  createdBy         String                       @map("created_by") @db.Uuid
+  createdAt         DateTime                     @default(now()) @map("created_at")
+  updatedAt         DateTime                     @updatedAt @map("updated_at")
+  deletedAt         DateTime?                    @map("deleted_at")
+  organization      Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  credential        CommsChannelCredential?
+  conversations     CommsConversation[]
+  calls             CommsCall[]
+
+  @@unique([organizationId, channel, externalAccountId])
+  @@index([organizationId])
+  @@index([channel])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("comms_channel_connections")
+}
+
+/// Encrypted credential for a channel connection, split from the parent
+/// table for the same reason IntegrationCredential is split from
+/// IntegrationConnection — listing/updating connection metadata never
+/// touches encrypted payloads.
+model CommsChannelCredential {
+  id               String                 @id @default(uuid()) @db.Uuid
+  connectionId     String                 @unique @map("connection_id") @db.Uuid
+  organizationId   String                 @map("organization_id") @db.Uuid
+  encryptedPayload String                 @map("encrypted_payload") @db.Text
+  expiresAt        DateTime?              @map("expires_at")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+  connection       CommsChannelConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([expiresAt])
+  @@map("comms_channel_credentials")
+}
+
+/// One thread, potentially spanning a single channel's history with one
+/// customer. `externalThreadId` carries the provider's own thread/DM id
+/// (Gmail thread id, Slack channel/DM id) for inbound-message correlation.
+model CommsConversation {
+  id               String                       @id @default(uuid()) @db.Uuid
+  organizationId   String                       @map("organization_id") @db.Uuid
+  connectionId     String                       @map("connection_id") @db.Uuid
+  contactId        String?                      @map("contact_id") @db.Uuid
+  assigneeId       String?                      @map("assignee_id") @db.Uuid
+  channel          CommsChannel
+  subject          String?
+  status           CommsConversationStatus      @default(OPEN)
+  priority         CommsConversationPriority    @default(NORMAL)
+  unread           Boolean                      @default(true)
+  externalThreadId String?                      @map("external_thread_id")
+  lastMessageAt    DateTime?                    @map("last_message_at")
+  createdAt        DateTime                     @default(now()) @map("created_at")
+  updatedAt        DateTime                     @updatedAt @map("updated_at")
+  deletedAt        DateTime?                    @map("deleted_at")
+  organization     Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connection       CommsChannelConnection       @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  contact          SalesContact?                @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  participants     CommsParticipant[]
+  messages         CommsMessage[]
+  calls            CommsCall[]
+  events           CommunicationEvent[]
+  labelLinks       CommsConversationLabelLink[]
+  summaries        AIConversationSummary[]
+
+  @@index([organizationId])
+  @@index([connectionId])
+  @@index([contactId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([priority])
+  @@index([unread])
+  @@index([lastMessageAt])
+  @@index([deletedAt])
+  @@map("comms_conversations")
+}
+
+/// Who's in a conversation — a CRM contact (customer side) or an internal
+/// user (agent side), or neither yet if the external address hasn't been
+/// resolved to a contact.
+model CommsParticipant {
+  id              String               @id @default(uuid()) @db.Uuid
+  organizationId  String               @map("organization_id") @db.Uuid
+  conversationId  String               @map("conversation_id") @db.Uuid
+  contactId       String?              @map("contact_id") @db.Uuid
+  userId          String?              @map("user_id") @db.Uuid
+  role            CommsParticipantRole
+  externalAddress String?              @map("external_address")
+  displayName     String?              @map("display_name")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  conversation    CommsConversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  contact         SalesContact?        @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([conversationId])
+  @@index([contactId])
+  @@map("comms_participants")
+}
+
+/// One message in a conversation. Immutable once created (no soft delete) —
+/// status transitions (queued -> sent -> delivered -> read -> failed) are
+/// tracked via the timestamp columns rather than mutating history.
+model CommsMessage {
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @map("organization_id") @db.Uuid
+  conversationId String                @map("conversation_id") @db.Uuid
+  senderId       String?               @map("sender_id") @db.Uuid
+  direction      CommsMessageDirection
+  channel        CommsChannel
+  status         CommsMessageStatus    @default(QUEUED)
+  body           String                @db.Text
+  externalId     String?               @map("external_id")
+  metadata       Json                  @default("{}")
+  sentAt         DateTime?             @map("sent_at")
+  deliveredAt    DateTime?             @map("delivered_at")
+  readAt         DateTime?             @map("read_at")
+  failedReason   String?               @map("failed_reason")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  conversation   CommsConversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  attachments    CommsAttachment[]
+  reactions      MessageReaction[]
+
+  @@index([organizationId])
+  @@index([conversationId])
+  @@index([direction])
+  @@index([status])
+  @@index([externalId])
+  @@index([createdAt])
+  @@map("comms_messages")
+}
+
+model CommsAttachment {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  messageId      String       @map("message_id") @db.Uuid
+  fileName       String       @map("file_name")
+  mimeType       String?      @map("mime_type")
+  sizeBytes      Int?         @map("size_bytes")
+  storageUrl     String       @map("storage_url")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  message        CommsMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([messageId])
+  @@map("comms_attachments")
+}
+
+model CommsCall {
+  id              String                 @id @default(uuid()) @db.Uuid
+  organizationId  String                 @map("organization_id") @db.Uuid
+  conversationId  String?                @map("conversation_id") @db.Uuid
+  connectionId    String                 @map("connection_id") @db.Uuid
+  direction       CommsCallDirection
+  status          CommsCallStatus
+  fromNumber      String                 @map("from_number")
+  toNumber        String                 @map("to_number")
+  durationSeconds Int?                   @map("duration_seconds")
+  externalCallId  String?                @map("external_call_id")
+  notes           String?
+  startedAt       DateTime?              @map("started_at")
+  endedAt         DateTime?              @map("ended_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  conversation    CommsConversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  connection      CommsChannelConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  recording       CommsCallRecording?
+  transcription   CommsTranscription?
+
+  @@index([organizationId])
+  @@index([conversationId])
+  @@index([connectionId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("comms_calls")
+}
+
+model CommsCallRecording {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  callId          String    @unique @map("call_id") @db.Uuid
+  storageUrl      String    @map("storage_url")
+  durationSeconds Int?      @map("duration_seconds")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  call            CommsCall @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("comms_call_recordings")
+}
+
+model CommsTranscription {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  callId         String    @unique @map("call_id") @db.Uuid
+  text           String    @db.Text
+  language       String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  call           CommsCall @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("comms_transcriptions")
+}
+
+/// Append-only fact log for anything not worth its own table (delivered,
+/// read, typing, reaction add/remove) — mirrors IntegrationEvent's role
+/// for the integrations module.
+model CommunicationEvent {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  conversationId String            @map("conversation_id") @db.Uuid
+  messageId      String?           @map("message_id") @db.Uuid
+  type           CommsEventType
+  payload        Json              @default("{}")
+  occurredAt     DateTime          @default(now()) @map("occurred_at")
+  conversation   CommsConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([conversationId])
+  @@index([type])
+  @@index([occurredAt])
+  @@map("communication_events")
+}
+
+/// Maps an external channel identifier (WhatsApp/Twilio phone number,
+/// Slack user id) to a CRM contact, so inbound messages from a known
+/// number/handle resolve to the right contact automatically. Created once
+/// AI extraction (or manual linking) resolves who an address belongs to.
+model CommsChannelIdentity {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  contactId       String       @map("contact_id") @db.Uuid
+  channel         CommsChannel
+  externalAddress String       @map("external_address")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  contact         SalesContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, channel, externalAddress])
+  @@index([organizationId])
+  @@index([contactId])
+  @@map("comms_channel_identities")
+}
+
+model ConversationLabel {
+  id             String                       @id @default(uuid()) @db.Uuid
+  organizationId String                       @map("organization_id") @db.Uuid
+  name           String
+  color          String                       @default("#6366F1")
+  createdAt      DateTime                     @default(now()) @map("created_at")
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversations  CommsConversationLabelLink[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("comms_conversation_labels")
+}
+
+model CommsConversationLabelLink {
+  conversationId String            @map("conversation_id") @db.Uuid
+  labelId        String            @map("label_id") @db.Uuid
+  createdAt      DateTime          @default(now()) @map("created_at")
+  conversation   CommsConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  label          ConversationLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, labelId])
+  @@map("comms_conversation_label_links")
+}
+
+model MessageReaction {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  messageId      String       @map("message_id") @db.Uuid
+  userId         String?      @map("user_id") @db.Uuid
+  emoji          String
+  externalUserId String?      @map("external_user_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  message        CommsMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([messageId])
+  @@map("comms_message_reactions")
+}
+
+/// AI-generated summary/sentiment/urgency/intent for a conversation,
+/// versioned since it's regenerated as the conversation grows rather than
+/// mutated in place — lets the UI show summary history if useful later.
+model AIConversationSummary {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  conversationId String            @map("conversation_id") @db.Uuid
+  version        Int               @default(1)
+  summary        String            @db.Text
+  sentiment      String?
+  urgency        String?
+  intent         String?
+  createdAt      DateTime          @default(now()) @map("created_at")
+  conversation   CommsConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([conversationId])
+  @@map("ai_conversation_summaries")
+}
+
+enum NotificationCategory {
+  MESSAGE
+  CALL
+  MEETING
+  CRM
+  WORKFLOW
+  AI
+  SECURITY
+  BILLING
+}
+
+/// A single addressable, persisted notification for one user. Distinct
+/// from CommunicationEvent (an append-only fact log about a conversation)
+/// and from the workflow NOTIFICATION step (which sends an outbound
+/// webhook/log line as an action) — this is the queryable, mark-readable
+/// feed a user actually sees in the notification center.
+model Notification {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  userId         String               @map("user_id") @db.Uuid
+  category       NotificationCategory
+  title          String
+  body           String?
+  actionUrl      String?              @map("action_url")
+  metadata       Json                 @default("{}")
+  read           Boolean              @default(false)
+  readAt         DateTime?            @map("read_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, read])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }

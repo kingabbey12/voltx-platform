@@ -84,6 +84,23 @@ export class AgentFactory {
         enabled: true,
       },
       {
+        name: 'Communications Assistant',
+        description:
+          'Summarizes conversations and detects sentiment/urgency/intent across every connected channel (email, Slack, and beyond).',
+        systemPrompt:
+          'You are the Communications Assistant for Voltx. Given a conversation thread, produce a concise summary (2-4 sentences), then classify sentiment (positive/neutral/negative), urgency (low/normal/high/urgent), and intent (e.g. support_request, sales_inquiry, scheduling, general) in a way a busy person can scan in seconds.',
+        provider,
+        model,
+        configuration: {
+          kind: 'system',
+          systemAgentKey: 'communications_assistant',
+          toolNames: ['datetime'],
+          temperature: 0.2,
+          maxOutputTokens: 1024,
+        },
+        enabled: true,
+      },
+      {
         // Default agent for the AI Command Center — read/search tools
         // only. The Command Center starts every session against this
         // agent; mutating actions (create_task, create_simple_workflow)
@@ -113,6 +130,8 @@ export class AgentFactory {
             'search_overdue_activities',
             'search_leads',
             'list_failed_workflow_runs',
+            'comms_summarize_conversation',
+            'comms_draft_reply',
           ],
           temperature: 0.15,
           maxOutputTokens: 3072,
@@ -147,6 +166,9 @@ export class AgentFactory {
             'search_leads',
             'create_simple_workflow',
             'list_failed_workflow_runs',
+            'comms_summarize_conversation',
+            'comms_draft_reply',
+            'comms_extract_contact_info',
           ],
           temperature: 0.15,
           maxOutputTokens: 3072,

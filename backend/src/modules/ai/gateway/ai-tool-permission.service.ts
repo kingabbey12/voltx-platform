@@ -22,6 +22,9 @@ export const TOOL_PERMISSION_REQUIREMENTS: Readonly<Record<string, string | null
   search_leads: 'sales.lead.read',
   create_simple_workflow: 'workflow.create',
   list_failed_workflow_runs: 'workflow.read',
+  comms_summarize_conversation: 'communications.conversation.read',
+  comms_draft_reply: 'communications.conversation.read',
+  comms_extract_contact_info: 'communications.conversation.update',
 };
 
 @Injectable()

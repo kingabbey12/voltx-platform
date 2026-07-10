@@ -8,6 +8,7 @@ import { slackOAuthConfig } from '../../provider/oauth-provider-configs';
 import {
   IntegrationActionContext,
   IntegrationActionDescriptor,
+  IntegrationCredentialValue,
   IntegrationHealthResult,
   IntegrationParsedEvent,
   IntegrationProvider,
@@ -21,6 +22,11 @@ interface SlackApiResponse {
   ok: boolean;
   error?: string;
   [key: string]: unknown;
+}
+
+interface SlackAuthTestResponse extends SlackApiResponse {
+  team_id?: string;
+  team?: string;
 }
 
 @Injectable()
@@ -101,6 +107,28 @@ export class SlackConnector implements IntegrationProvider {
         latencyMs: Date.now() - startedAt,
         message: error instanceof Error ? error.message : 'Slack health check failed',
       };
+    }
+  }
+
+  /**
+   * Returns the workspace's team_id — used both as a display identifier
+   * ("connected as Acme Corp") and, for the Communications platform's
+   * inbound webhook routing, to resolve which connection a Slack Events
+   * API payload belongs to (Slack delivers all workspaces' events to one
+   * app-level Request URL; team_id is the only thing that tells you which
+   * installation it's for).
+   */
+  async resolveAccountIdentity(
+    credential: IntegrationCredentialValue,
+  ): Promise<string | undefined> {
+    if (!credential.accessToken) return undefined;
+    try {
+      const result = await requestJson<SlackAuthTestResponse>(`${SLACK_API_BASE_URL}/auth.test`, {
+        headers: { Authorization: `Bearer ${credential.accessToken}` },
+      });
+      return result.body.ok ? result.body.team_id : undefined;
+    } catch {
+      return undefined;
     }
   }
 
