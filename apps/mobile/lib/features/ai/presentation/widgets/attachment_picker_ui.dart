@@ -4,7 +4,12 @@ import '../../../../theme/tokens/spacing.dart';
 import '../../../../theme/voltx_theme.dart';
 import '../../data/models/ai_models.dart';
 
-/// File and image attachment UI (mock — no actual picker).
+/// File and image attachment UI. Chip rendering below is real (works with
+/// genuine attachments once they exist); the add buttons are disabled since
+/// there is no attachment upload endpoint or AI ingestion pipeline on the
+/// backend yet — see AiAttachment's doc comment. Previously these buttons
+/// silently inserted hardcoded fake files regardless of what was tapped,
+/// which is worse than being disabled.
 class AttachmentPickerUi extends StatelessWidget {
   const AttachmentPickerUi({
     required this.attachments,
@@ -15,22 +20,19 @@ class AttachmentPickerUi extends StatelessWidget {
   final List<AiAttachment> attachments;
   final ValueChanged<String> onRemove;
 
-  static Widget addButtons({
-    required VoidCallback onAddFile,
-    required VoidCallback onAddImage,
-  }) {
-    return Row(
+  static Widget addButtons() {
+    return const Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
-          icon: const Icon(Icons.attach_file_rounded),
-          tooltip: 'Attach file',
-          onPressed: onAddFile,
+          icon: Icon(Icons.attach_file_rounded),
+          tooltip: 'Attachments coming soon',
+          onPressed: null,
         ),
         IconButton(
-          icon: const Icon(Icons.image_outlined),
-          tooltip: 'Attach image',
-          onPressed: onAddImage,
+          icon: Icon(Icons.image_outlined),
+          tooltip: 'Attachments coming soon',
+          onPressed: null,
         ),
       ],
     );

@@ -424,12 +424,6 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
     );
   }
 
-  void addPendingAttachment(AiAttachment attachment) {
-    state = state.copyWith(
-      pendingAttachments: [...state.pendingAttachments, attachment],
-    );
-  }
-
   void removePendingAttachment(String id) {
     state = state.copyWith(
       pendingAttachments: [

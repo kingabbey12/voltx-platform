@@ -4,7 +4,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../../theme/components/voltx_button.dart';
 import '../../../../theme/tokens/spacing.dart';
-import '../../data/models/ai_models.dart';
 import '../providers/ai_providers.dart';
 import 'attachment_picker_ui.dart';
 import 'ai_workspace_components.dart';
@@ -62,28 +61,7 @@ class PromptEditor extends HookConsumerWidget {
                   .removePendingAttachment(id),
             )
           : null,
-      leading: AttachmentPickerUi.addButtons(
-        onAddFile: () => ref
-            .read(aiChatProvider(conversationId).notifier)
-            .addPendingAttachment(
-              AiAttachment(
-                id: 'file-${DateTime.now().millisecondsSinceEpoch}',
-                name: 'grid_report_q3.pdf',
-                type: AiAttachmentType.file,
-                sizeLabel: '2.4 MB',
-              ),
-            ),
-        onAddImage: () => ref
-            .read(aiChatProvider(conversationId).notifier)
-            .addPendingAttachment(
-              AiAttachment(
-                id: 'img-${DateTime.now().millisecondsSinceEpoch}',
-                name: 'substation_photo.jpg',
-                type: AiAttachmentType.image,
-                sizeLabel: '840 KB',
-              ),
-            ),
-      ),
+      leading: AttachmentPickerUi.addButtons(),
       textField: TextField(
         controller: controller,
         maxLines: 4,
