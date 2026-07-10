@@ -61,14 +61,14 @@ describe('AttachmentService', () => {
           provide: STORAGE_PROVIDER,
           useValue: {
             name: 'local',
-            upload: jest.fn(),
+            upload: jest.fn().mockResolvedValue(undefined),
             getReadStream: jest.fn(),
             getSignedDownloadUrl: jest.fn(),
-            delete: jest.fn(),
+            delete: jest.fn().mockResolvedValue(undefined),
             initiateMultipartUpload: jest.fn(),
             uploadPart: jest.fn(),
             completeMultipartUpload: jest.fn(),
-            abortMultipartUpload: jest.fn(),
+            abortMultipartUpload: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -126,6 +126,21 @@ describe('AttachmentService', () => {
       expect(result).toEqual(attachmentEntity);
     });
 
+    it('deletes the just-uploaded storage object if persisting metadata fails, so it is not orphaned', async () => {
+      repository.create.mockRejectedValue(new Error('database unavailable'));
+
+      await expect(
+        service.uploadSingle({
+          fileName: 'report.pdf',
+          mimeType: 'application/pdf',
+          buffer: Buffer.from('pdf-bytes'),
+        }),
+      ).rejects.toThrow('database unavailable');
+
+      expect(storageProvider.delete).toHaveBeenCalledWith(expect.stringContaining('org-1/'));
+      expect(processingQueue.enqueue).not.toHaveBeenCalled();
+    });
+
     it('rejects an unsupported MIME type before touching storage', async () => {
       await expect(
         service.uploadSingle({
@@ -170,6 +185,71 @@ describe('AttachmentService', () => {
           buffer: Buffer.alloc(0),
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('initiateMultipartUpload', () => {
+    it('aborts the upload at the storage provider if persisting metadata fails, so it is not left incomplete (and billed) forever', async () => {
+      storageProvider.initiateMultipartUpload.mockResolvedValue('upload-1');
+      repository.create.mockRejectedValue(new Error('database unavailable'));
+
+      await expect(
+        service.initiateMultipartUpload('big.pdf', 'application/pdf', 1024),
+      ).rejects.toThrow('database unavailable');
+
+      expect(storageProvider.abortMultipartUpload).toHaveBeenCalledWith(
+        expect.stringContaining('org-1/'),
+        'upload-1',
+      );
+    });
+  });
+
+  describe('completeMultipartUpload', () => {
+    it('rejects and cleans up when the real assembled size exceeds the limit — a client cannot bypass the size cap by uploading more/larger parts than it declared at initiate time', async () => {
+      repository.findByIdOrThrow.mockResolvedValue({
+        ...attachmentEntity,
+        status: 'UPLOADING',
+        sizeBytes: 10, // what the client claimed at initiate time
+      });
+      storageProvider.completeMultipartUpload.mockResolvedValue({
+        sizeBytes: 30 * 1024 * 1024, // what actually got assembled — over the 25MB test limit
+      });
+
+      await expect(
+        service.completeMultipartUpload(attachmentEntity.id, 'upload-1', [
+          { partNumber: 1, etag: 'etag-1' },
+        ]),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(storageProvider.delete).toHaveBeenCalledWith(attachmentEntity.storageKey);
+      expect(repository.softDelete).toHaveBeenCalledWith(attachmentEntity.id);
+      expect(repository.update).not.toHaveBeenCalled();
+      expect(processingQueue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('persists the real assembled size (not the client-declared size) and enqueues processing on success', async () => {
+      repository.findByIdOrThrow.mockResolvedValue({
+        ...attachmentEntity,
+        status: 'UPLOADING',
+        sizeBytes: 10,
+      });
+      storageProvider.completeMultipartUpload.mockResolvedValue({ sizeBytes: 2048 });
+      repository.update.mockResolvedValue({
+        ...attachmentEntity,
+        sizeBytes: 2048,
+        status: 'PENDING',
+      });
+
+      const result = await service.completeMultipartUpload(attachmentEntity.id, 'upload-1', [
+        { partNumber: 1, etag: 'etag-1' },
+      ]);
+
+      expect(repository.update).toHaveBeenCalledWith(
+        attachmentEntity.id,
+        expect.objectContaining({ status: 'PENDING', sizeBytes: 2048 }),
+      );
+      expect(processingQueue.enqueue).toHaveBeenCalledWith(attachmentEntity.id);
+      expect(result.sizeBytes).toBe(2048);
     });
   });
 

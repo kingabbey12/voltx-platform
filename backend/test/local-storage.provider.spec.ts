@@ -3,15 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AttachmentUrlSignerService } from '../src/modules/attachments/storage/attachment-url-signer.service';
 import { LocalStorageProvider } from '../src/modules/attachments/storage/local-storage.provider';
-
-function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
-  return new Promise((resolvePromise, reject) => {
-    const chunks: Buffer[] = [];
-    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-    stream.on('end', () => resolvePromise(Buffer.concat(chunks)));
-    stream.on('error', reject);
-  });
-}
+import { streamToBuffer } from '../src/modules/attachments/stream-to-buffer.util';
 
 describe('LocalStorageProvider', () => {
   let rootDir: string;
@@ -85,7 +77,11 @@ describe('LocalStorageProvider', () => {
       Buffer.from('FIRST'),
     );
 
-    await provider.completeMultipartUpload('org-1/big-file.bin', uploadId, [part2, part1]);
+    const result = await provider.completeMultipartUpload('org-1/big-file.bin', uploadId, [
+      part2,
+      part1,
+    ]);
+    expect(result.sizeBytes).toBe('FIRST-SECOND'.length);
 
     const stream = await provider.getReadStream('org-1/big-file.bin');
     const readBack = await streamToBuffer(stream);

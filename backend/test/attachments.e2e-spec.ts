@@ -53,6 +53,10 @@ describe('Attachments (e2e)', () => {
   let usersRepository: UsersRepository;
 
   beforeAll(async () => {
+    // Low enough to make the multipart size-bypass test below fast (no
+    // need to actually upload megabytes), but comfortably above every
+    // other payload this file uploads (the largest is 44 bytes).
+    process.env.ATTACHMENTS_MAX_FILE_SIZE_BYTES = '200';
     app = await createTestApp();
     prisma = app.get(PrismaService);
     usersRepository = app.get(UsersRepository);
@@ -65,6 +69,7 @@ describe('Attachments (e2e)', () => {
   afterAll(async () => {
     await resetAndSeedAuthTestData(prisma);
     await app.close();
+    delete process.env.ATTACHMENTS_MAX_FILE_SIZE_BYTES;
   });
 
   it('uploads a text file, processes it, extracts its content, and streams it back', async () => {
@@ -178,6 +183,49 @@ describe('Attachments (e2e)', () => {
       .set(bearerAuthHeaders(accessToken))
       .expect(200);
     expect(downloadResponse.text).toBe('FIRST-SECOND');
+  });
+
+  it('cannot bypass the max file size limit by uploading more parts than declared at initiate time', async () => {
+    const { accessToken } = await authenticateContext(app, prisma, usersRepository);
+
+    // Declares a small, within-limit size at initiate time...
+    const initiateResponse = await request(app.getHttpServer())
+      .post('/api/v1/attachments/multipart/initiate')
+      .set(bearerAuthHeaders(accessToken))
+      .send({ fileName: 'oversized.txt', mimeType: 'text/plain', sizeBytes: 50 })
+      .expect(201);
+    const { attachmentId, uploadId } = (
+      initiateResponse.body as ApiSuccessResponse<{ attachmentId: string; uploadId: string }>
+    ).data;
+
+    // ...then actually uploads 300 bytes across 3 parts — well over the
+    // 200-byte test limit configured in beforeAll.
+    const oversizedPart = Buffer.alloc(100, 'a');
+    const parts: Array<{ partNumber: number; etag: string }> = [];
+    for (let partNumber = 1; partNumber <= 3; partNumber += 1) {
+      const partResponse = await request(app.getHttpServer())
+        .post(`/api/v1/attachments/multipart/${attachmentId}/parts/${partNumber}`)
+        .query({ uploadId })
+        .set(bearerAuthHeaders(accessToken))
+        .attach('file', oversizedPart, { filename: `part${partNumber}`, contentType: 'text/plain' })
+        .expect(201);
+      parts.push(
+        (partResponse.body as ApiSuccessResponse<{ partNumber: number; etag: string }>).data,
+      );
+    }
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/attachments/multipart/${attachmentId}/complete`)
+      .query({ uploadId })
+      .set(bearerAuthHeaders(accessToken))
+      .send({ parts })
+      .expect(400);
+
+    // Rejected uploads must not linger as orphaned, half-processed rows.
+    await request(app.getHttpServer())
+      .get(`/api/v1/attachments/${attachmentId}`)
+      .set(bearerAuthHeaders(accessToken))
+      .expect(404);
   });
 
   it('links an attachment to a conversation via a reference and lists it back', async () => {

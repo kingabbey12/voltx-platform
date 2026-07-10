@@ -35,7 +35,17 @@ export interface StorageProvider {
     buffer: Buffer,
   ): Promise<StoragePart>;
 
-  completeMultipartUpload(key: string, uploadId: string, parts: StoragePart[]): Promise<void>;
+  /**
+   * Returns the real, assembled object size — callers must treat this as
+   * the source of truth (not whatever size the client claimed at
+   * initiate time) so the max-file-size limit can't be bypassed by
+   * uploading more/larger parts than originally declared.
+   */
+  completeMultipartUpload(
+    key: string,
+    uploadId: string,
+    parts: StoragePart[],
+  ): Promise<{ sizeBytes: number }>;
 
   abortMultipartUpload(key: string, uploadId: string): Promise<void>;
 }

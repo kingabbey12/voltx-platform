@@ -60,15 +60,24 @@ export class AttachmentService {
     const storageKey = buildStorageKey(tenant.organizationId, input.fileName);
     await this.storageProvider.upload(storageKey, input.buffer, input.mimeType);
 
-    const attachment = await this.attachmentRepository.create({
-      fileName: input.fileName,
-      mimeType: input.mimeType,
-      sizeBytes: input.buffer.length,
-      storageProvider: this.storageProvider.name,
-      storageKey,
-      status: 'PENDING',
-      uploadedBy: tenant.userId,
-    });
+    let attachment: AttachmentEntity;
+    try {
+      attachment = await this.attachmentRepository.create({
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        sizeBytes: input.buffer.length,
+        storageProvider: this.storageProvider.name,
+        storageKey,
+        status: 'PENDING',
+        uploadedBy: tenant.userId,
+      });
+    } catch (error) {
+      // The file already landed in storage — if we can't persist its
+      // metadata, don't leave it behind as an orphan with nothing in the
+      // database ever pointing to it.
+      await this.storageProvider.delete(storageKey).catch(() => undefined);
+      throw error;
+    }
 
     await this.auditService.record({
       action: 'attachment.uploaded',
@@ -96,15 +105,24 @@ export class AttachmentService {
     const storageKey = buildStorageKey(tenant.organizationId, fileName);
     const uploadId = await this.storageProvider.initiateMultipartUpload(storageKey, mimeType);
 
-    const attachment = await this.attachmentRepository.create({
-      fileName,
-      mimeType,
-      sizeBytes,
-      storageProvider: this.storageProvider.name,
-      storageKey,
-      status: 'UPLOADING',
-      uploadedBy: tenant.userId,
-    });
+    let attachment: AttachmentEntity;
+    try {
+      attachment = await this.attachmentRepository.create({
+        fileName,
+        mimeType,
+        sizeBytes,
+        storageProvider: this.storageProvider.name,
+        storageKey,
+        status: 'UPLOADING',
+        uploadedBy: tenant.userId,
+      });
+    } catch (error) {
+      // Leaving an incomplete multipart upload behind isn't just an
+      // orphaned-file risk — S3-compatible providers bill for
+      // uncompleted parts until they're aborted.
+      await this.storageProvider.abortMultipartUpload(storageKey, uploadId).catch(() => undefined);
+      throw error;
+    }
 
     return { attachmentId: attachment.id, uploadId, partSizeBytes: MULTIPART_PART_SIZE_BYTES };
   }
@@ -125,8 +143,29 @@ export class AttachmentService {
     parts: Array<{ partNumber: number; etag: string }>,
   ): Promise<AttachmentEntity> {
     const attachment = await this.attachmentRepository.findByIdOrThrow(attachmentId);
-    await this.storageProvider.completeMultipartUpload(attachment.storageKey, uploadId, parts);
-    const updated = await this.attachmentRepository.update(attachmentId, { status: 'PENDING' });
+    const { sizeBytes } = await this.storageProvider.completeMultipartUpload(
+      attachment.storageKey,
+      uploadId,
+      parts,
+    );
+
+    // The client's declared size at initiate-time is untrusted — a
+    // malicious/misbehaving client could initiate with a small size and
+    // then upload far more/larger parts than that, bypassing the max
+    // file size limit entirely. Re-validate against the real, assembled
+    // size and refuse to keep an oversized object around.
+    if (sizeBytes > this.maxFileSizeBytes) {
+      await this.storageProvider.delete(attachment.storageKey);
+      await this.attachmentRepository.softDelete(attachmentId);
+      throw new BadRequestException(
+        `Assembled file (${sizeBytes} bytes) exceeds the maximum allowed size of ${Math.floor(this.maxFileSizeBytes / 1024 / 1024)}MB`,
+      );
+    }
+
+    const updated = await this.attachmentRepository.update(attachmentId, {
+      status: 'PENDING',
+      sizeBytes,
+    });
 
     await this.auditService.record({
       action: 'attachment.uploaded',

@@ -29,6 +29,7 @@ export interface UpdateAttachmentData {
   extractedText?: string | null;
   checksumSha256?: string | null;
   metadata?: Record<string, unknown>;
+  sizeBytes?: number;
 }
 
 export interface FindAttachmentsParams {

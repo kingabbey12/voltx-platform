@@ -101,18 +101,20 @@ export class LocalStorageProvider implements StorageProvider {
     key: string,
     uploadId: string,
     parts: StoragePart[],
-  ): Promise<void> {
+  ): Promise<{ sizeBytes: number }> {
     const dir = this.multipartDir(uploadId);
     const destPath = this.pathFor(key);
     await mkdir(dirname(destPath), { recursive: true });
 
     const sortedParts = [...parts].sort((a, b) => a.partNumber - b.partNumber);
     const destHandle = await open(destPath, 'w');
+    let sizeBytes = 0;
     try {
       for (const part of sortedParts) {
         const partPath = join(dir, String(part.partNumber).padStart(10, '0'));
         const partBuffer = await readFileBuffer(partPath);
         await destHandle.write(partBuffer);
+        sizeBytes += partBuffer.length;
       }
     } finally {
       await destHandle.close();
@@ -123,6 +125,8 @@ export class LocalStorageProvider implements StorageProvider {
         `Failed to clean up multipart scratch dir for upload ${uploadId}: ${String(error)}`,
       );
     });
+
+    return { sizeBytes };
   }
 
   async abortMultipartUpload(_key: string, uploadId: string): Promise<void> {

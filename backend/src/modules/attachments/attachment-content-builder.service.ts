@@ -3,15 +3,7 @@ import { AIContentPart } from '../ai/models/ai-model.types';
 import { AttachmentRepository } from './attachment.repository';
 import { isImageMimeType } from './supported-mime-types';
 import { STORAGE_PROVIDER, StorageProvider } from './storage/storage-provider.interface';
-
-function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
-  return new Promise((resolvePromise, reject) => {
-    const chunks: Buffer[] = [];
-    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-    stream.on('end', () => resolvePromise(Buffer.concat(chunks)));
-    stream.on('error', reject);
-  });
-}
+import { streamToBuffer } from './stream-to-buffer.util';
 
 /**
  * Resolves attachmentIds into AIContentPart[] for an AI request — the seam

@@ -6,6 +6,7 @@ import {
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
@@ -136,7 +137,7 @@ export class S3StorageProvider implements StorageProvider {
     key: string,
     uploadId: string,
     parts: StoragePart[],
-  ): Promise<void> {
+  ): Promise<{ sizeBytes: number }> {
     this.assertConfigured();
     await this.client.send(
       new CompleteMultipartUploadCommand({
@@ -150,6 +151,11 @@ export class S3StorageProvider implements StorageProvider {
         },
       }),
     );
+    // CompleteMultipartUploadCommand's response has no ContentLength — ask
+    // S3 directly for the real, assembled object size rather than trusting
+    // anything the client claimed.
+    const head = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+    return { sizeBytes: head.ContentLength ?? 0 };
   }
 
   async abortMultipartUpload(key: string, uploadId: string): Promise<void> {
