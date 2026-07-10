@@ -48,7 +48,20 @@ export function configureApp(app: INestApplication): void {
       },
     }),
   );
-  app.use(urlencoded({ extended: true, limit: requestBodyLimit, inflate: true }));
+  app.use(
+    urlencoded({
+      extended: true,
+      limit: requestBodyLimit,
+      inflate: true,
+      // Twilio's webhook signature scheme signs the exact raw form body
+      // (see TwilioSignature.verify) — same reasoning as the json()
+      // verify callback above, just for Twilio's form-encoded webhooks
+      // instead of JSON ones.
+      verify: (request, _response, buffer) => {
+        (request as unknown as { rawBody?: Buffer }).rawBody = buffer;
+      },
+    }),
+  );
   app.setGlobalPrefix('api', {
     exclude: [
       { path: 'metrics', method: RequestMethod.GET },

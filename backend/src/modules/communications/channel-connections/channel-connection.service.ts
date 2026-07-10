@@ -27,6 +27,14 @@ export interface CompleteChannelOAuthRequest {
   redirectUri: string;
 }
 
+export interface CreateApiKeyChannelConnectionRequest {
+  channel: string;
+  displayName: string;
+  credential: CommsCredentialValue;
+  externalAccountId?: string;
+  createdBy: string;
+}
+
 @Injectable()
 export class ChannelConnectionService {
   private readonly logger = new Logger(ChannelConnectionService.name);
@@ -116,6 +124,56 @@ export class ChannelConnectionService {
       resource: 'comms_channel_connection',
       resourceId: connection.id,
       metadata: { channel: connection.channel },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Connects a non-OAuth channel (WhatsApp Business Cloud API access
+   * token + phone number id, Twilio Account SID/Auth Token) directly with
+   * caller-supplied credentials — mirrors
+   * IntegrationConnectionService.createApiKeyConnection's shape exactly.
+   */
+  async createApiKeyConnection(
+    request: CreateApiKeyChannelConnectionRequest,
+  ): Promise<CommsChannelConnectionEntity> {
+    const provider = this.channelProviderRegistry.get(request.channel as never);
+    if (provider.authType !== 'API_KEY') {
+      throw new BadRequestException(
+        `Channel "${request.channel}" requires the OAuth2 connect flow`,
+      );
+    }
+
+    const connection = await this.channelConnectionRepository.create({
+      channel: provider.channel,
+      displayName: request.displayName,
+      createdBy: request.createdBy,
+      externalAccountId: request.externalAccountId,
+    });
+
+    await this.channelCredentialRepository.upsert({
+      connectionId: connection.id,
+      encryptedPayload: this.encryptionService.encryptJson(
+        request.credential as unknown as Record<string, unknown>,
+      ),
+      expiresAt: null,
+    });
+
+    const externalAccountId =
+      request.externalAccountId ?? (await provider.resolveAccountIdentity?.(request.credential));
+
+    const updated = await this.channelConnectionRepository.update(connection.id, {
+      status: 'CONNECTED',
+      lastError: null,
+      ...(externalAccountId ? { externalAccountId } : {}),
+    });
+
+    await this.auditService.record({
+      action: 'communications.connection.connected',
+      resource: 'comms_channel_connection',
+      resourceId: connection.id,
+      metadata: { channel: connection.channel, authType: 'API_KEY' },
     });
 
     return updated;

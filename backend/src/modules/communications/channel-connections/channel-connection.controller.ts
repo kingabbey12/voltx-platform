@@ -12,21 +12,27 @@ import { CurrentUser as CurrentUserInterface } from '../../auth/interfaces/curre
 import { Permissions } from '../../permissions/decorators/permissions.decorator';
 import { PermissionGuard } from '../../permissions/guards/permission.guard';
 import { ChannelConnectionService } from './channel-connection.service';
+import { TeamsSubscriptionService } from '../teams/teams-subscription.service';
 import {
   ChannelConnectionResponseDto,
   ChannelConnectionSuccessResponseDto,
   CompleteChannelOAuthDto,
+  CreateApiKeyChannelConnectionDto,
   InitiateChannelOAuthDto,
   InitiateChannelOAuthSuccessResponseDto,
   ListChannelConnectionsQueryDto,
   PaginatedChannelConnectionsSuccessResponseDto,
+  SubscribeTeamsChannelDto,
 } from './dto/channel-connection.dto';
 
 @ApiTags('Communications')
 @ApiBearerAuth('JWT')
 @Controller('communications/connections')
 export class ChannelConnectionController {
-  constructor(private readonly channelConnectionService: ChannelConnectionService) {}
+  constructor(
+    private readonly channelConnectionService: ChannelConnectionService,
+    private readonly teamsSubscriptionService: TeamsSubscriptionService,
+  ) {}
 
   @Post('oauth/initiate')
   @UseGuards(...AUTH_GUARDS, PermissionGuard)
@@ -49,6 +55,27 @@ export class ChannelConnectionController {
   @ApiCreatedResponse({ type: ChannelConnectionSuccessResponseDto })
   async completeOAuth(@Body() dto: CompleteChannelOAuthDto): Promise<ChannelConnectionResponseDto> {
     const connection = await this.channelConnectionService.completeOAuth(dto);
+    return ChannelConnectionResponseDto.fromEntity(connection);
+  }
+
+  @Post('api-key')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('communications.connection.create')
+  @ApiOperation({
+    summary: 'Connect a non-OAuth channel (WhatsApp Business, Twilio SMS/Voice) with credentials',
+  })
+  @ApiCreatedResponse({ type: ChannelConnectionSuccessResponseDto })
+  async createApiKeyConnection(
+    @Body() dto: CreateApiKeyChannelConnectionDto,
+    @CurrentUser() user: CurrentUserInterface,
+  ): Promise<ChannelConnectionResponseDto> {
+    const connection = await this.channelConnectionService.createApiKeyConnection({
+      channel: dto.channel,
+      displayName: dto.displayName,
+      credential: { apiKey: dto.apiKey, extra: dto.extra },
+      externalAccountId: dto.externalAccountId,
+      createdBy: user.id,
+    });
     return ChannelConnectionResponseDto.fromEntity(connection);
   }
 
@@ -87,5 +114,24 @@ export class ChannelConnectionController {
   async disconnect(@Param('id') id: string): Promise<{ disconnected: boolean }> {
     await this.channelConnectionService.disconnect(id);
     return { disconnected: true };
+  }
+
+  @Post(':id/teams/subscribe')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('communications.connection.update')
+  @ApiOperation({
+    summary:
+      'Subscribe a Teams connection to a specific team/channel — required once before any messages from it will appear in the inbox',
+  })
+  async subscribeTeamsChannel(
+    @Param('id') id: string,
+    @Body() dto: SubscribeTeamsChannelDto,
+  ): Promise<{ subscriptionId: string; expiresAt: string }> {
+    const result = await this.teamsSubscriptionService.subscribeToChannel(
+      id,
+      dto.teamId,
+      dto.channelId,
+    );
+    return { subscriptionId: result.subscriptionId, expiresAt: result.expiresAt };
   }
 }

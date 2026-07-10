@@ -29,6 +29,12 @@ interface SlackAuthTestResponse extends SlackApiResponse {
   team?: string;
 }
 
+export interface SlackOutboundAttachment {
+  filename: string;
+  mimeType: string;
+  contentBase64: string;
+}
+
 @Injectable()
 export class SlackConnector implements IntegrationProvider {
   readonly key = 'SLACK' as const;
@@ -60,6 +66,10 @@ export class SlackConnector implements IntegrationProvider {
               required: true,
             },
             text: { type: 'string', description: 'Message text.', required: true },
+            attachments: {
+              type: 'array',
+              description: 'Optional file attachments to share, base64-encoded.',
+            },
           },
         },
       },
@@ -187,6 +197,16 @@ export class SlackConnector implements IntegrationProvider {
     input: Record<string, unknown>,
     context: IntegrationActionContext,
   ): Promise<{ ts: string; channel: string }> {
+    const channel = asString(input.channel, '');
+    const text = asString(input.text, '');
+    const attachments = Array.isArray(input.attachments)
+      ? (input.attachments as SlackOutboundAttachment[])
+      : [];
+
+    if (attachments.length > 0) {
+      return this.postMessageWithFiles(channel, text, attachments, context);
+    }
+
     const result = await requestJson<SlackApiResponse & { ts?: string; channel?: string }>(
       `${SLACK_API_BASE_URL}/chat.postMessage`,
       {
@@ -195,10 +215,7 @@ export class SlackConnector implements IntegrationProvider {
           ...this.authHeaders(context),
           'Content-Type': 'application/json; charset=utf-8',
         },
-        body: JSON.stringify({
-          channel: asString(input.channel, ''),
-          text: asString(input.text, ''),
-        }),
+        body: JSON.stringify({ channel, text }),
       },
       { signal: context.signal },
     );
@@ -211,6 +228,93 @@ export class SlackConnector implements IntegrationProvider {
     }
 
     return { ts: String(result.body.ts), channel: String(result.body.channel) };
+  }
+
+  /**
+   * Slack deprecated the one-call files.upload for newer apps; the
+   * current-generation flow is three calls per file: reserve an upload
+   * URL, PUT the raw bytes to it, then complete/share the upload into the
+   * channel (which also posts it as a message, carrying `initial_comment`
+   * as the message text — so this replaces chat.postMessage entirely
+   * when there are attachments, rather than sending two separate
+   * messages).
+   */
+  private async postMessageWithFiles(
+    channel: string,
+    text: string,
+    attachments: SlackOutboundAttachment[],
+    context: IntegrationActionContext,
+  ): Promise<{ ts: string; channel: string }> {
+    const fileIds: string[] = [];
+
+    for (const attachment of attachments) {
+      const buffer = Buffer.from(attachment.contentBase64, 'base64');
+
+      const reserved = await requestJson<
+        SlackApiResponse & { upload_url?: string; file_id?: string }
+      >(
+        `${SLACK_API_BASE_URL}/files.getUploadURLExternal`,
+        {
+          method: 'POST',
+          headers: {
+            ...this.authHeaders(context),
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            filename: attachment.filename,
+            length: String(buffer.length),
+          }).toString(),
+        },
+        { signal: context.signal },
+      );
+
+      if (!reserved.body.ok || !reserved.body.upload_url || !reserved.body.file_id) {
+        throw new IntegrationProviderError(
+          `Slack files.getUploadURLExternal failed: ${reserved.body.error ?? 'no upload_url returned'}`,
+          'slack_api_error',
+        );
+      }
+
+      const uploadResponse = await fetch(reserved.body.upload_url, {
+        method: 'POST',
+        body: buffer,
+        signal: context.signal,
+      });
+      if (!uploadResponse.ok) {
+        throw new IntegrationProviderError(
+          `Slack file upload failed with status ${uploadResponse.status}`,
+          'slack_api_error',
+        );
+      }
+
+      fileIds.push(reserved.body.file_id);
+    }
+
+    const completed = await requestJson<SlackApiResponse>(
+      `${SLACK_API_BASE_URL}/files.completeUploadExternal`,
+      {
+        method: 'POST',
+        headers: {
+          ...this.authHeaders(context),
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify({
+          files: fileIds.map((id) => ({ id })),
+          channel_id: channel,
+          ...(text ? { initial_comment: text } : {}),
+        }),
+      },
+      { signal: context.signal },
+    );
+
+    if (!completed.body.ok) {
+      throw new IntegrationProviderError(
+        `Slack files.completeUploadExternal failed: ${completed.body.error}`,
+        'slack_api_error',
+      );
+    }
+
+    return { ts: fileIds[0], channel };
   }
 
   private async listChannels(

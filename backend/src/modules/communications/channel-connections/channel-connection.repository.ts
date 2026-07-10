@@ -131,6 +131,33 @@ export class ChannelConnectionRepository {
     return record ? toEntity(record) : null;
   }
 
+  /** Resolves a Teams Graph change-notification back to its connection — the notification payload carries the subscriptionId we stashed in config at subscribe time, the same role team_id plays for Slack. */
+  async findByTeamsSubscriptionIdUnscoped(
+    subscriptionId: string,
+  ): Promise<CommsChannelConnectionEntity | null> {
+    const record = await this.client().findFirst({
+      where: {
+        channel: 'TEAMS',
+        deletedAt: null,
+        config: { path: ['subscriptionId'], equals: subscriptionId },
+      },
+    });
+    return record ? toEntity(record) : null;
+  }
+
+  /** All active Teams connections with a subscription configured — for the renewal sweep. */
+  async listTeamsWithSubscriptionUnscoped(): Promise<CommsChannelConnectionEntity[]> {
+    const records = await this.client().findMany({
+      where: {
+        channel: 'TEAMS',
+        status: 'CONNECTED',
+        deletedAt: null,
+        NOT: { config: { equals: {} } },
+      },
+    });
+    return records.map(toEntity);
+  }
+
   async findAll(
     params: FindCommsChannelConnectionsParams,
   ): Promise<PaginatedCommsChannelConnections> {

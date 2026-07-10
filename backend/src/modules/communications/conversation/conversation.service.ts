@@ -1,5 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
+import { AttachmentService } from '../../attachments/attachment.service';
+import { streamToBuffer } from '../../attachments/stream-to-buffer.util';
+import { OutboundAttachment, ParsedStatusUpdate } from '../channels/channel-provider.interface';
 import { ChannelConnectionRepository } from '../channel-connections/channel-connection.repository';
 import { ChannelConnectionService } from '../channel-connections/channel-connection.service';
 import { ChannelProviderRegistry } from '../channels/channel-provider.registry';
@@ -11,14 +14,18 @@ import {
   PaginatedCommsConversations,
   UpdateCommsConversationData,
 } from './conversation.repository';
+import { CommunicationEventRepository } from './communication-event.repository';
 import { MessageRepository } from './message.repository';
+import { NoteRepository } from './note.repository';
 import { CommsConversationEntity } from './entities/conversation.entity';
 import { CommsMessageEntity } from './entities/message.entity';
+import { CommsNoteEntity } from './entities/note.entity';
 
 export interface SendMessageRequest {
   conversationId: string;
   body: string;
   senderId: string;
+  attachmentIds?: string[];
 }
 
 @Injectable()
@@ -26,9 +33,12 @@ export class ConversationService {
   constructor(
     private readonly conversationRepository: ConversationRepository,
     private readonly messageRepository: MessageRepository,
+    private readonly noteRepository: NoteRepository,
+    private readonly communicationEventRepository: CommunicationEventRepository,
     private readonly channelConnectionRepository: ChannelConnectionRepository,
     private readonly channelConnectionService: ChannelConnectionService,
     private readonly channelProviderRegistry: ChannelProviderRegistry,
+    private readonly attachmentService: AttachmentService,
     private readonly auditService: AuditService,
     private readonly commsGateway: CommsGateway,
   ) {}
@@ -56,6 +66,24 @@ export class ConversationService {
     return this.messageRepository.findByConversation(conversationId, page, limit);
   }
 
+  /** Internal, agent-only commentary — never sent through the channel, never visible to the customer. See CommsNote's schema doc comment. */
+  async addNote(conversationId: string, authorId: string, body: string): Promise<CommsNoteEntity> {
+    await this.getConversationOrThrow(conversationId);
+    const note = await this.noteRepository.create(conversationId, authorId, body);
+    await this.auditService.record({
+      action: 'communications.note.created',
+      resource: 'comms_note',
+      resourceId: note.id,
+      metadata: { conversationId },
+    });
+    return note;
+  }
+
+  async listNotes(conversationId: string): Promise<CommsNoteEntity[]> {
+    await this.getConversationOrThrow(conversationId);
+    return this.noteRepository.findByConversation(conversationId);
+  }
+
   async updateConversation(
     id: string,
     data: UpdateCommsConversationData,
@@ -79,6 +107,10 @@ export class ConversationService {
    * OAuth-backed call in this codebase.
    */
   async sendMessage(request: SendMessageRequest): Promise<CommsMessageEntity> {
+    if (request.body.trim().length === 0 && !request.attachmentIds?.length) {
+      throw new BadRequestException('Message must include text or at least one attachment');
+    }
+
     const conversation = await this.getConversationOrThrow(request.conversationId);
     const connection = await this.channelConnectionRepository.findById(conversation.connectionId);
     if (!connection) {
@@ -97,12 +129,28 @@ export class ConversationService {
       senderId: request.senderId,
     });
 
+    let attachments: OutboundAttachment[] = [];
+    if (request.attachmentIds?.length) {
+      await Promise.all(
+        request.attachmentIds.map((attachmentId) =>
+          this.attachmentService.addReference(attachmentId, 'COMMS_MESSAGE', message.id),
+        ),
+      );
+      attachments = await this.loadAttachmentsForSend(request.attachmentIds);
+    }
+
     try {
       const result = await provider.sendMessage(
         {
           externalThreadId: conversation.externalThreadId ?? undefined,
-          to: '',
+          // externalThreadId doubles as the recipient address for
+          // message-based channels (WhatsApp/Twilio SMS's customer phone
+          // number) — Slack/Teams ignore `to` and use externalThreadId
+          // directly, but WhatsApp/Twilio SMS read `to` as the send target,
+          // so it must carry the same value or a reply goes nowhere.
+          to: conversation.externalThreadId ?? '',
           body: request.body,
+          attachments,
         },
         { organizationId: conversation.organizationId, connectionId: connection.id, credential },
       );
@@ -131,6 +179,24 @@ export class ConversationService {
       });
       throw error;
     }
+  }
+
+  /** Loads the real bytes for each attachment so the channel provider can forward them natively (Gmail MIME part, Slack file share, Graph fileAttachment, etc.) rather than just linking them in our own database. */
+  private async loadAttachmentsForSend(attachmentIds: string[]): Promise<OutboundAttachment[]> {
+    return Promise.all(
+      attachmentIds.map(async (attachmentId) => {
+        const attachment = await this.attachmentService.getById(attachmentId);
+        const { stream } = await this.attachmentService.getReadStreamForDownload(attachmentId);
+        const buffer = await streamToBuffer(stream);
+        const { url } = await this.attachmentService.getSignedDownloadUrl(attachmentId);
+        return {
+          fileName: attachment.fileName,
+          mimeType: attachment.mimeType,
+          buffer,
+          signedUrl: url,
+        };
+      }),
+    );
   }
 
   /**
@@ -180,6 +246,25 @@ export class ConversationService {
       sentAt: parsed.occurredAt,
     });
 
+    if (parsed.attachments?.length) {
+      const connection = await this.channelConnectionRepository.findByIdUnscoped(connectionId);
+      if (connection) {
+        for (const inbound of parsed.attachments) {
+          const attachment = await this.attachmentService.uploadSingleUnscoped(
+            organizationId,
+            connection.createdBy,
+            { fileName: inbound.fileName, mimeType: inbound.mimeType, buffer: inbound.buffer },
+          );
+          await this.attachmentService.addReferenceUnscoped(
+            organizationId,
+            attachment.id,
+            'COMMS_MESSAGE',
+            message.id,
+          );
+        }
+      }
+    }
+
     await this.conversationRepository.update(conversation.id, {
       lastMessageAt: parsed.occurredAt ?? new Date(),
       unread: true,
@@ -188,5 +273,37 @@ export class ConversationService {
     this.commsGateway.emitNewMessage(organizationId, message);
 
     return message;
+  }
+
+  /**
+   * Applies an asynchronous delivery/read/failure status update for a
+   * message we sent (WhatsApp `statuses` webhook entries, Twilio SMS status
+   * callbacks). Idempotent no-op if the externalId doesn't match a known
+   * message — a status for something we didn't send, or one we've already
+   * deleted, is not an error. Runs outside a request's tenant context, same
+   * as ingestInboundMessage.
+   */
+  async ingestStatusUpdate(organizationId: string, update: ParsedStatusUpdate): Promise<void> {
+    const message = await this.messageRepository.findByExternalIdUnscoped(update.externalId);
+    if (!message) return;
+
+    const occurredAt = update.occurredAt ?? new Date();
+    const updated = await this.messageRepository.update(message.id, {
+      status: update.status,
+      ...(update.status === 'DELIVERED' ? { deliveredAt: occurredAt } : {}),
+      ...(update.status === 'READ' ? { readAt: occurredAt } : {}),
+      ...(update.status === 'FAILED' ? { failedReason: 'Channel reported delivery failure' } : {}),
+    });
+
+    if (update.status === 'DELIVERED' || update.status === 'READ') {
+      await this.communicationEventRepository.createUnscoped(organizationId, {
+        conversationId: message.conversationId,
+        messageId: message.id,
+        type: update.status,
+        occurredAt,
+      });
+    }
+
+    this.commsGateway.emitMessageStatus(organizationId, updated);
   }
 }

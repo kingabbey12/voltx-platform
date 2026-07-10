@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { ChannelConnectionRepository } from '../channel-connections/channel-connection.repository';
+import { ChannelConnectionService } from '../channel-connections/channel-connection.service';
 import { ChannelProviderRegistry } from '../channels/channel-provider.registry';
 import { ConversationService } from '../conversation/conversation.service';
 
@@ -27,6 +28,7 @@ export class SlackWebhookController {
     private readonly configService: ConfigService,
     private readonly channelProviderRegistry: ChannelProviderRegistry,
     private readonly channelConnectionRepository: ChannelConnectionRepository,
+    private readonly channelConnectionService: ChannelConnectionService,
     private readonly conversationService: ConversationService,
   ) {}
 
@@ -70,7 +72,12 @@ export class SlackWebhookController {
       );
 
     if (connection && provider.parseInboundWebhook) {
-      const messages = provider.parseInboundWebhook(headers, rawBody);
+      const credential = await this.channelConnectionService.getValidCredential(connection);
+      const messages = await provider.parseInboundWebhook(headers, rawBody, {
+        organizationId: connection.organizationId,
+        connectionId: connection.id,
+        credential,
+      });
       for (const message of messages) {
         await this.conversationService.ingestInboundMessage(
           connection.organizationId,

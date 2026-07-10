@@ -1654,6 +1654,7 @@ model CommsConversation {
   contact          SalesContact?                @relation(fields: [contactId], references: [id], onDelete: SetNull)
   participants     CommsParticipant[]
   messages         CommsMessage[]
+  notes            CommsNote[]
   calls            CommsCall[]
   events           CommunicationEvent[]
   labelLinks       CommsConversationLabelLink[]
@@ -1713,7 +1714,6 @@ model CommsMessage {
   failedReason   String?               @map("failed_reason")
   createdAt      DateTime              @default(now()) @map("created_at")
   conversation   CommsConversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  attachments    CommsAttachment[]
   reactions      MessageReaction[]
 
   @@index([organizationId])
@@ -1725,20 +1725,24 @@ model CommsMessage {
   @@map("comms_messages")
 }
 
-model CommsAttachment {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  messageId      String       @map("message_id") @db.Uuid
-  fileName       String       @map("file_name")
-  mimeType       String?      @map("mime_type")
-  sizeBytes      Int?         @map("size_bytes")
-  storageUrl     String       @map("storage_url")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  message        CommsMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+/// Internal, agent-only commentary on a conversation — never sent through
+/// the channel, never visible to the customer. Kept as its own model
+/// rather than a flag on CommsMessage so the message table stays a pure,
+/// append-only record of real channel traffic (send/receive), matching
+/// its existing "immutable once created" doc comment above.
+model CommsNote {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  conversationId String            @map("conversation_id") @db.Uuid
+  authorId       String            @map("author_id") @db.Uuid
+  body           String            @db.Text
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  conversation   CommsConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
-  @@index([messageId])
-  @@map("comms_attachments")
+  @@index([conversationId])
+  @@map("comms_notes")
 }
 
 model CommsCall {

@@ -143,6 +143,13 @@ export default () => ({
         clientSecret: process.env.MICROSOFT_OAUTH_CLIENT_SECRET ?? '',
         tenantId: process.env.MICROSOFT_OAUTH_TENANT_ID ?? 'common',
       },
+      whatsapp: {
+        // One Meta App's secret covers every connected WhatsApp Business
+        // phone number — unlike Twilio, where each connection signs
+        // webhooks with its own Auth Token.
+        appSecret: process.env.WHATSAPP_APP_SECRET ?? '',
+        webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ?? '',
+      },
       github: {
         clientId: process.env.GITHUB_OAUTH_CLIENT_ID ?? '',
         clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET ?? '',

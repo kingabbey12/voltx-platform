@@ -56,9 +56,17 @@ export class AttachmentRepository {
 
   async create(data: CreateAttachmentData): Promise<AttachmentEntity> {
     const tenant = this.tenantContextService.getOrThrow();
+    return this.createUnscoped(tenant.organizationId, data);
+  }
+
+  /** For background/webhook contexts (e.g. ingesting a channel-message attachment) that have no HTTP-request tenant context to read organizationId from. */
+  async createUnscoped(
+    organizationId: string,
+    data: CreateAttachmentData,
+  ): Promise<AttachmentEntity> {
     const record = await this.prisma.system.attachment.create({
       data: {
-        organizationId: tenant.organizationId,
+        organizationId,
         fileName: data.fileName,
         mimeType: data.mimeType,
         sizeBytes: data.sizeBytes,
@@ -174,13 +182,28 @@ export class AttachmentRepository {
     referenceId: string,
   ): Promise<AttachmentReferenceEntity> {
     const tenant = this.tenantContextService.getOrThrow();
+    return this.addReferenceUnscoped(
+      tenant.organizationId,
+      attachmentId,
+      referenceType,
+      referenceId,
+    );
+  }
+
+  /** For background/webhook contexts — see createUnscoped. */
+  async addReferenceUnscoped(
+    organizationId: string,
+    attachmentId: string,
+    referenceType: AttachmentReferenceType,
+    referenceId: string,
+  ): Promise<AttachmentReferenceEntity> {
     const record = await this.prisma.system.attachmentReference.upsert({
       where: {
         attachmentId_referenceType_referenceId: { attachmentId, referenceType, referenceId },
       },
       create: {
         attachmentId,
-        organizationId: tenant.organizationId,
+        organizationId,
         referenceType,
         referenceId,
       },

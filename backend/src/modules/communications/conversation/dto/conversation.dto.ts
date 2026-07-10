@@ -1,9 +1,20 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsInt,
+  IsString,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ApiSuccessResponseDto } from '../../../../common/dto/api-response.dto';
 import { CommsConversationEntity } from '../entities/conversation.entity';
 import { CommsMessageEntity } from '../entities/message.entity';
+import { CommsNoteEntity } from '../entities/note.entity';
 
 const STATUS_KEYS = ['OPEN', 'PINNED', 'ARCHIVED'] as const;
 const PRIORITY_KEYS = ['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const;
@@ -33,6 +44,19 @@ export class UpdateConversationDto {
 }
 
 export class SendMessageDto {
+  @ApiProperty()
+  @IsString()
+  body!: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  attachmentIds?: string[];
+}
+
+export class CreateNoteDto {
   @ApiProperty()
   @IsString()
   @MinLength(1)
@@ -91,6 +115,24 @@ export class MessageResponseDto {
   }
 }
 
+export class NoteResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() conversationId!: string;
+  @ApiProperty() authorId!: string;
+  @ApiProperty() body!: string;
+  @ApiProperty() createdAt!: string;
+
+  static fromEntity(entity: CommsNoteEntity): NoteResponseDto {
+    const dto = new NoteResponseDto();
+    dto.id = entity.id;
+    dto.conversationId = entity.conversationId;
+    dto.authorId = entity.authorId;
+    dto.body = entity.body;
+    dto.createdAt = entity.createdAt.toISOString();
+    return dto;
+  }
+}
+
 export class PaginatedConversationsResponseDto {
   @ApiProperty({ type: [ConversationResponseDto] }) items!: ConversationResponseDto[];
   @ApiProperty() total!: number;
@@ -108,3 +150,5 @@ export class ConversationSuccessResponseDto extends ApiSuccessResponseDto<Conver
 export class PaginatedConversationsSuccessResponseDto extends ApiSuccessResponseDto<PaginatedConversationsResponseDto> {}
 export class MessageSuccessResponseDto extends ApiSuccessResponseDto<MessageResponseDto> {}
 export class PaginatedMessagesSuccessResponseDto extends ApiSuccessResponseDto<PaginatedMessagesResponseDto> {}
+export class NoteSuccessResponseDto extends ApiSuccessResponseDto<NoteResponseDto> {}
+export class NotesListSuccessResponseDto extends ApiSuccessResponseDto<NoteResponseDto[]> {}

@@ -40,6 +40,17 @@ export class CommsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server!: Server;
   private readonly logger = new Logger(CommsGateway.name);
 
+  // Presence is per-instance, in-memory state — correct for a single
+  // backend instance (this codebase's REDIS_ENABLED-gated pattern is used
+  // for durability of jobs, not for cross-instance fan-out of ephemeral
+  // socket state like this). A user can have multiple sockets open
+  // (multiple tabs/devices), so track a connection count per user rather
+  // than a boolean, and only fire online/offline when that count crosses
+  // zero.
+  private readonly onlineUserConnectionCounts = new Map<string, Map<string, number>>();
+  // conversationId -> userIds currently viewing it.
+  private readonly conversationViewers = new Map<string, Set<string>>();
+
   constructor(private readonly jwtService: JwtService) {}
 
   handleConnection(client: AuthenticatedSocket): void {
@@ -59,13 +70,19 @@ export class CommsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.data.userId = payload.sub;
       void client.join(`org:${payload.org}`);
       void client.join(`user:${payload.sub}`);
+      this.markOnline(payload.org, payload.sub);
+      client.emit('presence:list', { userIds: this.onlineUsersIn(payload.org) });
     } catch {
       client.disconnect(true);
     }
   }
 
-  handleDisconnect(): void {
-    // Socket.IO cleans up room membership automatically on disconnect.
+  handleDisconnect(client: AuthenticatedSocket): void {
+    const { organizationId, userId } = client.data;
+    if (organizationId && userId) {
+      this.markOffline(organizationId, userId);
+      this.leaveAllViewedConversations(organizationId, userId);
+    }
   }
 
   @SubscribeMessage('conversation:typing')
@@ -78,6 +95,80 @@ export class CommsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       conversationId: data.conversationId,
       userId: client.data.userId,
     });
+  }
+
+  /** A user opened a conversation thread — broadcasts the updated viewer list for that conversation to the rest of the org. */
+  @SubscribeMessage('conversation:view')
+  handleView(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { conversationId: string },
+  ): void {
+    const { organizationId, userId } = client.data;
+    if (!organizationId || !userId) return;
+
+    const viewers = this.conversationViewers.get(data.conversationId) ?? new Set<string>();
+    viewers.add(userId);
+    this.conversationViewers.set(data.conversationId, viewers);
+    this.emitToOrg(organizationId, 'conversation:viewers', {
+      conversationId: data.conversationId,
+      userIds: Array.from(viewers),
+    });
+  }
+
+  /** A user navigated away from a conversation thread. */
+  @SubscribeMessage('conversation:leave-view')
+  handleLeaveView(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { conversationId: string },
+  ): void {
+    const { organizationId, userId } = client.data;
+    if (!organizationId || !userId) return;
+    this.removeViewer(organizationId, data.conversationId, userId);
+  }
+
+  private markOnline(organizationId: string, userId: string): void {
+    const counts = this.onlineUserConnectionCounts.get(organizationId) ?? new Map<string, number>();
+    const previous = counts.get(userId) ?? 0;
+    counts.set(userId, previous + 1);
+    this.onlineUserConnectionCounts.set(organizationId, counts);
+
+    if (previous === 0) {
+      this.emitToOrg(organizationId, 'presence:online', { userId });
+    }
+  }
+
+  private markOffline(organizationId: string, userId: string): void {
+    const counts = this.onlineUserConnectionCounts.get(organizationId);
+    if (!counts) return;
+    const previous = counts.get(userId) ?? 0;
+    const next = Math.max(0, previous - 1);
+
+    if (next === 0) {
+      counts.delete(userId);
+      this.emitToOrg(organizationId, 'presence:offline', { userId });
+    } else {
+      counts.set(userId, next);
+    }
+  }
+
+  private onlineUsersIn(organizationId: string): string[] {
+    return Array.from(this.onlineUserConnectionCounts.get(organizationId)?.keys() ?? []);
+  }
+
+  private removeViewer(organizationId: string, conversationId: string, userId: string): void {
+    const viewers = this.conversationViewers.get(conversationId);
+    if (!viewers?.has(userId)) return;
+    viewers.delete(userId);
+    this.emitToOrg(organizationId, 'conversation:viewers', {
+      conversationId,
+      userIds: Array.from(viewers),
+    });
+  }
+
+  private leaveAllViewedConversations(organizationId: string, userId: string): void {
+    for (const conversationId of this.conversationViewers.keys()) {
+      this.removeViewer(organizationId, conversationId, userId);
+    }
   }
 
   private emitToOrg(organizationId: string, event: string, payload: unknown): void {

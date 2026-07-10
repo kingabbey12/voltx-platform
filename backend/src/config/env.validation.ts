@@ -366,6 +366,14 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  WHATSAPP_APP_SECRET?: string;
+
+  @IsOptional()
+  @IsString()
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN?: string;
+
+  @IsOptional()
+  @IsString()
   GITHUB_OAUTH_CLIENT_ID?: string;
 
   @IsOptional()

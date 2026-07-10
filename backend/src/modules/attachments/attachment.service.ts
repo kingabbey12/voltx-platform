@@ -54,22 +54,37 @@ export class AttachmentService {
   }
 
   async uploadSingle(input: UploadFileInput): Promise<AttachmentEntity> {
-    this.assertValid(input.mimeType, input.buffer.length);
     const tenant = this.tenantContextService.getOrThrow();
+    return this.uploadSingleUnscoped(tenant.organizationId, tenant.userId, input);
+  }
 
-    const storageKey = buildStorageKey(tenant.organizationId, input.fileName);
+  /**
+   * For background/webhook contexts (e.g. ingesting an attachment that
+   * arrived on an inbound Slack/WhatsApp/email message) that have no
+   * HTTP-request tenant context — takes organizationId/uploaderId
+   * explicitly instead, mirroring the *Unscoped naming convention already
+   * used by the communications module's repositories for the same reason.
+   */
+  async uploadSingleUnscoped(
+    organizationId: string,
+    uploaderId: string,
+    input: UploadFileInput,
+  ): Promise<AttachmentEntity> {
+    this.assertValid(input.mimeType, input.buffer.length);
+
+    const storageKey = buildStorageKey(organizationId, input.fileName);
     await this.storageProvider.upload(storageKey, input.buffer, input.mimeType);
 
     let attachment: AttachmentEntity;
     try {
-      attachment = await this.attachmentRepository.create({
+      attachment = await this.attachmentRepository.createUnscoped(organizationId, {
         fileName: input.fileName,
         mimeType: input.mimeType,
         sizeBytes: input.buffer.length,
         storageProvider: this.storageProvider.name,
         storageKey,
         status: 'PENDING',
-        uploadedBy: tenant.userId,
+        uploadedBy: uploaderId,
       });
     } catch (error) {
       // The file already landed in storage — if we can't persist its
@@ -79,7 +94,11 @@ export class AttachmentService {
       throw error;
     }
 
-    await this.auditService.record({
+    // No HTTP-request tenant context here, so record with an explicit
+    // actor rather than the tenant-context-reading record().
+    await this.auditService.recordWithExplicitActor({
+      organizationId,
+      userId: uploaderId,
       action: 'attachment.uploaded',
       resource: 'attachment',
       resourceId: attachment.id,
@@ -234,6 +253,21 @@ export class AttachmentService {
       resourceId: id,
       metadata: { referenceType, referenceId },
     });
+  }
+
+  /** For background/webhook contexts — see uploadSingleUnscoped. */
+  async addReferenceUnscoped(
+    organizationId: string,
+    id: string,
+    referenceType: AttachmentReferenceType,
+    referenceId: string,
+  ): Promise<void> {
+    await this.attachmentRepository.addReferenceUnscoped(
+      organizationId,
+      id,
+      referenceType,
+      referenceId,
+    );
   }
 
   async listByReference(params: FindAttachmentsParams): Promise<PaginatedAttachments> {

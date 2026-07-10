@@ -4,9 +4,11 @@ import { EncryptionService } from '../../security/encryption.service';
 import { requestJson } from '../../provider/integration-http-client.util';
 import { asString } from '../../provider/input-coercion.util';
 import { microsoftOAuthConfig } from '../../provider/oauth-provider-configs';
+import { resolveMicrosoftAccountIdentity } from '../microsoft/microsoft-account-identity.util';
 import {
   IntegrationActionContext,
   IntegrationActionDescriptor,
+  IntegrationCredentialValue,
   IntegrationHealthResult,
   IntegrationParsedEvent,
   IntegrationProvider,
@@ -14,6 +16,21 @@ import {
 } from '../../provider/integration-provider.types';
 
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
+// Graph's max lifetime for a chatMessage change subscription is 60 minutes;
+// renewed well before that by CommsTeamsSubscriptionService's sweep.
+const SUBSCRIPTION_LIFETIME_MS = 55 * 60_000;
+
+export interface TeamsChannelMessage {
+  id: string;
+  body?: { content?: string };
+  from?: { user?: { displayName?: string; id?: string } };
+  createdDateTime?: string;
+}
+
+export interface TeamsSubscription {
+  id: string;
+  expirationDateTime: string;
+}
 
 @Injectable()
 export class MicrosoftTeamsConnector implements IntegrationProvider {
@@ -61,6 +78,10 @@ export class MicrosoftTeamsConnector implements IntegrationProvider {
       throw new IntegrationProviderError(`Unknown Teams action "${actionName}"`, 'unknown_action');
     }
     return this.postMessage(input, context);
+  }
+
+  resolveAccountIdentity(credential: IntegrationCredentialValue): Promise<string | undefined> {
+    return resolveMicrosoftAccountIdentity(credential);
   }
 
   async checkHealth(context: IntegrationActionContext): Promise<IntegrationHealthResult> {
@@ -113,6 +134,87 @@ export class MicrosoftTeamsConnector implements IntegrationProvider {
         metadata: { resource: notification.resource },
       },
     }));
+  }
+
+  /**
+   * Graph's chatMessage change notifications are "lightweight" — they
+   * carry only a resource reference, not the message content — so the
+   * comms channel provider calls this to fetch the real text after a
+   * webhook fires, using the same credential the notification's
+   * connection owns.
+   */
+  async getMessage(
+    teamId: string,
+    channelId: string,
+    messageId: string,
+    context: IntegrationActionContext,
+  ): Promise<TeamsChannelMessage> {
+    const result = await requestJson<TeamsChannelMessage>(
+      `${GRAPH_BASE_URL}/teams/${teamId}/channels/${channelId}/messages/${messageId}`,
+      { headers: this.authHeaders(context) },
+      { signal: context.signal },
+    );
+    return result.body;
+  }
+
+  /**
+   * Registers for change notifications on a specific channel's messages —
+   * required before Graph will ever call our webhook at all; there is no
+   * "subscribe to everything" option. `clientState` round-trips back on
+   * every notification and is what verifyWebhookSignature checks.
+   */
+  async createSubscription(
+    teamId: string,
+    channelId: string,
+    notificationUrl: string,
+    clientState: string,
+    context: IntegrationActionContext,
+  ): Promise<TeamsSubscription> {
+    const result = await requestJson<TeamsSubscription>(
+      `${GRAPH_BASE_URL}/subscriptions`,
+      {
+        method: 'POST',
+        headers: { ...this.authHeaders(context), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          changeType: 'created',
+          notificationUrl,
+          resource: `/teams/${teamId}/channels/${channelId}/messages`,
+          expirationDateTime: new Date(Date.now() + SUBSCRIPTION_LIFETIME_MS).toISOString(),
+          clientState,
+        }),
+      },
+      { signal: context.signal },
+    );
+    return result.body;
+  }
+
+  async renewSubscription(
+    subscriptionId: string,
+    context: IntegrationActionContext,
+  ): Promise<TeamsSubscription> {
+    const result = await requestJson<TeamsSubscription>(
+      `${GRAPH_BASE_URL}/subscriptions/${subscriptionId}`,
+      {
+        method: 'PATCH',
+        headers: { ...this.authHeaders(context), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expirationDateTime: new Date(Date.now() + SUBSCRIPTION_LIFETIME_MS).toISOString(),
+        }),
+      },
+      { signal: context.signal },
+    );
+    return result.body;
+  }
+
+  async deleteSubscription(
+    subscriptionId: string,
+    context: IntegrationActionContext,
+  ): Promise<void> {
+    await requestJson(
+      `${GRAPH_BASE_URL}/subscriptions/${subscriptionId}`,
+      { method: 'DELETE', headers: this.authHeaders(context) },
+      { signal: context.signal },
+    );
   }
 
   private async postMessage(

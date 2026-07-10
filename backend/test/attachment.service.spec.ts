@@ -49,11 +49,13 @@ describe('AttachmentService', () => {
           provide: AttachmentRepository,
           useValue: {
             create: jest.fn(),
+            createUnscoped: jest.fn(),
             findById: jest.fn(),
             findByIdOrThrow: jest.fn(),
             update: jest.fn(),
             softDelete: jest.fn(),
             addReference: jest.fn(),
+            addReferenceUnscoped: jest.fn(),
             findByReference: jest.fn(),
           },
         },
@@ -81,7 +83,7 @@ describe('AttachmentService', () => {
         },
         {
           provide: AuditService,
-          useValue: { record: jest.fn() },
+          useValue: { record: jest.fn(), recordWithExplicitActor: jest.fn() },
         },
         {
           provide: ConfigService,
@@ -106,7 +108,7 @@ describe('AttachmentService', () => {
 
   describe('uploadSingle', () => {
     it('uploads to storage, persists metadata, and enqueues processing', async () => {
-      repository.create.mockResolvedValue(attachmentEntity);
+      repository.createUnscoped.mockResolvedValue(attachmentEntity);
 
       const result = await service.uploadSingle({
         fileName: 'report.pdf',
@@ -119,7 +121,8 @@ describe('AttachmentService', () => {
         expect.any(Buffer),
         'application/pdf',
       );
-      expect(repository.create).toHaveBeenCalledWith(
+      expect(repository.createUnscoped).toHaveBeenCalledWith(
+        'org-1',
         expect.objectContaining({ fileName: 'report.pdf', status: 'PENDING' }),
       );
       expect(processingQueue.enqueue).toHaveBeenCalledWith(attachmentEntity.id);
@@ -127,7 +130,7 @@ describe('AttachmentService', () => {
     });
 
     it('deletes the just-uploaded storage object if persisting metadata fails, so it is not orphaned', async () => {
-      repository.create.mockRejectedValue(new Error('database unavailable'));
+      repository.createUnscoped.mockRejectedValue(new Error('database unavailable'));
 
       await expect(
         service.uploadSingle({
@@ -151,7 +154,7 @@ describe('AttachmentService', () => {
       ).rejects.toThrow(BadRequestException);
 
       expect(storageProvider.upload).not.toHaveBeenCalled();
-      expect(repository.create).not.toHaveBeenCalled();
+      expect(repository.createUnscoped).not.toHaveBeenCalled();
     });
 
     it('rejects a file over the configured size limit', async () => {
@@ -162,7 +165,10 @@ describe('AttachmentService', () => {
           { provide: STORAGE_PROVIDER, useValue: storageProvider },
           { provide: AttachmentProcessingQueueService, useValue: processingQueue },
           { provide: TenantContextService, useValue: tenantContextService },
-          { provide: AuditService, useValue: { record: jest.fn() } },
+          {
+            provide: AuditService,
+            useValue: { record: jest.fn(), recordWithExplicitActor: jest.fn() },
+          },
           { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(10) } },
         ],
       }).compile();

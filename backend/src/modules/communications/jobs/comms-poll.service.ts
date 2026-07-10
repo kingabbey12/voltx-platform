@@ -12,16 +12,18 @@ import { AiProcessQueueService } from './ai-process-queue.service';
 const POLL_SWEEP_INTERVAL_MS = 2 * 60_000;
 
 /**
- * Background sweep for polling-only channels (Gmail — no simple webhook
- * without a separate GCP Pub/Sub setup). Mirrors
- * IntegrationPollerService's sweep exactly: each connection's poll runs
- * in its own bootstrapped tenant context (no HTTP request to inherit
- * context from in a timer callback), and one connection's failure never
- * stops the sweep from continuing to the next.
+ * Background sweep for every polling-only channel (Gmail, Outlook — no
+ * simple webhook without a separate push-notification setup for either).
+ * Genuinely channel-agnostic: it iterates whichever registered providers
+ * report supportsPolling, so a new polling channel needs no changes here.
+ * Mirrors IntegrationPollerService's sweep exactly: each connection's
+ * poll runs in its own bootstrapped tenant context (no HTTP request to
+ * inherit context from in a timer callback), and one connection's failure
+ * never stops the sweep from continuing to the next.
  */
 @Injectable()
-export class GmailPollService {
-  private readonly logger = new Logger(GmailPollService.name);
+export class CommsPollService {
+  private readonly logger = new Logger(CommsPollService.name);
 
   constructor(
     private readonly channelConnectionRepository: ChannelConnectionRepository,

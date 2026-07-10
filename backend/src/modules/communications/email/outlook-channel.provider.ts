@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GoogleGmailConnector } from '../../integrations/connectors/google/google-gmail.connector';
+import { MicrosoftOutlookConnector } from '../../integrations/connectors/microsoft/microsoft-outlook.connector';
 import { IntegrationActionContext } from '../../integrations/provider/integration-provider.types';
 import {
   ChannelActionContext,
@@ -11,32 +11,33 @@ import {
 } from '../channels/channel-provider.interface';
 
 /**
- * Real Gmail channel — delegates every API call to the existing
- * GoogleGmailConnector (send_message, poll, resolveAccountIdentity) rather
- * than re-implementing the Gmail API surface. No simple webhook without a
- * separate GCP Pub/Sub setup, so inbound mail is polling-based — this
- * class only translates between the message-shaped ChannelProvider
- * contract and GoogleGmailConnector's tool-action-shaped
- * IntegrationProvider contract.
+ * Real Outlook channel — delegates every API call to the existing
+ * MicrosoftOutlookConnector (search/read/send via Microsoft Graph) rather
+ * than re-implementing the Graph API surface. Mirrors GmailChannelProvider
+ * exactly: polling-based inbound (no simple webhook without a Graph
+ * subscription + a public HTTPS endpoint), this class only translates
+ * between the message-shaped ChannelProvider contract and
+ * MicrosoftOutlookConnector's tool-action-shaped IntegrationProvider
+ * contract.
  */
 @Injectable()
-export class GmailChannelProvider implements ChannelProvider {
-  readonly channel = 'GMAIL' as const;
-  readonly displayName = 'Gmail';
+export class OutlookChannelProvider implements ChannelProvider {
+  readonly channel = 'OUTLOOK' as const;
+  readonly displayName = 'Outlook';
   readonly authType = 'OAUTH2' as const;
   readonly supportsWebhooks = false;
   readonly supportsPolling = true;
   readonly oauthConfig;
 
-  constructor(private readonly gmailConnector: GoogleGmailConnector) {
-    this.oauthConfig = this.gmailConnector.oauthConfig;
+  constructor(private readonly outlookConnector: MicrosoftOutlookConnector) {
+    this.oauthConfig = this.outlookConnector.oauthConfig;
   }
 
   async sendMessage(
     input: OutboundMessageInput,
     context: ChannelActionContext,
   ): Promise<OutboundMessageResult> {
-    const result = (await this.gmailConnector.executeAction(
+    await this.outlookConnector.executeAction(
       'send_message',
       {
         to: input.to,
@@ -49,20 +50,23 @@ export class GmailChannelProvider implements ChannelProvider {
         })),
       },
       toIntegrationContext(context),
-    )) as { id: string };
+    );
 
-    return { externalId: result.id, status: 'SENT' };
+    // Graph's sendMail returns no body (202 Accepted, fire-and-forget) —
+    // unlike Gmail/Slack there is no id to correlate a later delivery
+    // receipt against, so externalId is synthesized from the send time.
+    return { externalId: `outlook-${Date.now()}`, status: 'SENT' };
   }
 
   async poll(
     context: ChannelActionContext,
     cursor?: string,
   ): Promise<{ messages: ParsedInboundMessage[]; nextCursor?: string }> {
-    if (!this.gmailConnector.poll) {
+    if (!this.outlookConnector.poll) {
       return { messages: [] };
     }
 
-    const result = await this.gmailConnector.poll(toIntegrationContext(context), cursor);
+    const result = await this.outlookConnector.poll(toIntegrationContext(context), cursor);
     const messages = result.events
       .filter((event) => event.type === 'EMAIL_RECEIVED')
       .map((event): ParsedInboundMessage => {
@@ -70,13 +74,13 @@ export class GmailChannelProvider implements ChannelProvider {
           id: string;
           subject: string;
           from: string;
-          snippet?: string;
+          preview?: string;
         };
         return {
           externalId: event.externalId ?? payload.id,
           fromAddress: payload.from,
           subject: payload.subject,
-          body: payload.snippet ?? '',
+          body: payload.preview ?? '',
           occurredAt: event.occurredAt,
         };
       });
@@ -85,10 +89,10 @@ export class GmailChannelProvider implements ChannelProvider {
   }
 
   resolveAccountIdentity(credential: CommsCredentialValue): Promise<string | undefined> {
-    if (!this.gmailConnector.resolveAccountIdentity) {
+    if (!this.outlookConnector.resolveAccountIdentity) {
       return Promise.resolve(undefined);
     }
-    return this.gmailConnector.resolveAccountIdentity(credential);
+    return this.outlookConnector.resolveAccountIdentity(credential);
   }
 }
 

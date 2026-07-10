@@ -15,9 +15,13 @@ import { ConversationService } from './conversation.service';
 import {
   ConversationResponseDto,
   ConversationSuccessResponseDto,
+  CreateNoteDto,
   ListConversationsQueryDto,
   MessageResponseDto,
   MessageSuccessResponseDto,
+  NoteResponseDto,
+  NoteSuccessResponseDto,
+  NotesListSuccessResponseDto,
   PaginatedConversationsSuccessResponseDto,
   PaginatedMessagesSuccessResponseDto,
   SendMessageDto,
@@ -107,7 +111,32 @@ export class ConversationController {
       conversationId: id,
       body: dto.body,
       senderId: user.id,
+      attachmentIds: dto.attachmentIds,
     });
     return MessageResponseDto.fromEntity(message);
+  }
+
+  @Get(':id/notes')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('communications.conversation.read')
+  @ApiOperation({ summary: 'List internal, agent-only notes on a conversation' })
+  @ApiOkResponse({ type: NotesListSuccessResponseDto })
+  async listNotes(@Param('id') id: string): Promise<NoteResponseDto[]> {
+    const notes = await this.conversationService.listNotes(id);
+    return notes.map((note) => NoteResponseDto.fromEntity(note));
+  }
+
+  @Post(':id/notes')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('communications.note.create')
+  @ApiOperation({ summary: 'Add an internal, agent-only note — never sent through the channel' })
+  @ApiCreatedResponse({ type: NoteSuccessResponseDto })
+  async addNote(
+    @Param('id') id: string,
+    @Body() dto: CreateNoteDto,
+    @CurrentUser() user: CurrentUserInterface,
+  ): Promise<NoteResponseDto> {
+    const note = await this.conversationService.addNote(id, user.id, dto.body);
+    return NoteResponseDto.fromEntity(note);
   }
 }

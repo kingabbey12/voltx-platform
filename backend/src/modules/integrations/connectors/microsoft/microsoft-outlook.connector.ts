@@ -3,9 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { requestJson } from '../../provider/integration-http-client.util';
 import { asString } from '../../provider/input-coercion.util';
 import { microsoftOAuthConfig } from '../../provider/oauth-provider-configs';
+import { resolveMicrosoftAccountIdentity } from './microsoft-account-identity.util';
 import {
   IntegrationActionContext,
   IntegrationActionDescriptor,
+  IntegrationCredentialValue,
   IntegrationHealthResult,
   IntegrationParsedEvent,
   IntegrationPollResult,
@@ -27,6 +29,12 @@ interface OutlookMessageListResponse {
   value?: OutlookMessage[];
 }
 
+export interface OutlookOutboundAttachment {
+  filename: string;
+  mimeType: string;
+  contentBase64: string;
+}
+
 @Injectable()
 export class MicrosoftOutlookConnector implements IntegrationProvider {
   readonly key = 'MICROSOFT_OUTLOOK' as const;
@@ -38,6 +46,10 @@ export class MicrosoftOutlookConnector implements IntegrationProvider {
 
   constructor(private readonly configService: ConfigService) {
     this.oauthConfig = microsoftOAuthConfig(configService, ['Mail.Read', 'Mail.Send']);
+  }
+
+  resolveAccountIdentity(credential: IntegrationCredentialValue): Promise<string | undefined> {
+    return resolveMicrosoftAccountIdentity(credential);
   }
 
   listActions(): IntegrationActionDescriptor[] {
@@ -72,6 +84,10 @@ export class MicrosoftOutlookConnector implements IntegrationProvider {
             to: { type: 'string', description: 'Recipient email address.', required: true },
             subject: { type: 'string', description: 'Email subject.', required: true },
             body: { type: 'string', description: 'Plain-text email body.', required: true },
+            attachments: {
+              type: 'array',
+              description: 'Optional file attachments, base64-encoded.',
+            },
           },
         },
       },
@@ -171,6 +187,10 @@ export class MicrosoftOutlookConnector implements IntegrationProvider {
     input: Record<string, unknown>,
     context: IntegrationActionContext,
   ): Promise<{ sent: boolean }> {
+    const attachments = Array.isArray(input.attachments)
+      ? (input.attachments as OutlookOutboundAttachment[])
+      : [];
+
     await requestJson(
       `${GRAPH_BASE_URL}/sendMail`,
       {
@@ -181,6 +201,19 @@ export class MicrosoftOutlookConnector implements IntegrationProvider {
             subject: asString(input.subject, ''),
             body: { contentType: 'Text', content: asString(input.body, '') },
             toRecipients: [{ emailAddress: { address: asString(input.to, '') } }],
+            // Inline (contentBytes) attachments — Graph's simplest attachment
+            // mechanism, suitable up to sendMail's ~3MB request-size limit;
+            // larger attachments would need a createUploadSession flow instead.
+            ...(attachments.length > 0
+              ? {
+                  attachments: attachments.map((attachment) => ({
+                    '@odata.type': '#microsoft.graph.fileAttachment',
+                    name: attachment.filename,
+                    contentType: attachment.mimeType,
+                    contentBytes: attachment.contentBase64,
+                  })),
+                }
+              : {}),
           },
         }),
       },

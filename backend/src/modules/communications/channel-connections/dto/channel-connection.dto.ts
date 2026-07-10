@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsObject, IsOptional, IsString, Min, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ApiSuccessResponseDto } from '../../../../common/dto/api-response.dto';
 import { CommsChannelConnectionEntity } from '../entities/channel-connection.entity';
@@ -13,6 +13,8 @@ const CHANNEL_KEYS = [
   'SLACK',
   'TEAMS',
 ] as const;
+
+const API_KEY_CHANNEL_KEYS = ['WHATSAPP', 'TWILIO_VOICE', 'TWILIO_SMS'] as const;
 
 export class InitiateChannelOAuthDto {
   @ApiProperty({ enum: CHANNEL_KEYS })
@@ -41,6 +43,50 @@ export class CompleteChannelOAuthDto {
   @ApiProperty()
   @IsString()
   redirectUri!: string;
+}
+
+export class CreateApiKeyChannelConnectionDto {
+  @ApiProperty({ enum: API_KEY_CHANNEL_KEYS })
+  @IsIn(API_KEY_CHANNEL_KEYS)
+  channel!: string;
+
+  @ApiProperty({ example: 'Support WhatsApp' })
+  @IsString()
+  @MinLength(1)
+  displayName!: string;
+
+  @ApiProperty({
+    description:
+      'WhatsApp Cloud API permanent access token, or Twilio Auth Token — the secret credential value.',
+  })
+  @IsString()
+  @MinLength(1)
+  apiKey!: string;
+
+  @ApiPropertyOptional({ example: '+15551234567', description: 'The connected phone number' })
+  @IsOptional()
+  @IsString()
+  externalAccountId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Additional non-secret identifiers the channel needs, e.g. {"phoneNumberId": "...", "businessAccountId": "..."} for WhatsApp, or {"accountSid": "AC..."} for Twilio.',
+  })
+  @IsOptional()
+  @IsObject()
+  extra?: Record<string, string>;
+}
+
+export class SubscribeTeamsChannelDto {
+  @ApiProperty({ description: 'Microsoft Teams team id' })
+  @IsString()
+  @MinLength(1)
+  teamId!: string;
+
+  @ApiProperty({ description: 'Channel id within the team' })
+  @IsString()
+  @MinLength(1)
+  channelId!: string;
 }
 
 export class ListChannelConnectionsQueryDto {

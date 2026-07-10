@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import { IntegrationProviderError } from '../../provider/integration-provider.types';
 import { requestJson } from '../../provider/integration-http-client.util';
 import { asString } from '../../provider/input-coercion.util';
@@ -81,6 +82,10 @@ export class GoogleGmailConnector implements IntegrationProvider {
             to: { type: 'string', description: 'Recipient email address.', required: true },
             subject: { type: 'string', description: 'Email subject.', required: true },
             body: { type: 'string', description: 'Plain-text email body.', required: true },
+            attachments: {
+              type: 'array',
+              description: 'Optional file attachments, base64-encoded.',
+            },
           },
         },
       },
@@ -205,9 +210,10 @@ export class GoogleGmailConnector implements IntegrationProvider {
     const to = asString(input.to, '');
     const subject = asString(input.subject, '');
     const body = asString(input.body, '');
-    const raw = base64UrlEncode(
-      `To: ${to}\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset="UTF-8"\r\n\r\n${body}`,
-    );
+    const attachments = Array.isArray(input.attachments)
+      ? (input.attachments as GmailOutboundAttachment[])
+      : [];
+    const raw = base64UrlEncode(buildRfc822Message(to, subject, body, attachments));
 
     const result = await requestJson<{ id: string }>(
       `${GMAIL_BASE_URL}/messages/send`,
@@ -256,4 +262,55 @@ function base64UrlEncode(value: string): string {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/u, '');
+}
+
+export interface GmailOutboundAttachment {
+  filename: string;
+  mimeType: string;
+  contentBase64: string;
+}
+
+/**
+ * Builds a raw RFC 822 message for the Gmail API's messages.send `raw`
+ * field. Plain text/HTML-only messages stay a single text/plain part
+ * (unchanged from before attachments existed); attaching one or more
+ * files switches to a multipart/mixed body, one part per attachment,
+ * each base64-encoded — the only encoding multipart/mixed permits for
+ * arbitrary binary content.
+ */
+function buildRfc822Message(
+  to: string,
+  subject: string,
+  body: string,
+  attachments: GmailOutboundAttachment[],
+): string {
+  if (attachments.length === 0) {
+    return `To: ${to}\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset="UTF-8"\r\n\r\n${body}`;
+  }
+
+  const boundary = `voltx_${randomUUID()}`;
+  const lines = [
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    '',
+    body,
+  ];
+
+  for (const attachment of attachments) {
+    lines.push(
+      `--${boundary}`,
+      `Content-Type: ${attachment.mimeType}; name="${attachment.filename}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${attachment.filename}"`,
+      '',
+      attachment.contentBase64,
+    );
+  }
+
+  lines.push(`--${boundary}--`);
+  return lines.join('\r\n');
 }

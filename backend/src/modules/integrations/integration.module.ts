@@ -99,6 +99,8 @@ const CONNECTORS = [
     EncryptionService,
     GoogleGmailConnector,
     SlackConnector,
+    MicrosoftOutlookConnector,
+    MicrosoftTeamsConnector,
   ],
 })
 export class IntegrationModule {}

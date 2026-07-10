@@ -23,6 +23,7 @@ import {
 export class SlackChannelProvider implements ChannelProvider {
   readonly channel = 'SLACK' as const;
   readonly displayName = 'Slack';
+  readonly authType = 'OAUTH2' as const;
   readonly supportsWebhooks = true;
   readonly supportsPolling = false;
   readonly oauthConfig;
@@ -37,7 +38,15 @@ export class SlackChannelProvider implements ChannelProvider {
   ): Promise<OutboundMessageResult> {
     const result = (await this.slackConnector.executeAction(
       'post_message',
-      { channel: input.to || input.externalThreadId, text: input.body },
+      {
+        channel: input.to || input.externalThreadId,
+        text: input.body,
+        attachments: input.attachments?.map((attachment) => ({
+          filename: attachment.fileName,
+          mimeType: attachment.mimeType,
+          contentBase64: attachment.buffer.toString('base64'),
+        })),
+      },
       toIntegrationContext(context),
     )) as { ts: string; channel: string };
 
@@ -58,7 +67,11 @@ export class SlackChannelProvider implements ChannelProvider {
     return this.slackConnector.verifyWebhookSignature(headers, rawBody, secret);
   }
 
-  parseInboundWebhook(headers: Record<string, string>, rawBody: string): ParsedInboundMessage[] {
+  // eslint-disable-next-line @typescript-eslint/require-await -- async for ChannelProvider interface parity; Slack's payload is self-contained, no authenticated follow-up needed.
+  async parseInboundWebhook(
+    headers: Record<string, string>,
+    rawBody: string,
+  ): Promise<ParsedInboundMessage[]> {
     if (!this.slackConnector.parseWebhookPayload) {
       return [];
     }
