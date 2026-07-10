@@ -29,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import Link from "next/link";
 import { useConversations, useCreateConversation } from "@/hooks/use-ai";
 import { useRunCommand } from "@/hooks/use-operator";
 import { useOperatorStore, type CommandTurn } from "@/lib/stores/operator-store";
@@ -304,6 +305,21 @@ function TurnCard({ turn }: { turn: CommandTurn }) {
 
         {turn.status === "error" && (
           <p className="text-xs text-destructive">{turn.error ?? "Something went wrong."}</p>
+        )}
+
+        {turn.status === "waiting_approval" && (
+          <div className="flex flex-col gap-1.5 rounded-lg border border-warning/30 bg-warning/10 px-2.5 py-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-warning">
+              <ShieldAlert className="h-3.5 w-3.5" />
+              Waiting on your approval to continue
+            </div>
+            <Link
+              href="/ai/operator"
+              className="text-xs font-medium text-primary underline underline-offset-2"
+            >
+              Review in AI Operator
+            </Link>
+          </div>
         )}
       </div>
     </div>

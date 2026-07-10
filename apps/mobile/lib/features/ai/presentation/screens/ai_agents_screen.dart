@@ -3,6 +3,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../theme/tokens/spacing.dart';
+import '../../data/models/ai_models.dart';
 import '../providers/ai_providers.dart';
 import '../shell/ai_nav_bar.dart';
 import '../widgets/ai_workspace_components.dart';
@@ -43,17 +44,20 @@ class AiAgentsScreen extends ConsumerWidget {
                 for (final agent in agents)
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: AiAgentCard(
-                      agent: agent,
-                      selected: agent.id == selected.id,
-                      onTap: () => ref.read(selectedAgentProvider.notifier).state = agent,
-                      status: agent.id == selected.id ? 'Active' : 'Idle',
-                      memoryUsage: agent.id == selected.id ? '72%' : '39%',
-                      toolCount: agent.id == selected.id ? 8 : 5,
-                      recentActivity: agent.id == selected.id
-                          ? 'Processed executive brief 1m ago'
-                          : 'Awaiting activation',
-                      onRun: () => ref.read(selectedAgentProvider.notifier).state = agent,
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final stats = ref.watch(agentStatsProvider(agent.id)).valueOrNull;
+                        return AiAgentCard(
+                          agent: agent,
+                          selected: agent.id == selected.id,
+                          onTap: () => ref.read(selectedAgentProvider.notifier).state = agent,
+                          status: agent.id == selected.id ? 'Selected' : 'Available',
+                          secondaryLabel: _successRateLabel(stats),
+                          toolCount: stats?.toolCount ?? 0,
+                          recentActivity: _recentActivityLabel(stats),
+                          onRun: () => ref.read(selectedAgentProvider.notifier).state = agent,
+                        );
+                      },
                     ),
                   ),
             ],
@@ -62,4 +66,32 @@ class AiAgentsScreen extends ConsumerWidget {
       ],
     );
   }
+}
+
+String _successRateLabel(AgentStats? stats) {
+  if (stats == null || stats.totalRunCount == 0) {
+    return 'No runs yet';
+  }
+  final rate = stats.successRate;
+  if (rate == null) {
+    return 'No runs yet';
+  }
+  return '${(rate * 100).round()}% success';
+}
+
+String _recentActivityLabel(AgentStats? stats) {
+  if (stats == null || stats.totalRunCount == 0) {
+    return 'Awaiting first run';
+  }
+  final lastRunAt = stats.lastRunAt;
+  if (lastRunAt == null) {
+    return '${stats.totalRunCount} run${stats.totalRunCount == 1 ? '' : 's'} total';
+  }
+  final diff = DateTime.now().difference(lastRunAt);
+  final time = diff.inMinutes < 60
+      ? '${diff.inMinutes}m ago'
+      : diff.inHours < 24
+          ? '${diff.inHours}h ago'
+          : '${diff.inDays}d ago';
+  return 'Last run $time';
 }

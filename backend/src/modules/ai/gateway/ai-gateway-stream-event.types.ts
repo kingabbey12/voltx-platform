@@ -42,4 +42,5 @@ export type AiGatewayStreamEvent =
   | { type: 'plan'; objective: string; steps: string[] }
   | { type: 'step_started'; stepNumber: number }
   | { type: 'decision'; stepNumber: number; decision: AiAgentDecisionKind; toolName?: string }
-  | { type: 'next_step'; stepNumber: number };
+  | { type: 'next_step'; stepNumber: number }
+  | { type: 'run_paused_for_approval'; approvalId: string; toolName: string };

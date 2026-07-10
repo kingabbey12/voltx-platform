@@ -176,6 +176,53 @@ export class AttachmentRepository {
     };
   }
 
+  /**
+   * Full-text-ish search across an org's ready attachments by filename or
+   * extracted content — what the AI attachments tool source needs to let
+   * an agent find a document by name/topic rather than by id, which is
+   * the only lookup findByReference/findById support today.
+   */
+  async search(params: {
+    query?: string;
+    page: number;
+    limit: number;
+  }): Promise<PaginatedAttachments> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const skip = (params.page - 1) * params.limit;
+
+    const where: Prisma.AttachmentWhereInput = {
+      organizationId: tenant.organizationId,
+      deletedAt: null,
+      status: 'READY',
+      ...(params.query
+        ? {
+            OR: [
+              { fileName: { contains: params.query, mode: 'insensitive' } },
+              { extractedText: { contains: params.query, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
+    const [records, total] = await Promise.all([
+      this.prisma.system.attachment.findMany({
+        where,
+        skip,
+        take: params.limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.system.attachment.count({ where }),
+    ]);
+
+    return {
+      items: records.map(toEntity),
+      total,
+      page: params.page,
+      limit: params.limit,
+      totalPages: Math.max(1, Math.ceil(total / params.limit)),
+    };
+  }
+
   async addReference(
     attachmentId: string,
     referenceType: AttachmentReferenceType,

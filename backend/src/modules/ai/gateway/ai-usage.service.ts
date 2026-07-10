@@ -96,4 +96,32 @@ export class AiUsageService {
       return { callCount: 0, totalTokens: 0, totalCostUsd: 0, totalDurationMs: 0 };
     }
   }
+
+  /** Never throws: see summarizeForAgentRun. */
+  async summarizeForOrganization(
+    organizationId: string,
+    sinceMs: number,
+  ): Promise<AgentRunUsageSummary> {
+    try {
+      return await this.usageRepository.summarizeForOrganization(organizationId, sinceMs);
+    } catch (error) {
+      this.logger.error({ err: error, organizationId }, 'Failed to summarize AI usage');
+      return { callCount: 0, totalTokens: 0, totalCostUsd: 0, totalDurationMs: 0 };
+    }
+  }
+
+  /** Never throws: see summarizeForAgentRun. */
+  async summarizeByAgent(
+    organizationId: string,
+    sinceMs: number,
+  ): Promise<
+    Array<{ agentId: string | null; callCount: number; totalTokens: number; totalCostUsd: number }>
+  > {
+    try {
+      return await this.usageRepository.summarizeByAgent(organizationId, sinceMs);
+    } catch (error) {
+      this.logger.error({ err: error, organizationId }, 'Failed to summarize AI usage by agent');
+      return [];
+    }
+  }
 }

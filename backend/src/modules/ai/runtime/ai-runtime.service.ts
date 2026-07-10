@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AttachmentContentBuilderService } from '../../attachments/attachment-content-builder.service';
 import { ModelRegistryService } from '../models/model-registry.service';
@@ -25,6 +25,7 @@ export class AIRuntimeService {
     @Inject(AI_PROVIDERS) private readonly providers: AIProvider[],
     private readonly modelRegistryService: ModelRegistryService,
     private readonly promptBuilderService: PromptBuilderService,
+    @Inject(forwardRef(() => MemoryService))
     private readonly memoryService: MemoryService,
     private readonly toolService: ToolService,
     private readonly configService: ConfigService,

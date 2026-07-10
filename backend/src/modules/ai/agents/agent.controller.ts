@@ -34,6 +34,8 @@ import { RunAutonomousAgentDto } from './dto/autonomous-agent.dto';
 import {
   AgentRunResponseDto,
   AgentRunSuccessResponseDto,
+  AgentStatsResponseDto,
+  AgentStatsSuccessResponseDto,
   AgentSuccessResponseDto,
   AgentsSuccessResponseDto,
   CreateAgentDto,
@@ -90,6 +92,16 @@ export class AgentController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
   remove(@Param('id', ParseUUIDPipe) id: string): Promise<AgentResponseDto> {
     return this.agentService.deleteAgent(id);
+  }
+
+  @Get(':id/stats')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('ai.agent.read')
+  @ApiOperation({ summary: 'Get real usage stats for an AI agent (tool count, runs, last run)' })
+  @ApiOkResponse({ type: AgentStatsSuccessResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
+  getStats(@Param('id', ParseUUIDPipe) id: string): Promise<AgentStatsResponseDto> {
+    return this.agentService.getAgentStats(id);
   }
 
   @Post(':id/run')

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voltx_mobile/features/ai/data/catalog/ai_static_catalog.dart';
 import 'package:voltx_mobile/features/ai/data/mock/mock_ai_data.dart';
+import 'package:voltx_mobile/features/ai/data/models/ai_models.dart';
 import 'package:voltx_mobile/features/ai/presentation/providers/ai_providers.dart';
 
 void main() {
@@ -70,6 +71,37 @@ void main() {
       final agent = MockAiData.agents[1];
       container.read(selectedAgentProvider.notifier).state = agent;
       expect(container.read(selectedAgentProvider).id, agent.id);
+    });
+  });
+
+  group('AI Operator dashboard providers (no-binding fallback path)', () {
+    test('agentStatsProvider resolves to null without a live backend', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final stats = await container.read(agentStatsProvider('agent-1').future);
+      expect(stats, isNull);
+    });
+
+    test('dashboard tasks/activity/suggestions default to empty, not fabricated data', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final tasks = container.read(aiDashboardTasksProvider);
+      expect(tasks, isA<AsyncData<AiTasksSummary>>());
+      tasks.whenData((summary) {
+        expect(summary.pendingApprovals, isEmpty);
+        expect(summary.inProgressRuns, isEmpty);
+      });
+
+      final activity = await container.read(aiDashboardActivityProvider.future);
+      expect(activity, isEmpty);
+
+      final performance = await container.read(aiDashboardPerformanceProvider.future);
+      expect(performance, isNull);
+
+      final suggestions = container.read(aiDashboardSuggestionsProvider);
+      expect(suggestions, isEmpty);
     });
   });
 }

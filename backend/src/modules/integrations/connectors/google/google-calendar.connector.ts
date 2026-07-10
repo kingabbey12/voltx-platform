@@ -81,6 +81,7 @@ export class GoogleCalendarConnector implements IntegrationProvider {
             },
           },
         },
+        mutates: false,
       },
     ];
   }

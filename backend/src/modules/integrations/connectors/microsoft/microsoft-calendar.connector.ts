@@ -70,6 +70,7 @@ export class MicrosoftCalendarConnector implements IntegrationProvider {
             },
           },
         },
+        mutates: false,
       },
     ];
   }

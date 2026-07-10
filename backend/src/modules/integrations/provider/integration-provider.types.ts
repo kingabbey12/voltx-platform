@@ -57,6 +57,15 @@ export interface IntegrationActionDescriptor {
       }
     >;
   };
+  /**
+   * Whether this action creates/changes external state, vs. only reading
+   * it. Defaults to `true` (mutating) when absent — the safer default for
+   * an unclassified action. Drives which RBAC permission
+   * AiToolPermissionService requires for the auto-generated AI tool
+   * (`integration.read` when `false`, `integration.create` otherwise) when
+   * a tool has no explicit entry in TOOL_PERMISSION_REQUIREMENTS.
+   */
+  mutates?: boolean;
 }
 
 export interface IntegrationActionContext {

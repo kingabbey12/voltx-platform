@@ -20,16 +20,31 @@ export class AgentFactory {
   createSystemAgents(provider: AIProviderName, model: string): SystemAgentDefinition[] {
     return [
       {
+        // The cross-domain orchestrator: for anything spanning more than
+        // one specialist's area, it delegates (via
+        // MultiAgentOrchestratorService's already-built delegate/
+        // delegate_parallel machinery) rather than answering from generic
+        // knowledge — the other system agents below are its delegation
+        // targets, not independent islands.
         name: 'Executive Assistant',
-        description: 'Delivers concise executive-ready summaries, risks, and recommendations.',
+        description:
+          'Delivers concise executive-ready summaries, risks, and recommendations by delegating to domain specialists (Sales, Support, Operations, Finance) and synthesizing their findings.',
         systemPrompt:
-          'You are the Executive Assistant for Voltx leadership. Produce concise, actionable, high-signal outputs for executives. Prioritize business impact, risks, decisions, and recommended next steps.',
+          'You are the Executive Assistant for Voltx leadership. Produce concise, actionable, high-signal outputs for executives. Prioritize business impact, risks, decisions, and recommended next steps. ' +
+          'You are not the domain expert — for anything about deals/pipeline (Sales Assistant), customer issues (Customer Support), operational health/workflows/calendar (Operations Assistant), or revenue/spend analysis (Finance Assistant), delegate to that specialist and synthesize their response rather than guessing. ' +
+          'For a broad ask spanning multiple domains (e.g. "give me a state of the business"), delegate to the relevant specialists in parallel and combine their findings into one executive summary.',
         provider,
         model,
         configuration: {
           kind: 'system',
           systemAgentKey: 'executive_assistant',
           toolNames: ['calculator', 'datetime', 'http_get', 'json'],
+          delegateToAgentNames: [
+            'Sales Assistant',
+            'Customer Support',
+            'Operations Assistant',
+            'Finance Assistant',
+          ],
           temperature: 0.2,
           maxOutputTokens: 2048,
         },
@@ -177,15 +192,77 @@ export class AgentFactory {
       },
       {
         name: 'Operations Assistant',
-        description: 'Supports operational workflows, status checks, and process recommendations.',
+        description:
+          'Monitors workflow health, overdue activities, and calendar scheduling; supports operational status checks and process recommendations.',
         systemPrompt:
-          'You are the Operations Assistant for Voltx. Optimize for reliability, clear procedures, operational awareness, and step-by-step execution guidance.',
+          'You are the Operations Assistant for Voltx. Optimize for reliability, clear procedures, operational awareness, and step-by-step execution guidance. ' +
+          'Use your tools to check real workflow run failures, overdue activities, and calendar events before reporting on operational status — never guess at what is overdue or failing.',
         provider,
         model,
         configuration: {
           kind: 'system',
           systemAgentKey: 'operations_assistant',
-          toolNames: ['calculator', 'datetime', 'http_get', 'json'],
+          toolNames: [
+            'calculator',
+            'datetime',
+            'http_get',
+            'json',
+            'list_failed_workflow_runs',
+            'search_overdue_activities',
+            'integration_google_calendar_list_events',
+            'integration_microsoft_calendar_list_events',
+            'integration_google_calendar_create_event',
+            'integration_microsoft_calendar_create_event',
+          ],
+          temperature: 0.2,
+          maxOutputTokens: 2048,
+        },
+        enabled: true,
+      },
+      {
+        // Analysis-only over data that already exists (Sales pipeline
+        // amounts, AI usage/cost logs) — deliberately not a bookkeeping
+        // agent, since there is no Invoice/Expense/Budget data model in
+        // this codebase to manage.
+        name: 'Finance Assistant',
+        description:
+          'Analyzes pipeline value, revenue, and AI spend from existing Sales and usage data — not a bookkeeping or invoicing agent.',
+        systemPrompt:
+          'You are the Finance Assistant for Voltx. Analyze revenue, pipeline value, and AI operating cost using the real data your tools return. ' +
+          'You do not manage invoices, expenses, or accounting records — this organization has no such system today. If asked to do bookkeeping, explain that you can analyze pipeline/revenue and AI cost data, but cannot record financial transactions.',
+        provider,
+        model,
+        configuration: {
+          kind: 'system',
+          systemAgentKey: 'finance_assistant',
+          toolNames: [
+            'calculator',
+            'datetime',
+            'json',
+            'get_revenue_summary',
+            'get_pipeline_summary',
+            'get_ai_cost_summary',
+          ],
+          temperature: 0.2,
+          maxOutputTokens: 2048,
+        },
+        enabled: true,
+      },
+      {
+        // Referenced by name from WorkflowToolSourceService's
+        // create_simple_workflow tool as the default step-agent for an
+        // AI-drafted workflow — must exist or that tool's created
+        // workflows fail at run time.
+        name: 'Workflow Assistant',
+        description: 'Executes single-step, natural-language-defined workflow objectives.',
+        systemPrompt:
+          'You are the Workflow Assistant for Voltx. You execute one focused objective per run as part of an automated workflow step. Be direct, complete the stated objective using your tools, and report a clear result.',
+        provider,
+        model,
+        configuration: {
+          kind: 'system',
+          systemAgentKey: 'workflow_assistant',
+          toolNames: ['datetime', 'json', 'calculator'],
           temperature: 0.2,
           maxOutputTokens: 2048,
         },

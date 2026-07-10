@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { TenantContextService } from '../src/common/tenant/tenant-context.service';
+import { AgentApprovalService } from '../src/modules/ai/approvals/agent-approval.service';
 import { AIGatewayService } from '../src/modules/ai/gateway/ai-gateway.service';
 import { AiRateLimiterService } from '../src/modules/ai/gateway/ai-rate-limiter.service';
 import { AiToolPermissionService } from '../src/modules/ai/gateway/ai-tool-permission.service';
@@ -8,6 +9,7 @@ import { AiUsageService } from '../src/modules/ai/gateway/ai-usage.service';
 import { KnowledgeRetrieverService } from '../src/modules/ai/gateway/knowledge-retriever.service';
 import { AIStreamEvent } from '../src/modules/ai/models/ai-model.types';
 import { AIRuntimeService } from '../src/modules/ai/runtime/ai-runtime.service';
+import { ToolRegistry } from '../src/modules/ai/tools/tool.registry';
 
 describe('AIGatewayService', () => {
   let service: AIGatewayService;
@@ -18,6 +20,7 @@ describe('AIGatewayService', () => {
   let rateLimiterService: jest.Mocked<AiRateLimiterService>;
   let toolPermissionService: jest.Mocked<AiToolPermissionService>;
   let knowledgeRetrieverService: jest.Mocked<KnowledgeRetrieverService>;
+  let agentApprovalService: jest.Mocked<AgentApprovalService>;
 
   const tenant = {
     organizationId: 'org-1',
@@ -81,6 +84,23 @@ describe('AIGatewayService', () => {
             retrieve: jest.fn().mockResolvedValue([]),
           },
         },
+        {
+          provide: AgentApprovalService,
+          useValue: {
+            findOrCreatePending: jest.fn(),
+          },
+        },
+        {
+          provide: ToolRegistry,
+          useValue: {
+            get: jest.fn().mockImplementation((name: string) => ({
+              name,
+              description: 'test tool',
+              inputSchema: { type: 'object', properties: {} },
+              execute: () => Promise.resolve(undefined),
+            })),
+          },
+        },
       ],
     }).compile();
 
@@ -92,6 +112,7 @@ describe('AIGatewayService', () => {
     rateLimiterService = module.get(AiRateLimiterService);
     toolPermissionService = module.get(AiToolPermissionService);
     knowledgeRetrieverService = module.get(KnowledgeRetrieverService);
+    agentApprovalService = module.get(AgentApprovalService);
   });
 
   describe('streamChat', () => {
@@ -311,6 +332,117 @@ describe('AIGatewayService', () => {
       ).rejects.toThrow('missing permission');
 
       expect(aiRuntimeService.executeTool).not.toHaveBeenCalled();
+    });
+
+    it('pauses on a mutating tool call within an agent run instead of executing it', async () => {
+      agentApprovalService.findOrCreatePending.mockResolvedValue({
+        id: 'approval-1',
+        organizationId: 'org-1',
+        agentRunId: 'run-1',
+        toolName: 'create_task',
+        input: { subject: 'Follow up' },
+        status: 'PENDING',
+        approverUserId: null,
+        comment: null,
+        expiresAt: null,
+        decidedAt: null,
+        createdAt: new Date(),
+      });
+
+      await expect(
+        service.executeTool(
+          {
+            conversationId: 'conversation-1',
+            toolName: 'create_task',
+            input: { subject: 'Follow up' },
+          },
+          {
+            agentId: 'agent-1',
+            agentRunId: 'run-1',
+            grantedPermissions: ['sales.activity.create'],
+          },
+        ),
+      ).rejects.toThrow(/requires approval/);
+
+      expect(agentApprovalService.findOrCreatePending).toHaveBeenCalledWith(
+        'run-1',
+        'create_task',
+        { subject: 'Follow up' },
+      );
+      expect(aiRuntimeService.executeTool).not.toHaveBeenCalled();
+    });
+
+    it('does not gate a tool call with no agentRunId (a direct, non-agent-run request)', async () => {
+      aiRuntimeService.executeTool.mockResolvedValue({
+        execution: {
+          id: 'execution-2',
+          conversationId: 'conversation-1',
+          toolName: 'create_task',
+          input: {},
+          output: {},
+          status: 'SUCCEEDED',
+          startedAt: new Date(),
+          completedAt: new Date(),
+          durationMs: 5,
+          error: null,
+          createdAt: new Date(),
+        },
+        result: { toolName: 'create_task', content: '{}' },
+        message: {
+          id: 'message-2',
+          conversationId: 'conversation-1',
+          role: 'tool',
+          content: '{}',
+          metadata: {},
+          tokenUsage: {},
+          createdAt: new Date().toISOString(),
+        },
+      });
+
+      await service.executeTool({
+        conversationId: 'conversation-1',
+        toolName: 'create_task',
+        input: {},
+      });
+
+      expect(agentApprovalService.findOrCreatePending).not.toHaveBeenCalled();
+      expect(aiRuntimeService.executeTool).toHaveBeenCalled();
+    });
+
+    it('bypasses the approval gate when skipApprovalCheck is set (resuming an approved action)', async () => {
+      aiRuntimeService.executeTool.mockResolvedValue({
+        execution: {
+          id: 'execution-3',
+          conversationId: 'conversation-1',
+          toolName: 'create_task',
+          input: {},
+          output: {},
+          status: 'SUCCEEDED',
+          startedAt: new Date(),
+          completedAt: new Date(),
+          durationMs: 5,
+          error: null,
+          createdAt: new Date(),
+        },
+        result: { toolName: 'create_task', content: '{}' },
+        message: {
+          id: 'message-3',
+          conversationId: 'conversation-1',
+          role: 'tool',
+          content: '{}',
+          metadata: {},
+          tokenUsage: {},
+          createdAt: new Date().toISOString(),
+        },
+      });
+
+      await service.executeTool(
+        { conversationId: 'conversation-1', toolName: 'create_task', input: {} },
+        { agentId: 'agent-1', agentRunId: 'run-1', skipApprovalCheck: true },
+      );
+
+      expect(agentApprovalService.findOrCreatePending).not.toHaveBeenCalled();
+      expect(aiRuntimeService.executeTool).toHaveBeenCalled();
     });
   });
 });

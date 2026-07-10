@@ -1,4 +1,4 @@
-export type AgentRunStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'TIMED_OUT';
+export type AgentRunStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'TIMED_OUT' | 'WAITING_APPROVAL';
 
 export interface AgentRunEntity {
   id: string;

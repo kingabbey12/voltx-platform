@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { TenantContextService } from '../src/common/tenant/tenant-context.service';
+import { AIGatewayService } from '../src/modules/ai/gateway/ai-gateway.service';
 import { MemoryRepository } from '../src/modules/ai/memory/memory.repository';
 import { MemorySelector } from '../src/modules/ai/memory/memory.selector';
 import { MemoryService } from '../src/modules/ai/memory/memory.service';
@@ -25,6 +26,7 @@ describe('MemoryService', () => {
             conversationExists: jest.fn(),
             countActiveMemories: jest.fn().mockResolvedValue(1),
             listPrunableMemories: jest.fn().mockResolvedValue([]),
+            saveEmbedding: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -43,6 +45,12 @@ describe('MemoryService', () => {
           provide: AuditService,
           useValue: {
             record: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: AIGatewayService,
+          useValue: {
+            embeddings: jest.fn().mockResolvedValue({ vectors: [[0.1, 0.2, 0.3]] }),
           },
         },
       ],

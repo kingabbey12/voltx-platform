@@ -140,11 +140,17 @@ interface AgentRunClient {
     };
   }): Promise<AgentRunRecord>;
   update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<AgentRunRecord>;
-  findFirst(args: { where: Record<string, unknown> }): Promise<AgentRunRecord | null>;
+  findFirst(args: {
+    where: Record<string, unknown>;
+    orderBy?: Array<Record<string, 'asc' | 'desc'>>;
+  }): Promise<AgentRunRecord | null>;
   findMany(args: {
     where: Record<string, unknown>;
     orderBy?: Array<Record<string, 'asc' | 'desc'>>;
+    skip?: number;
+    take?: number;
   }): Promise<AgentRunRecord[]>;
+  count(args: { where: Record<string, unknown> }): Promise<number>;
 }
 
 @Injectable()
@@ -177,6 +183,12 @@ export class AgentRepository {
       },
     });
 
+    return record ? toAgentEntity(record) : null;
+  }
+
+  /** Bypasses tenant scoping — for background contexts (e.g. resuming a run after an approval decision) that resolve tenant context from the run/conversation rather than an HTTP request. */
+  async findAgentByIdUnscoped(id: string): Promise<AgentEntity | null> {
+    const record = await this.agents().findFirst({ where: { id, deletedAt: null } });
     return record ? toAgentEntity(record) : null;
   }
 
@@ -289,6 +301,12 @@ export class AgentRepository {
     return record ? toAgentRunEntity(record) : null;
   }
 
+  /** Bypasses tenant scoping — see findAgentByIdUnscoped. */
+  async findRunByIdUnscoped(id: string): Promise<AgentRunEntity | null> {
+    const record = await this.agentRuns().findFirst({ where: { id } });
+    return record ? toAgentRunEntity(record) : null;
+  }
+
   async listChildRuns(parentRunId: string): Promise<AgentRunEntity[]> {
     const records = await this.agentRuns().findMany({
       where: { parentRunId },
@@ -296,6 +314,55 @@ export class AgentRepository {
     });
 
     return records.map(toAgentRunEntity);
+  }
+
+  async getAgentRunStats(agentId: string): Promise<{
+    totalRunCount: number;
+    succeededRunCount: number;
+    lastRunAt: Date | null;
+  }> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const scope = { agentId, agent: { organizationId: tenant.organizationId } };
+
+    const [totalRunCount, succeededRunCount, lastRun] = await Promise.all([
+      this.agentRuns().count({ where: scope }),
+      this.agentRuns().count({ where: { ...scope, status: 'SUCCEEDED' } }),
+      this.agentRuns().findFirst({
+        where: scope,
+        orderBy: [{ startedAt: 'desc' }],
+      }),
+    ]);
+
+    return {
+      totalRunCount,
+      succeededRunCount,
+      lastRunAt: lastRun ? toAgentRunEntity(lastRun).startedAt : null,
+    };
+  }
+
+  /** Org-wide run activity feed (not scoped to one execution tree) — for the AI Operator dashboard's Activity view. */
+  async listRecentRunsForOrganization(params: {
+    page: number;
+    limit: number;
+    status?: AgentRunStatus;
+  }): Promise<{ items: AgentRunEntity[]; total: number }> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const where = {
+      agent: { organizationId: tenant.organizationId },
+      ...(params.status ? { status: params.status } : {}),
+    };
+
+    const [records, total] = await Promise.all([
+      this.agentRuns().findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }],
+        skip: (params.page - 1) * params.limit,
+        take: params.limit,
+      }),
+      this.agentRuns().count({ where }),
+    ]);
+
+    return { items: records.map(toAgentRunEntity), total };
   }
 
   async listRunsInTree(rootRunId: string): Promise<AgentRunEntity[]> {

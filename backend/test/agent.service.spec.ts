@@ -32,6 +32,7 @@ describe('AgentService', () => {
             softDeleteAgent: jest.fn(),
             createAgentRun: jest.fn(),
             updateAgentRun: jest.fn(),
+            getAgentRunStats: jest.fn(),
           },
         },
         {
@@ -57,6 +58,7 @@ describe('AgentService', () => {
           provide: AgentFactory,
           useValue: {
             buildRunOutput: jest.fn().mockReturnValue({ outputText: 'Ready.' }),
+            getAllowedToolNames: jest.fn().mockReturnValue([]),
           },
         },
         {
@@ -292,5 +294,42 @@ describe('AgentService', () => {
     await expect(service.updateAgent('missing', { name: 'New Name' })).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('reports real per-agent stats sourced from the run history and tool allow-list', async () => {
+    repository.findAgentById.mockResolvedValue({
+      id: 'agent-1',
+      organizationId: 'org-1',
+      name: 'Sales Assistant',
+      description: 'desc',
+      systemPrompt: 'prompt',
+      provider: 'openai',
+      model: 'gpt-5-mini',
+      configuration: { toolNames: ['search_leads', 'get_pipeline_summary'] },
+      enabled: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    });
+    factory.getAllowedToolNames.mockReturnValue(['search_leads', 'get_pipeline_summary']);
+    repository.getAgentRunStats.mockResolvedValue({
+      totalRunCount: 12,
+      succeededRunCount: 10,
+      lastRunAt: new Date('2026-07-10T00:00:00.000Z'),
+    });
+
+    const stats = await service.getAgentStats('agent-1');
+
+    expect(stats.agentId).toBe('agent-1');
+    expect(stats.toolCount).toBe(2);
+    expect(stats.totalRunCount).toBe(12);
+    expect(stats.succeededRunCount).toBe(10);
+    expect(stats.lastRunAt).toBe('2026-07-10T00:00:00.000Z');
+  });
+
+  it('throws when fetching stats for an unknown agent', async () => {
+    repository.findAgentById.mockResolvedValue(null);
+
+    await expect(service.getAgentStats('missing')).rejects.toBeInstanceOf(NotFoundException);
   });
 });

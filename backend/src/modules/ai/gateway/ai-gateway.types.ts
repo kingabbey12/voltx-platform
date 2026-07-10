@@ -37,4 +37,6 @@ export interface AiGatewayToolExecutionOptions {
   agentId?: string;
   agentRunId?: string;
   grantedPermissions?: string[];
+  /** Only ever set true by AgentRunResumeService, actually executing a tool call that was already approved — every other caller must go through the normal approval gate. */
+  skipApprovalCheck?: boolean;
 }

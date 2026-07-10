@@ -20,7 +20,8 @@ export interface AgentLoopInput {
   coordinationState?: CoordinationState;
 }
 
-export type AgentLoopStopReason = 'final_answer' | 'max_iterations' | 'max_tool_calls' | 'timeout';
+export type AgentLoopStopReason =
+  'final_answer' | 'max_iterations' | 'max_tool_calls' | 'timeout' | 'waiting_approval';
 
 export interface AgentLoopResult {
   outputText: string;
@@ -33,4 +34,6 @@ export interface AgentLoopResult {
   assistantMessage: MessageResponseDto | null;
   toolResults: ToolResult[];
   plan: AgentPlan;
+  /** Set only when stoppedReason is 'waiting_approval' — the AgentActionApproval id the run is paused on. */
+  pendingApprovalId?: string;
 }

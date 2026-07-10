@@ -21,6 +21,8 @@ abstract final class AppRoutes {
   static const String aiAutomations = '/ai/automations';
   static const String aiIntegrations = '/ai/integrations';
   static const String aiHistory = '/ai/history';
+  static const String aiOperator = '/ai/operator';
+  static const String aiMemory = '/ai/memory';
   static const String salesDashboard = '/sales';
   static const String salesPipeline = '/sales/leads';
   static const String salesCompanies = '/sales/companies';
@@ -60,6 +62,8 @@ abstract final class AppRoutes {
     aiAutomations,
     aiIntegrations,
     aiHistory,
+    aiOperator,
+    aiMemory,
     salesDashboard,
     salesPipeline,
     salesCompanies,

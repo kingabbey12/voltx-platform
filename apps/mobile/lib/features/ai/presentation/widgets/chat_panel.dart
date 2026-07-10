@@ -169,7 +169,7 @@ class AgentPanel extends ConsumerWidget {
               agent: agent,
               selected: true,
               status: 'Active',
-              memoryUsage: memorySnapshot.statusLabel,
+              secondaryLabel: memorySnapshot.statusLabel,
               toolCount: tools.length,
               recentActivity: memorySnapshot.freshnessLabel,
               onTap: () {},
@@ -194,7 +194,8 @@ class AgentPanel extends ConsumerWidget {
                       selected: item.id == agent.id,
                       onTap: () => ref.read(selectedAgentProvider.notifier).state = item,
                       status: item.id == agent.id ? 'Active' : 'Idle',
-                      memoryUsage: item.id == agent.id ? memorySnapshot.statusLabel : memorySnapshot.freshnessLabel,
+                      secondaryLabel:
+                          item.id == agent.id ? memorySnapshot.statusLabel : memorySnapshot.freshnessLabel,
                       toolCount: tools.length,
                       recentActivity: memorySnapshot.totalMemories == 0
                           ? 'No live memories synced'

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { AuditModule } from '../audit/audit.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
+import { ToolModule } from '../ai/tools/tool.module';
 import { AttachmentContentBuilderService } from './attachment-content-builder.service';
 import { AttachmentController } from './attachment.controller';
 import { AttachmentRepository } from './attachment.repository';
@@ -13,6 +14,7 @@ import { AttachmentProcessingService } from './processing/attachment-processing.
 import { ImageProcessingService } from './processing/image-processing.service';
 import { StorageModule } from './storage/storage.module';
 import { VirusScanModule } from './virus-scan/virus-scan.module';
+import { AttachmentsToolSourceService } from './tools/attachments-tool-source.service';
 
 // Same REDIS_ENABLED-gated pattern as communications.module.ts's AI process
 // queue — when Redis isn't configured, AttachmentProcessingQueueService
@@ -33,7 +35,14 @@ const queueImports = redisEnabled
 const queueProcessors = redisEnabled ? [AttachmentProcessingProcessor] : [];
 
 @Module({
-  imports: [AuditModule, KnowledgeModule, StorageModule, VirusScanModule, ...queueImports],
+  imports: [
+    AuditModule,
+    KnowledgeModule,
+    StorageModule,
+    VirusScanModule,
+    ToolModule,
+    ...queueImports,
+  ],
   controllers: [AttachmentController],
   providers: [
     AttachmentRepository,
@@ -42,6 +51,7 @@ const queueProcessors = redisEnabled ? [AttachmentProcessingProcessor] : [];
     AttachmentProcessingService,
     AttachmentProcessingQueueService,
     ImageProcessingService,
+    AttachmentsToolSourceService,
     ...queueProcessors,
   ],
   exports: [AttachmentService, AttachmentRepository, AttachmentContentBuilderService],

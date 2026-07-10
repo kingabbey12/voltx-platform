@@ -59,6 +59,7 @@ export class IntegrationToolSourceService implements DynamicToolSource, OnModule
       inputSchema: toToolSchema(action),
       defaultTimeoutMs: 15_000,
       defaultRetries: 1,
+      requiredPermission: action.mutates === false ? 'integration.read' : 'integration.create',
       execute(input: Record<string, unknown>, context: ToolExecutionContext): Promise<unknown> {
         return dispatcher.execute({
           provider,

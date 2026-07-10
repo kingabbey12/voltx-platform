@@ -45,15 +45,25 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
           description: "What the workflow's single AI step should accomplish, in plain language.",
           required: true,
         },
+        publish: {
+          type: 'boolean',
+          description:
+            'If true, publish the workflow immediately after creating it so it can actually run (on its configured schedule/trigger, or manually via the workflows API). Defaults to false (stays DRAFT).',
+        },
       },
     };
 
     return {
       name: 'create_simple_workflow',
       description:
-        'Create a real single-step draft workflow with one AI reasoning step. This is a genuine, persisted workflow — it starts as DRAFT and must be published separately before it can run on a schedule.',
+        'Create a real single-step draft workflow with one AI reasoning step. This is a genuine, persisted workflow — it starts as DRAFT unless publish is set true, and can then run on a schedule or be triggered via the workflows API.',
       inputSchema: schema,
-      async execute(input: { name: string; description?: string; objective: string }) {
+      async execute(input: {
+        name: string;
+        description?: string;
+        objective: string;
+        publish?: boolean;
+      }) {
         if (!input.name?.trim() || !input.objective?.trim()) {
           throw new Error('name and objective are required');
         }
@@ -69,11 +79,15 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
           ],
         };
 
-        const workflow = await workflowService.createWorkflow({
+        let workflow = await workflowService.createWorkflow({
           name: input.name.trim(),
           description: input.description?.trim(),
           definition,
         });
+
+        if (input.publish) {
+          workflow = await workflowService.publishWorkflow(workflow.id);
+        }
 
         return { id: workflow.id, name: workflow.name, status: workflow.status };
       },

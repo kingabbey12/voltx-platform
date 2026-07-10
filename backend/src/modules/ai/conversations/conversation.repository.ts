@@ -167,6 +167,12 @@ export class ConversationRepository {
     return record ? toConversationEntity(record) : null;
   }
 
+  /** Bypasses tenant scoping — for background contexts (e.g. resuming an agent run after an approval decision) that need to resolve organizationId/userId before any tenant context exists. */
+  async findConversationByIdUnscoped(id: string): Promise<ConversationEntity | null> {
+    const record = await this.conversations().findFirst({ where: { id, deletedAt: null } });
+    return record ? toConversationEntity(record) : null;
+  }
+
   async findAllConversations(params: FindAllConversationsParams): Promise<PaginatedConversations> {
     const { page, limit, search, pinned, archived } = params;
     const skip = (page - 1) * limit;

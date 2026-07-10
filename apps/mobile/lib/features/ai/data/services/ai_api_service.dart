@@ -293,6 +293,105 @@ class AiApiService {
       throw mapToAiException(error);
     }
   }
+
+  Future<AgentStats> getAgentStats(String agentId) async {
+    try {
+      return await _apiClient.get(
+        '/ai/agents/$agentId/stats',
+        fromJson: _agentStatsFromJson,
+      );
+    } catch (error) {
+      throw mapToAiException(error);
+    }
+  }
+
+  Future<PaginatedApprovalsResponse> listPendingApprovals({int page = 1, int limit = 20}) async {
+    try {
+      return await _apiClient.get(
+        '/ai/approvals',
+        queryParameters: {'page': page, 'limit': limit},
+        fromJson: PaginatedApprovalsResponse.fromJson,
+      );
+    } catch (error) {
+      throw mapToAiException(error);
+    }
+  }
+
+  Future<AgentApproval> decideApproval(
+    String approvalId, {
+    required String decision,
+    String? comment,
+  }) async {
+    try {
+      return await _apiClient.post(
+        '/ai/approvals/$approvalId/decide',
+        data: {
+          'decision': decision,
+          if (comment != null && comment.trim().isNotEmpty) 'comment': comment.trim(),
+        },
+        fromJson: _agentApprovalFromJson,
+      );
+    } catch (error) {
+      throw mapToAiException(error);
+    }
+  }
+
+  Future<PaginatedAgentRunsResponse> getDashboardActivity({int page = 1, int limit = 20}) async {
+    try {
+      return await _apiClient.get(
+        '/ai/dashboard/activity',
+        queryParameters: {'page': page, 'limit': limit},
+        fromJson: PaginatedAgentRunsResponse.fromJson,
+      );
+    } catch (error) {
+      throw mapToAiException(error);
+    }
+  }
+
+  Future<AiPerformanceSummary> getDashboardPerformance({int lookbackDays = 30}) async {
+    try {
+      return await _apiClient.get(
+        '/ai/dashboard/performance',
+        queryParameters: {'lookbackDays': lookbackDays},
+        fromJson: _performanceSummaryFromJson,
+      );
+    } catch (error) {
+      throw mapToAiException(error);
+    }
+  }
+
+  Future<AiTasksSummary> getDashboardTasks() async {
+    try {
+      return await _apiClient.get(
+        '/ai/dashboard/tasks',
+        fromJson: _tasksSummaryFromJson,
+      );
+    } catch (error) {
+      throw mapToAiException(error);
+    }
+  }
+
+  Future<List<AiSuggestion>> getDashboardSuggestions() async {
+    try {
+      return await _apiClient.getListPlain(
+        '/ai/dashboard/suggestions',
+        fromJson: _suggestionFromJson,
+      );
+    } catch (error) {
+      throw mapToAiException(error);
+    }
+  }
+
+  Future<void> dismissSuggestion(String id) async {
+    try {
+      await _apiClient.patch(
+        '/ai/dashboard/suggestions/$id/dismiss',
+        fromJson: (json) => json,
+      );
+    } catch (error) {
+      throw mapToAiException(error);
+    }
+  }
 }
 
 class AiToolDescriptor {
@@ -403,6 +502,38 @@ class PaginatedMemoriesResponse {
       page: json['page'] as int? ?? 1,
       limit: json['limit'] as int? ?? 20,
       totalPages: json['totalPages'] as int? ?? 1,
+    );
+  }
+}
+
+class PaginatedApprovalsResponse {
+  const PaginatedApprovalsResponse({required this.items, required this.total});
+
+  final List<AgentApproval> items;
+  final int total;
+
+  factory PaginatedApprovalsResponse.fromJson(Map<String, dynamic> json) {
+    return PaginatedApprovalsResponse(
+      items: (json['items'] as List<dynamic>? ?? const [])
+          .map((item) => _agentApprovalFromJson(Map<String, dynamic>.from(item as Map)))
+          .toList(),
+      total: json['total'] as int? ?? 0,
+    );
+  }
+}
+
+class PaginatedAgentRunsResponse {
+  const PaginatedAgentRunsResponse({required this.items, required this.total});
+
+  final List<AgentRun> items;
+  final int total;
+
+  factory PaginatedAgentRunsResponse.fromJson(Map<String, dynamic> json) {
+    return PaginatedAgentRunsResponse(
+      items: (json['items'] as List<dynamic>? ?? const [])
+          .map((item) => _agentRunFromJson(Map<String, dynamic>.from(item as Map)))
+          .toList(),
+      total: json['total'] as int? ?? 0,
     );
   }
 }
@@ -555,6 +686,90 @@ AiAgent _agentFromJson(Map<String, dynamic> json) {
     description: json['description'] as String? ?? '',
     iconName: _agentIconName(json),
     systemPrompt: json['systemPrompt'] as String? ?? '',
+  );
+}
+
+AgentStats _agentStatsFromJson(Map<String, dynamic> json) {
+  return AgentStats(
+    agentId: json['agentId'] as String,
+    toolCount: json['toolCount'] as int? ?? 0,
+    totalRunCount: json['totalRunCount'] as int? ?? 0,
+    succeededRunCount: json['succeededRunCount'] as int? ?? 0,
+    lastRunAt: json['lastRunAt'] == null ? null : DateTime.tryParse(json['lastRunAt'] as String),
+  );
+}
+
+AgentRun _agentRunFromJson(Map<String, dynamic> json) {
+  final output = json['output'] is Map
+      ? Map<String, dynamic>.from(json['output'] as Map)
+      : const <String, dynamic>{};
+  return AgentRun(
+    id: json['id'] as String,
+    agentId: json['agentId'] as String? ?? '',
+    conversationId: json['conversationId'] as String? ?? '',
+    status: json['status'] as String? ?? 'RUNNING',
+    outputText: output['outputText'] as String?,
+    toolCallCount: json['toolCallCount'] as int? ?? 0,
+    startedAt: DateTime.tryParse(json['startedAt'] as String? ?? '') ?? DateTime.now(),
+    completedAt:
+        json['completedAt'] == null ? null : DateTime.tryParse(json['completedAt'] as String),
+    error: json['error'] as String?,
+  );
+}
+
+AgentApproval _agentApprovalFromJson(Map<String, dynamic> json) {
+  return AgentApproval(
+    id: json['id'] as String,
+    agentRunId: json['agentRunId'] as String? ?? '',
+    toolName: json['toolName'] as String? ?? '',
+    input: json['input'] is Map
+        ? Map<String, dynamic>.from(json['input'] as Map)
+        : const <String, dynamic>{},
+    status: json['status'] as String? ?? 'PENDING',
+    createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+  );
+}
+
+AiPerformanceSummary _performanceSummaryFromJson(Map<String, dynamic> json) {
+  return AiPerformanceSummary(
+    lookbackDays: json['lookbackDays'] as int? ?? 30,
+    totalCallCount: json['totalCallCount'] as int? ?? 0,
+    totalTokens: json['totalTokens'] as int? ?? 0,
+    totalCostUsd: (json['totalCostUsd'] as num?)?.toDouble() ?? 0,
+    byAgent: (json['byAgent'] as List<dynamic>? ?? const [])
+        .map((item) => _performanceEntryFromJson(Map<String, dynamic>.from(item as Map)))
+        .toList(),
+  );
+}
+
+AgentPerformanceEntry _performanceEntryFromJson(Map<String, dynamic> json) {
+  return AgentPerformanceEntry(
+    agentId: json['agentId'] as String?,
+    agentName: json['agentName'] as String?,
+    callCount: json['callCount'] as int? ?? 0,
+    totalTokens: json['totalTokens'] as int? ?? 0,
+    totalCostUsd: (json['totalCostUsd'] as num?)?.toDouble() ?? 0,
+  );
+}
+
+AiTasksSummary _tasksSummaryFromJson(Map<String, dynamic> json) {
+  return AiTasksSummary(
+    pendingApprovals: (json['pendingApprovals'] as List<dynamic>? ?? const [])
+        .map((item) => _agentApprovalFromJson(Map<String, dynamic>.from(item as Map)))
+        .toList(),
+    inProgressRuns: (json['inProgressRuns'] as List<dynamic>? ?? const [])
+        .map((item) => _agentRunFromJson(Map<String, dynamic>.from(item as Map)))
+        .toList(),
+  );
+}
+
+AiSuggestion _suggestionFromJson(Map<String, dynamic> json) {
+  return AiSuggestion(
+    id: json['id'] as String,
+    category: json['category'] as String? ?? 'GENERAL',
+    title: json['title'] as String? ?? '',
+    description: json['description'] as String? ?? '',
+    createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
   );
 }
 

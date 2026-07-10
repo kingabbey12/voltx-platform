@@ -239,7 +239,7 @@ export class AgentRunResponseDto {
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
   conversationId!: string;
 
-  @ApiProperty({ enum: ['RUNNING', 'SUCCEEDED', 'FAILED', 'TIMED_OUT'] })
+  @ApiProperty({ enum: ['RUNNING', 'SUCCEEDED', 'FAILED', 'TIMED_OUT', 'WAITING_APPROVAL'] })
   status!: AgentRunStatus;
 
   @ApiProperty({ example: { prompt: 'Prepare an update.' } })
@@ -310,6 +310,24 @@ export class RunAgentResponseDto {
   assistantMessage!: MessageResponseDto | null;
 }
 
+export class AgentStatsResponseDto {
+  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440010' })
+  agentId!: string;
+
+  @ApiProperty({ example: 6, description: 'Number of tools this agent is allowed to call.' })
+  toolCount!: number;
+
+  @ApiProperty({ example: 42, description: 'Total number of runs ever started for this agent.' })
+  totalRunCount!: number;
+
+  @ApiProperty({ example: 38, description: 'Number of runs that finished as SUCCEEDED.' })
+  succeededRunCount!: number;
+
+  @ApiPropertyOptional({ example: '2026-07-10T00:00:00.000Z' })
+  lastRunAt!: string | null;
+}
+
 export class AgentSuccessResponseDto extends ApiSuccessResponseDto<AgentResponseDto> {}
 export class AgentsSuccessResponseDto extends ApiSuccessResponseDto<AgentResponseDto[]> {}
 export class AgentRunSuccessResponseDto extends ApiSuccessResponseDto<RunAgentResponseDto> {}
+export class AgentStatsSuccessResponseDto extends ApiSuccessResponseDto<AgentStatsResponseDto> {}

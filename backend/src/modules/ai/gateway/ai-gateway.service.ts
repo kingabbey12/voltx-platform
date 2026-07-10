@@ -1,8 +1,12 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
 import { TenantContextService } from '../../../common/tenant/tenant-context.service';
+import { AgentApprovalService } from '../approvals/agent-approval.service';
+import { isMutatingTool } from '../approvals/tool-approval-policy';
+import { ToolApprovalRequiredError } from '../approvals/tool-approval-required.error';
 import { AIEmbeddingResponse, AIStreamEvent, AIUsage } from '../models/ai-model.types';
 import { AIRuntimeService } from '../runtime/ai-runtime.service';
+import { ToolRegistry } from '../tools/tool.registry';
 import { ExecuteToolRequest, ExecuteToolResponse } from '../tools/tool.service';
 import { AiRateLimiterService } from './ai-rate-limiter.service';
 import { AiToolPermissionService } from './ai-tool-permission.service';
@@ -29,12 +33,15 @@ export class AIGatewayService {
   private readonly logger = new Logger(AIGatewayService.name);
 
   constructor(
+    @Inject(forwardRef(() => AIRuntimeService))
     private readonly aiRuntimeService: AIRuntimeService,
     private readonly tenantContextService: TenantContextService,
     private readonly auditService: AuditService,
     private readonly usageService: AiUsageService,
     private readonly rateLimiterService: AiRateLimiterService,
     private readonly toolPermissionService: AiToolPermissionService,
+    private readonly agentApprovalService: AgentApprovalService,
+    private readonly toolRegistry: ToolRegistry,
     @Inject(forwardRef(() => KnowledgeRetrieverService))
     private readonly knowledgeRetrieverService: KnowledgeRetrieverService,
   ) {}
@@ -141,6 +148,24 @@ export class AIGatewayService {
     const tenant = this.tenantContextService.getOrThrow();
     this.rateLimiterService.assertWithinLimit(tenant.organizationId);
     this.toolPermissionService.assertPermitted(request.toolName, options.grantedPermissions ?? []);
+
+    if (!options.skipApprovalCheck && options.agentRunId) {
+      let tool;
+      try {
+        tool = this.toolRegistry.get(request.toolName);
+      } catch {
+        tool = undefined;
+      }
+
+      if (isMutatingTool(request.toolName, tool)) {
+        const approval = await this.agentApprovalService.findOrCreatePending(
+          options.agentRunId,
+          request.toolName,
+          request.input,
+        );
+        throw new ToolApprovalRequiredError(approval.id, request.toolName);
+      }
+    }
 
     let succeeded = true;
     let errorMessage: string | undefined;

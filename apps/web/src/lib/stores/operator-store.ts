@@ -9,11 +9,12 @@ export interface CommandTurn {
   agentId: string | null;
   agentRunId: string | null;
   allowedActions: boolean;
-  status: "running" | "done" | "error";
+  status: "running" | "done" | "error" | "waiting_approval";
   events: AgentStreamEvent[];
   finalText: string | null;
   toolCalls: { toolName: string; status: "running" | "done" | "error" }[];
   error: string | null;
+  pendingApprovalId: string | null;
   createdAt: number;
 }
 

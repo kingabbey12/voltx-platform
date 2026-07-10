@@ -669,6 +669,111 @@ final agentsProvider = StateNotifierProvider<AiAgentsNotifier, List<AiAgent>>((r
   return AiAgentsNotifier(ref, ref.watch(aiApiServiceProvider));
 });
 
+/// Real per-agent stats (tool count, run history) for the agent list —
+/// replaces the fabricated memory%/tool-count/activity that used to be
+/// hardcoded per card. Returns null on any failure so the UI can render a
+/// loading/unknown state rather than surface an error for a secondary stat.
+final agentStatsProvider = FutureProvider.family<AgentStats?, String>((ref, agentId) async {
+  if (!_hasFlutterBinding() || agentId.isEmpty) {
+    return null;
+  }
+  try {
+    return await ref.watch(aiApiServiceProvider).getAgentStats(agentId);
+  } catch (_) {
+    return null;
+  }
+});
+
+// --- AI Operator dashboard: activity / performance / tasks / suggestions ---
+
+final aiDashboardActivityProvider = FutureProvider<List<AgentRun>>((ref) async {
+  if (!_hasFlutterBinding()) {
+    return const [];
+  }
+  try {
+    final page = await ref.watch(aiApiServiceProvider).getDashboardActivity(limit: 20);
+    return page.items;
+  } catch (_) {
+    return const [];
+  }
+});
+
+final aiDashboardPerformanceProvider = FutureProvider<AiPerformanceSummary?>((ref) async {
+  if (!_hasFlutterBinding()) {
+    return null;
+  }
+  try {
+    return await ref.watch(aiApiServiceProvider).getDashboardPerformance(lookbackDays: 30);
+  } catch (_) {
+    return null;
+  }
+});
+
+class AiDashboardTasksNotifier extends StateNotifier<AsyncValue<AiTasksSummary>> {
+  AiDashboardTasksNotifier(this._api) : super(const AsyncValue.loading()) {
+    if (!_hasFlutterBinding()) {
+      state = const AsyncValue.data(AiTasksSummary(pendingApprovals: [], inProgressRuns: []));
+      return;
+    }
+    unawaited(reload());
+  }
+
+  final AiApiService _api;
+
+  Future<void> reload() async {
+    try {
+      final tasks = await _api.getDashboardTasks();
+      state = AsyncValue.data(tasks);
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  Future<void> decide(String approvalId, {required String decision}) async {
+    await _api.decideApproval(approvalId, decision: decision);
+    await reload();
+  }
+}
+
+final aiDashboardTasksProvider =
+    StateNotifierProvider<AiDashboardTasksNotifier, AsyncValue<AiTasksSummary>>((ref) {
+  return AiDashboardTasksNotifier(ref.watch(aiApiServiceProvider));
+});
+
+class AiDashboardSuggestionsNotifier extends StateNotifier<List<AiSuggestion>> {
+  AiDashboardSuggestionsNotifier(this._api) : super(const []) {
+    if (!_hasFlutterBinding()) {
+      return;
+    }
+    unawaited(reload());
+  }
+
+  final AiApiService _api;
+
+  Future<void> reload() async {
+    try {
+      state = await _api.getDashboardSuggestions();
+    } catch (_) {
+      state = const [];
+    }
+  }
+
+  Future<void> dismiss(String id) async {
+    final previous = state;
+    state = state.where((s) => s.id != id).toList();
+    try {
+      await _api.dismissSuggestion(id);
+    } catch (_) {
+      state = previous;
+    }
+  }
+}
+
+final aiDashboardSuggestionsProvider =
+    StateNotifierProvider<AiDashboardSuggestionsNotifier, List<AiSuggestion>>((ref) {
+  return AiDashboardSuggestionsNotifier(ref.watch(aiApiServiceProvider));
+});
+
 final knowledgeBasesProvider = StateNotifierProvider<AiKnowledgeBasesNotifier, List<AiKnowledgeBase>>((ref) {
   return AiKnowledgeBasesNotifier(ref, ref.watch(knowledgeRepositoryProvider));
 });

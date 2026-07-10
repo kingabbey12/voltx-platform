@@ -24,6 +24,7 @@ export type AgentStreamEvent =
       toolName?: string;
     }
   | { type: "next_step"; stepNumber: number }
+  | { type: "run_paused_for_approval"; approvalId: string; toolName: string }
   | { type: "done"; status: string }
   | { type: "error"; code: string; message: string };
 
@@ -44,6 +45,7 @@ export function parseAgentStreamEvent(eventName: string, data: unknown): AgentSt
     case "step_started":
     case "decision":
     case "next_step":
+    case "run_paused_for_approval":
     case "done":
     case "error":
       return { type: eventName, ...payload } as AgentStreamEvent;

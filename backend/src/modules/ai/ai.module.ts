@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { AttachmentsModule } from '../attachments/attachments.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { AIController } from './ai.controller';
+import { AgentApprovalRepository } from './approvals/agent-approval.repository';
+import { AgentApprovalService } from './approvals/agent-approval.service';
 import { ConversationController } from './conversations/conversation.controller';
 import { ConversationRepository } from './conversations/conversation.repository';
 import { ConversationService } from './conversations/conversation.service';
@@ -26,7 +28,7 @@ import { ToolModule } from './tools/tool.module';
   imports: [
     ConfigModule,
     ToolModule,
-    MemoryModule,
+    forwardRef(() => MemoryModule),
     forwardRef(() => KnowledgeModule),
     AttachmentsModule,
   ],
@@ -36,6 +38,8 @@ import { ToolModule } from './tools/tool.module';
     AIGatewayService,
     AiRateLimiterService,
     AiToolPermissionService,
+    AgentApprovalRepository,
+    AgentApprovalService,
     AiUsageRepository,
     AiUsageService,
     KnowledgeRetrieverService,
@@ -60,6 +64,7 @@ import { ToolModule } from './tools/tool.module';
     AIRuntimeService,
     AIGatewayService,
     AiUsageService,
+    AgentApprovalService,
     ModelRegistryService,
     ConversationService,
     ConversationRepository,

@@ -6,6 +6,8 @@ import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { IsInt, IsObject, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { AUTH_GUARDS } from '../../../common/guards/protected.guards';
 import { ApiSuccessResponseDto } from '../../../common/dto/api-response.dto';
+import { Permissions } from '../../permissions/decorators/permissions.decorator';
+import { PermissionGuard } from '../../permissions/guards/permission.guard';
 import {
   AI_TOOLS,
   AITool,
@@ -72,6 +74,8 @@ class ToolController {
   }
 
   @Post('execute')
+  @UseGuards(PermissionGuard)
+  @Permissions('ai.tool.execute')
   @ApiOperation({ summary: 'Execute an AI tool for a conversation' })
   @ApiOkResponse({ type: ToolExecutionSuccessResponseDto })
   execute(@Body() dto: ExecuteToolDto): Promise<ExecuteToolResponse> {

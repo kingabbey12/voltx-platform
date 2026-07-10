@@ -24,6 +24,7 @@ import { describeToolCatalog, renderToolCatalogForPrompt } from './describe-tool
 import { MultiAgentOrchestratorService } from './multi-agent-orchestrator.service';
 import { MultiAgentStreamEvent } from './multi-agent-stream-event.types';
 import { parseAgentDecision } from './parse-agent-decision';
+import { ToolApprovalRequiredError } from '../../approvals/tool-approval-required.error';
 
 type StreamableEvent = AiGatewayStreamEvent | MultiAgentStreamEvent;
 
@@ -261,6 +262,30 @@ export class AgentLoopService {
           for (const step of toolOutcome.steps) {
             await this.agentRunStepRepository.create({ agentRunId: agentRun.id, ...step });
           }
+
+          if (toolOutcome.pendingApprovalId) {
+            yield { type: 'status', status: 'completed' };
+            await this.agentRunStepRepository.create({
+              agentRunId: agentRun.id,
+              stepNumber: iteration + 1,
+              type: 'FINAL_ANSWER',
+              summary: `Paused: waiting for approval of "${decision.toolName}" (approval id: ${toolOutcome.pendingApprovalId})`,
+            });
+
+            return {
+              outputText: '',
+              iterations: iteration,
+              toolCallCount,
+              stoppedReason: 'waiting_approval',
+              tokenUsage: finalTokenUsage,
+              userMessage: MessageResponseDto.fromEntity(userMessage),
+              toolMessages,
+              assistantMessage: null,
+              toolResults,
+              plan,
+              pendingApprovalId: toolOutcome.pendingApprovalId,
+            };
+          }
         } else if (decision.kind === 'delegate') {
           if (!input.coordinationState) {
             scratchpad.push({
@@ -427,6 +452,7 @@ export class AgentLoopService {
       input?: Record<string, unknown>;
       output?: Record<string, unknown>;
     }>;
+    pendingApprovalId?: string;
   }> {
     const events: AiGatewayStreamEvent[] = [
       { type: 'tool_call_start', toolName: decision.toolName },
@@ -504,6 +530,37 @@ export class AgentLoopService {
         ],
       };
     } catch (error) {
+      if (error instanceof ToolApprovalRequiredError) {
+        events.push({
+          type: 'run_paused_for_approval',
+          approvalId: error.approvalId,
+          toolName: decision.toolName,
+        });
+
+        return {
+          response: null,
+          scratchpadEntry: {
+            stepNumber: iteration,
+            thought: decision.thought,
+            toolName: decision.toolName,
+            toolInput: decision.input,
+            observation: `Waiting for human approval before this action can run (approval id: ${error.approvalId}).`,
+            isError: false,
+          },
+          events,
+          steps: [
+            {
+              stepNumber: iteration,
+              type: 'TOOL_CALL',
+              summary: `Requested approval to call ${decision.toolName}`,
+              toolName: decision.toolName,
+              input: decision.input,
+            },
+          ],
+          pendingApprovalId: error.approvalId,
+        };
+      }
+
       const message = error instanceof Error ? error.message : 'Tool execution failed';
       events.push({ type: 'tool_call_error', toolName: decision.toolName, message });
 

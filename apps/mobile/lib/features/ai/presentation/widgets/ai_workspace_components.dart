@@ -335,7 +335,7 @@ class AiAgentCard extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.status,
-    required this.memoryUsage,
+    required this.secondaryLabel,
     required this.toolCount,
     required this.recentActivity,
     this.onRun,
@@ -346,7 +346,11 @@ class AiAgentCard extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final String status;
-  final String memoryUsage;
+
+  /// A short secondary stat chip — memory freshness on the chat panel's
+  /// agent cards, run success rate on the agent list screen. Always a real,
+  /// backend-derived value; never fabricated.
+  final String secondaryLabel;
   final int toolCount;
   final String recentActivity;
   final VoidCallback? onRun;
@@ -392,7 +396,7 @@ class AiAgentCard extends StatelessWidget {
             spacing: AppSpacing.xs,
             runSpacing: AppSpacing.xs,
             children: [
-              AiSuggestionChip(label: 'Memory $memoryUsage', icon: Icons.memory_rounded),
+              AiSuggestionChip(label: secondaryLabel, icon: Icons.insights_rounded),
               AiSuggestionChip(label: '$toolCount tools', icon: Icons.handyman_rounded),
             ],
           ),
@@ -416,10 +420,10 @@ class AiAgentCard extends StatelessWidget {
 
   Color _statusColor(DashboardV2Tokens t) {
     final upper = status.toUpperCase();
-    if (upper.contains('ACTIVE')) {
+    if (upper.contains('SELECTED') || upper.contains('ACTIVE')) {
       return t.success;
     }
-    if (upper.contains('IDLE')) {
+    if (upper.contains('IDLE') || upper.contains('DISABLED')) {
       return t.warning;
     }
     return t.primary;

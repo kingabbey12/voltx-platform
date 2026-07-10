@@ -1,5 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
+import { AIGatewayService } from '../gateway/ai-gateway.service';
 import { AIMessage } from '../models/ai-model.types';
 import { CreateMemoryDto, MemoryResponseDto, PaginatedMemoriesDto } from './dto/memory.dto';
 import { MemoryEntity } from './entities/memory.entity';
@@ -35,6 +36,8 @@ export class MemoryService {
     private readonly memorySelector: MemorySelector,
     private readonly tenantContextService: TenantContextService,
     private readonly auditService: AuditService,
+    @Inject(forwardRef(() => AIGatewayService))
+    private readonly aiGatewayService: AIGatewayService,
   ) {}
 
   async listMemories(params: ListMemoriesParams): Promise<PaginatedMemoriesDto> {
@@ -73,6 +76,7 @@ export class MemoryService {
       },
     });
 
+    await this.embedAndSave(entity.id, entity.content);
     await this.pruneMemories();
     return MemoryResponseDto.fromEntity(entity);
   }
@@ -182,6 +186,7 @@ export class MemoryService {
         metadata: candidate.metadata,
       });
       created.push(memory);
+      await this.embedAndSave(memory.id, content);
 
       await this.auditService.record({
         action: 'capture',
@@ -200,6 +205,19 @@ export class MemoryService {
     }
 
     return created;
+  }
+
+  /** Best-effort: a memory is still fully usable (heuristic-scored) without its embedding, so a failure here must never block memory capture. */
+  private async embedAndSave(memoryId: string, content: string): Promise<void> {
+    try {
+      const response = await this.aiGatewayService.embeddings({ input: [content] });
+      const vector = response.vectors[0];
+      if (vector) {
+        await this.memoryRepository.saveEmbedding(memoryId, vector);
+      }
+    } catch (error) {
+      this.logger.warn({ err: error, memoryId }, 'Failed to compute/save memory embedding');
+    }
   }
 
   private async assertConversationAccess(conversationId: string): Promise<void> {

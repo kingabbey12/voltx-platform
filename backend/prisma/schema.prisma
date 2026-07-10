@@ -68,6 +68,14 @@ enum AgentRunStatus {
   SUCCEEDED
   FAILED
   TIMED_OUT
+  WAITING_APPROVAL
+}
+
+enum AgentActionApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
 }
 
 enum AiRequestType {
@@ -282,6 +290,12 @@ model Memory {
   importance     Float
   content        String
   embeddingId    String?        @map("embedding_id")
+  /// Content embedding for semantic memory scoring — same pgvector
+  /// pattern as KnowledgeChunk.embedding (Unsupported since Prisma has no
+  /// native vector type; all reads/writes go through raw SQL in
+  /// MemoryRepository). Computed once at capture time in
+  /// MemoryService.captureConversationMemories.
+  embedding      Unsupported("vector(1536)")?
   metadata       Json           @default("{}")
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
@@ -365,6 +379,7 @@ model AgentRun {
   aiUsageLogs    AiUsageLog[]
   steps          AgentRunStep[]
   sentMessages   AgentMessage[]
+  approvals      AgentActionApproval[]
 
   @@index([agentId])
   @@index([conversationId])
@@ -373,6 +388,32 @@ model AgentRun {
   @@index([status])
   @@index([createdAt])
   @@map("agent_runs")
+}
+
+/// A pending/decided human approval gate for a sensitive AI tool call —
+/// mirrors WorkflowApproval's shape/role for the Workflow engine, applied
+/// to agent tool calls instead of workflow steps. Created the moment
+/// AiGatewayService.executeTool() finds a mutating tool with no explicit
+/// permission override; AgentLoopService pauses the run to
+/// WAITING_APPROVAL until this is decided.
+model AgentActionApproval {
+  id             String                     @id @default(uuid()) @db.Uuid
+  organizationId String                     @map("organization_id") @db.Uuid
+  agentRunId     String                     @map("agent_run_id") @db.Uuid
+  toolName       String                     @map("tool_name")
+  input          Json                       @default("{}")
+  status         AgentActionApprovalStatus  @default(PENDING)
+  approverUserId String?                    @map("approver_user_id") @db.Uuid
+  comment        String?
+  expiresAt      DateTime?                  @map("expires_at")
+  decidedAt      DateTime?                  @map("decided_at")
+  createdAt      DateTime                   @default(now()) @map("created_at")
+  agentRun       AgentRun                   @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([agentRunId])
+  @@index([status])
+  @@map("agent_action_approvals")
 }
 
 model AgentRunStep {
@@ -1931,6 +1972,33 @@ model Notification {
   @@index([organizationId, userId, read])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+enum AiSuggestionCategory {
+  SALES
+  SUPPORT
+  OPERATIONS
+  FINANCE
+  GENERAL
+}
+
+/// A proactive, AI-generated suggestion for the AI Operator dashboard —
+/// generated on-demand (cached per organization; see
+/// AiSuggestionService.getOrGenerate) by the Executive Assistant agent
+/// rather than fabricated client-side, and dismissible so the list
+/// doesn't grow unbounded.
+model AiSuggestion {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  category       AiSuggestionCategory @default(GENERAL)
+  title          String
+  description    String
+  createdAt      DateTime             @default(now()) @map("created_at")
+  dismissedAt    DateTime?            @map("dismissed_at")
+
+  @@index([organizationId, dismissedAt])
+  @@index([createdAt])
+  @@map("ai_suggestions")
 }
 
 // ============================================================================

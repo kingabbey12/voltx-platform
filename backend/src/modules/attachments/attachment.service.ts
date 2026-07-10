@@ -273,6 +273,14 @@ export class AttachmentService {
   async listByReference(params: FindAttachmentsParams): Promise<PaginatedAttachments> {
     return this.attachmentRepository.findByReference(params);
   }
+
+  async search(params: {
+    query?: string;
+    page: number;
+    limit: number;
+  }): Promise<PaginatedAttachments> {
+    return this.attachmentRepository.search(params);
+  }
 }
 
 function buildStorageKey(organizationId: string, fileName: string): string {

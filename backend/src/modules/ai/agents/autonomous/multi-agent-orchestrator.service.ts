@@ -144,9 +144,10 @@ export class MultiAgentOrchestratorService {
       }
       const result = step.value;
       const usageSummary = await this.aiUsageService.summarizeForAgentRun(agentRun.id);
+      const isWaitingApproval = result.stoppedReason === 'waiting_approval';
 
       await this.agentRepository.updateAgentRun(agentRun.id, {
-        status: 'SUCCEEDED',
+        status: isWaitingApproval ? 'WAITING_APPROVAL' : 'SUCCEEDED',
         output: {
           outputText: result.outputText,
           iterations: result.iterations,
@@ -169,8 +170,12 @@ export class MultiAgentOrchestratorService {
         currentStep: result.iterations,
         iterationCount: result.iterations,
         toolCallCount: result.toolCallCount,
-        completedAt: new Date(),
-        durationMs: Date.now() - startedAt,
+        // A run waiting on approval is paused, not finished — leave
+        // completedAt/durationMs unset until it's actually resumed to a
+        // real terminal status.
+        ...(isWaitingApproval
+          ? {}
+          : { completedAt: new Date(), durationMs: Date.now() - startedAt }),
         tokenUsage: result.tokenUsage,
         error: null,
       });

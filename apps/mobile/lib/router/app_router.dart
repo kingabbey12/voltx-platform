@@ -17,6 +17,8 @@ import '../features/ai/presentation/screens/ai_chat_screen.dart';
 import '../features/ai/presentation/screens/ai_history_screen.dart';
 import '../features/ai/presentation/screens/ai_home_screen.dart';
 import '../features/ai/presentation/screens/ai_knowledge_screen.dart';
+import '../features/ai/presentation/screens/ai_memory_screen.dart';
+import '../features/ai/presentation/screens/ai_operator_screen.dart';
 import '../features/integrations/presentation/screens/integrations_screen.dart';
 import '../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../features/organizations/presentation/screens/accept_invitation_screen.dart';
@@ -271,6 +273,20 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'aiHistory',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: AiHistoryScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.aiOperator,
+            name: 'aiOperator',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AiOperatorScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.aiMemory,
+            name: 'aiMemory',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AiMemoryScreen(),
             ),
           ),
           GoRoute(

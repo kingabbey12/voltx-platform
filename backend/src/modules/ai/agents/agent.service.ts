@@ -19,6 +19,7 @@ import { RunAutonomousAgentDto } from './dto/autonomous-agent.dto';
 import {
   AgentResponseDto,
   AgentRunResponseDto,
+  AgentStatsResponseDto,
   CreateAgentDto,
   RunAgentDto,
   RunAgentResponseDto,
@@ -411,6 +412,19 @@ export class AgentService {
     const rootRunId = rootCandidate.rootRunId ?? rootCandidate.id;
     const runs = await this.agentRepository.listRunsInTree(rootRunId);
     return runs.map((run) => AgentRunResponseDto.fromEntity(run));
+  }
+
+  async getAgentStats(id: string): Promise<AgentStatsResponseDto> {
+    const agent = await this.getAgentOrThrow(id);
+    const stats = await this.agentRepository.getAgentRunStats(id);
+
+    const dto = new AgentStatsResponseDto();
+    dto.agentId = agent.id;
+    dto.toolCount = this.agentFactory.getAllowedToolNames(agent).length;
+    dto.totalRunCount = stats.totalRunCount;
+    dto.succeededRunCount = stats.succeededRunCount;
+    dto.lastRunAt = stats.lastRunAt ? stats.lastRunAt.toISOString() : null;
+    return dto;
   }
 
   private async getAgentOrThrow(id: string): Promise<AgentEntity> {

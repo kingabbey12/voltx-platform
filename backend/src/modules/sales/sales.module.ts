@@ -19,6 +19,7 @@ import { ActivitiesRepository } from './activities/activities.repository';
 import { ActivitiesService } from './activities/activities.service';
 import { SalesAiService } from './sales-ai.service';
 import { SalesToolSourceService } from './tools/sales-tool-source.service';
+import { FinanceToolSourceService } from './tools/finance-tool-source.service';
 
 @Module({
   imports: [AIModule, AgentModule, ToolModule],
@@ -32,6 +33,7 @@ import { SalesToolSourceService } from './tools/sales-tool-source.service';
   providers: [
     SalesAiService,
     SalesToolSourceService,
+    FinanceToolSourceService,
     CompaniesRepository,
     CompaniesService,
     ContactsRepository,

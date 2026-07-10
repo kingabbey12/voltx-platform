@@ -181,6 +181,30 @@ export class MemoryRepository {
     return toMemoryEntity(record);
   }
 
+  /** Persists a memory's content embedding — see Memory.embedding's schema doc comment. Raw SQL: pgvector's column type is Unsupported in the Prisma client, same reason KnowledgeChunkRepository is all raw SQL. */
+  async saveEmbedding(memoryId: string, embedding: number[]): Promise<void> {
+    const tenant = this.tenantContextService.getOrThrow();
+    await this.prisma.system.$executeRaw`
+      UPDATE memories
+      SET embedding = ${toVectorLiteral(embedding)}::vector
+      WHERE id = ${memoryId}::uuid AND organization_id = ${tenant.organizationId}::uuid
+    `;
+  }
+
+  /**
+   * One indexed PK lookup per candidate memory scored — bounded by
+   * MemorySelector's DEFAULT_CANDIDATE_LIMIT (50), each a cheap primary-key
+   * read. Not batched into one query today; revisit if candidate volume
+   * grows enough for that N+1 to matter in practice.
+   */
+  async getEmbeddingForMemory(memoryId: string): Promise<number[] | null> {
+    const rows = await this.prisma.system.$queryRaw<Array<{ embedding: string | null }>>`
+      SELECT embedding::text AS embedding FROM memories WHERE id = ${memoryId}::uuid
+    `;
+    const raw = rows[0]?.embedding;
+    return raw ? parseVectorLiteral(raw) : null;
+  }
+
   async listSelectionCandidates(limit: number): Promise<MemoryEntity[]> {
     const tenant = this.tenantContextService.getOrThrow();
     const records = await this.memories().findMany({
@@ -277,4 +301,16 @@ export class MemoryRepository {
   private conversations(): ConversationClient {
     return (this.prisma.system as unknown as { conversation: ConversationClient }).conversation;
   }
+}
+
+function toVectorLiteral(vector: number[]): string {
+  return `[${vector.join(',')}]`;
+}
+
+function parseVectorLiteral(literal: string): number[] {
+  return literal
+    .slice(1, -1)
+    .split(',')
+    .filter((part) => part.length > 0)
+    .map(Number);
 }

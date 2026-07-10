@@ -72,6 +72,7 @@ export function useRunCommand() {
         finalText: null,
         toolCalls: [],
         error: null,
+        pendingApprovalId: null,
         createdAt: Date.now(),
       };
       startTurn(turn);
@@ -101,6 +102,8 @@ export function useRunCommand() {
             }
           } else if (event.type === "done") {
             finishTurn(turnId, { status: "done" });
+          } else if (event.type === "run_paused_for_approval") {
+            finishTurn(turnId, { status: "waiting_approval", pendingApprovalId: event.approvalId });
           }
         }
       } catch (err) {

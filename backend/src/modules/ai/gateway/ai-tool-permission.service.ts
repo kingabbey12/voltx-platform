@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ToolRegistry } from '../tools/tool.registry';
 
 /**
  * Maps each registered AI tool to the RBAC permission key required to
@@ -25,14 +26,19 @@ export const TOOL_PERMISSION_REQUIREMENTS: Readonly<Record<string, string | null
   comms_summarize_conversation: 'communications.conversation.read',
   comms_draft_reply: 'communications.conversation.read',
   comms_extract_contact_info: 'communications.conversation.update',
+  get_revenue_summary: 'sales.opportunity.read',
+  get_pipeline_summary: 'sales.opportunity.read',
+  get_ai_cost_summary: 'ai.agent.read',
+  search_attachments: 'attachment.read',
+  get_attachment_text: 'attachment.read',
 };
 
 @Injectable()
 export class AiToolPermissionService {
+  constructor(private readonly toolRegistry: ToolRegistry) {}
+
   assertPermitted(toolName: string, grantedPermissions: readonly string[]): void {
-    const requirement = Object.prototype.hasOwnProperty.call(TOOL_PERMISSION_REQUIREMENTS, toolName)
-      ? TOOL_PERMISSION_REQUIREMENTS[toolName]
-      : null;
+    const requirement = this.resolveRequirement(toolName);
 
     if (!requirement) {
       return;
@@ -42,6 +48,26 @@ export class AiToolPermissionService {
       throw new ForbiddenException(
         `Missing required permission "${requirement}" for tool "${toolName}"`,
       );
+    }
+  }
+
+  /**
+   * The central map is authoritative when it has an entry (every
+   * hand-written tool in this codebase should be listed there). Falls
+   * back to the tool's own declared `requiredPermission` — set by
+   * dynamically-generated tool sources like IntegrationToolSourceService,
+   * which can't be centrally hand-maintained one entry per connector
+   * action — rather than defaulting an unlisted tool to unrestricted.
+   */
+  private resolveRequirement(toolName: string): string | null {
+    if (Object.prototype.hasOwnProperty.call(TOOL_PERMISSION_REQUIREMENTS, toolName)) {
+      return TOOL_PERMISSION_REQUIREMENTS[toolName];
+    }
+
+    try {
+      return this.toolRegistry.get(toolName).requiredPermission ?? null;
+    } catch {
+      return null;
     }
   }
 }
