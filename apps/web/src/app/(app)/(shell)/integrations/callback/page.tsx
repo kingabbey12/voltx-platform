@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useCompleteOAuth } from "@/hooks/use-integrations";
 import { friendlyErrorMessage } from "@/lib/api/api-error";
-import { googleOAuthRedirectUri } from "@/lib/google-oauth";
+import { integrationOAuthRedirectUri } from "@/lib/google-oauth";
 
 function OAuthCallback() {
   const router = useRouter();
@@ -40,7 +40,7 @@ function OAuthCallback() {
     }
 
     completeOAuth.mutate(
-      { connectionId: state, code, redirectUri: googleOAuthRedirectUri() },
+      { connectionId: state, code, redirectUri: integrationOAuthRedirectUri() },
       {
         onSuccess: () => {
           setStatus("success");

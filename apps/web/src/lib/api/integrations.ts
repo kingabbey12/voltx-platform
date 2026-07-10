@@ -75,4 +75,11 @@ export const OAUTH_PROVIDER_KEYS = [
   "GITHUB",
 ] as const;
 
+// OAuth2 providers with a configured connector + working Connect action
+// beyond Google (backend/src/modules/integrations/provider/oauth-provider-configs.ts).
+// Providers in OAUTH_PROVIDER_KEYS but not here (MICROSOFT_CALENDAR,
+// MICROSOFT_ONEDRIVE, GITHUB) don't have an app registration for this
+// environment yet and stay non-interactive.
+export const LIVE_OAUTH_PROVIDER_KEYS = ["MICROSOFT_OUTLOOK", "MICROSOFT_TEAMS", "SLACK"] as const;
+
 export const API_KEY_PROVIDER_KEYS = ["STRIPE", "WEBHOOK", "REST_API"] as const;
