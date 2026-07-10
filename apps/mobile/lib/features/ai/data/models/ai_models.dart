@@ -1,3 +1,5 @@
+import '../../../attachments/data/models/attachment_models.dart';
+
 /// Available AI model option.
 class AiModel {
   const AiModel({
@@ -100,7 +102,7 @@ class AiMessage {
     required this.role,
     required this.content,
     required this.timestamp,
-    this.attachments = const [],
+    this.knownAttachments = const [],
     this.isStreaming = false,
     this.streamedContent,
   });
@@ -109,7 +111,14 @@ class AiMessage {
   final AiMessageRole role;
   final String content;
   final DateTime timestamp;
-  final List<AiAttachment> attachments;
+
+  /// Full attachment objects for a just-sent message — already known
+  /// client-side (from the upload queue) at send time, so this renders
+  /// immediately with no extra network round trip. For historical
+  /// messages loaded from the backend this is empty — see
+  /// MessageAttachmentsRow, which falls back to looking attachments up by
+  /// AI_MESSAGE reference using [id] instead.
+  final List<RemoteAttachment> knownAttachments;
   final bool isStreaming;
   final String? streamedContent;
 
@@ -122,14 +131,14 @@ class AiMessage {
     String? content,
     String? streamedContent,
     bool? isStreaming,
-    List<AiAttachment>? attachments,
+    List<RemoteAttachment>? knownAttachments,
   }) {
     return AiMessage(
       id: id,
       role: role,
       content: content ?? this.content,
       timestamp: timestamp,
-      attachments: attachments ?? this.attachments,
+      knownAttachments: knownAttachments ?? this.knownAttachments,
       isStreaming: isStreaming ?? this.isStreaming,
       streamedContent: streamedContent ?? this.streamedContent,
     );
@@ -137,23 +146,6 @@ class AiMessage {
 }
 
 enum AiMessageRole { user, assistant, system }
-
-/// File or image attachment (UI only).
-class AiAttachment {
-  const AiAttachment({
-    required this.id,
-    required this.name,
-    required this.type,
-    required this.sizeLabel,
-  });
-
-  final String id;
-  final String name;
-  final AiAttachmentType type;
-  final String sizeLabel;
-}
-
-enum AiAttachmentType { file, image }
 
 /// Tool execution status for agent actions.
 class AiToolExecution {

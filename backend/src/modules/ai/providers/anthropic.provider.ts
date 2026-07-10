@@ -22,6 +22,7 @@ import {
   getRecord,
   getString,
   isRecord,
+  messageContentToText,
 } from './provider-http.utils';
 
 const ANTHROPIC_MODELS: AIModelDefinition[] = [
@@ -32,6 +33,7 @@ const ANTHROPIC_MODELS: AIModelDefinition[] = [
     displayName: 'Claude Opus 4.1',
     supportsStreaming: true,
     supportsEmbeddings: false,
+    supportsVision: true,
   },
   {
     id: 'claude-sonnet-4-5',
@@ -40,6 +42,7 @@ const ANTHROPIC_MODELS: AIModelDefinition[] = [
     displayName: 'Claude Sonnet 4.5',
     supportsStreaming: true,
     supportsEmbeddings: false,
+    supportsVision: true,
   },
   {
     id: 'claude-haiku-4',
@@ -48,6 +51,7 @@ const ANTHROPIC_MODELS: AIModelDefinition[] = [
     displayName: 'Claude Haiku 4',
     supportsStreaming: true,
     supportsEmbeddings: false,
+    supportsVision: true,
   },
 ];
 
@@ -248,14 +252,31 @@ function toAnthropicMessages(messages: AIMessage[]): Array<Record<string, unknow
     .filter((message) => message.role !== 'system')
     .map((message) => ({
       role: message.role === 'tool' ? 'assistant' : message.role,
-      content: message.content,
+      content: toAnthropicContent(message.content),
     }));
+}
+
+/** Anthropic content blocks: `{type:'text',text}` / `{type:'image',source:{type:'base64',media_type,data}}`. Plain strings pass through unchanged — the API accepts either form. */
+function toAnthropicContent(
+  content: AIMessage['content'],
+): string | Array<Record<string, unknown>> {
+  if (typeof content === 'string') {
+    return content;
+  }
+  return content.map((part) =>
+    part.type === 'image'
+      ? {
+          type: 'image',
+          source: { type: 'base64', media_type: part.mimeType, data: part.base64Data },
+        }
+      : { type: 'text', text: part.text },
+  );
 }
 
 function extractSystemPrompt(messages: AIMessage[]): string | undefined {
   const prompts = messages
     .filter((message) => message.role === 'system')
-    .map((message) => message.content.trim())
+    .map((message) => messageContentToText(message.content).trim())
     .filter((message) => message.length > 0);
 
   return prompts.length > 0 ? prompts.join('\n\n') : undefined;

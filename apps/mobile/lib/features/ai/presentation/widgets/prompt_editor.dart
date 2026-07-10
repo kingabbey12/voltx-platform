@@ -4,8 +4,9 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../../theme/components/voltx_button.dart';
 import '../../../../theme/tokens/spacing.dart';
-import '../providers/ai_providers.dart';
-import 'attachment_picker_ui.dart';
+import '../../../attachments/data/models/attachment_models.dart';
+import '../../../attachments/presentation/providers/attachment_upload_providers.dart';
+import '../../../attachments/presentation/widgets/attachment_picker_ui.dart';
 import 'ai_workspace_components.dart';
 
 /// Prompt input editor with attachments and send/stop controls.
@@ -17,24 +18,29 @@ class PromptEditor extends HookConsumerWidget {
     super.key,
   });
 
-  final ValueChanged<String> onSend;
+  final void Function(String text, List<RemoteAttachment> attachments) onSend;
   final VoidCallback onStop;
   final bool isStreaming;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = useTextEditingController();
-    final conversationId = ref.watch(activeConversationIdProvider);
-    final chatState = ref.watch(aiChatProvider(conversationId));
+    final uploads = ref.watch(attachmentUploadProvider);
+    final uploadNotifier = ref.read(attachmentUploadProvider.notifier);
 
     void sendCurrent() {
       final text = controller.text.trim();
-      if (text.isEmpty) {
+      final attachments = uploadNotifier.readyAttachments;
+      if (text.isEmpty && attachments.isEmpty) {
+        return;
+      }
+      if (uploadNotifier.isUploading) {
         return;
       }
 
-      onSend(text);
+      onSend(text, attachments);
       controller.clear();
+      uploadNotifier.reset();
     }
 
     return AiComposer(
@@ -53,15 +59,14 @@ class PromptEditor extends HookConsumerWidget {
           const AiSuggestionChip(label: 'Attachments', icon: Icons.attach_file_rounded),
         ],
       ),
-      attachments: chatState.pendingAttachments.isNotEmpty
+      attachments: uploads.isNotEmpty
           ? AttachmentPickerUi(
-              attachments: chatState.pendingAttachments,
-              onRemove: (id) => ref
-                  .read(aiChatProvider(conversationId).notifier)
-                  .removePendingAttachment(id),
+              uploads: uploads,
+              onRetry: uploadNotifier.retry,
+              onRemove: uploadNotifier.remove,
             )
           : null,
-      leading: AttachmentPickerUi.addButtons(),
+      leading: AttachmentPickerUi.addButtons(onFilesSelected: uploadNotifier.addFiles),
       textField: TextField(
         controller: controller,
         maxLines: 4,
@@ -81,7 +86,7 @@ class PromptEditor extends HookConsumerWidget {
           : VoltxButton(
               label: 'Send',
               icon: Icons.arrow_upward_rounded,
-              onPressed: sendCurrent,
+              onPressed: uploadNotifier.isUploading ? null : sendCurrent,
             ),
     );
   }

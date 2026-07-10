@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { AttachmentService } from '../src/modules/attachments/attachment.service';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { ConversationRepository } from '../src/modules/ai/conversations/conversation.repository';
 import { ConversationService } from '../src/modules/ai/conversations/conversation.service';
@@ -53,6 +54,12 @@ describe('ConversationService', () => {
           provide: AuditService,
           useValue: {
             record: jest.fn(),
+          },
+        },
+        {
+          provide: AttachmentService,
+          useValue: {
+            addReference: jest.fn(),
           },
         },
       ],

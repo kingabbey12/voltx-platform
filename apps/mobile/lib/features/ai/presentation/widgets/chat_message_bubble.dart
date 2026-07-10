@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../../theme/tokens/spacing.dart';
+import '../../../attachments/presentation/widgets/message_attachments_row.dart';
 import '../../data/models/ai_models.dart';
 import 'ai_workspace_components.dart';
 import 'markdown_message.dart';
@@ -55,21 +56,10 @@ class ChatMessageBubble extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (message.attachments.isNotEmpty) ...[
-              Wrap(
-                spacing: AppSpacing.xs,
-                runSpacing: AppSpacing.xs,
-                children: [
-                  for (final a in message.attachments)
-                    AiArtifactCard(
-                      title: a.name,
-                      type: a.type == AiAttachmentType.image ? 'Image' : 'File',
-                      summary: a.sizeLabel,
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xs),
-            ],
+            MessageAttachmentsRow(
+              messageId: message.id,
+              knownAttachments: message.knownAttachments,
+            ),
             if (isUser)
               Text(content, style: Theme.of(context).textTheme.bodyMedium)
             else if (content.isEmpty && message.isStreaming)

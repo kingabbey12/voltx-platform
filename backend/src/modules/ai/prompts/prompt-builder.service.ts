@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { MemoryEntity } from '../memory/entities/memory.entity';
-import { AIMessage } from '../models/ai-model.types';
+import { AIContentPart, AIMessage } from '../models/ai-model.types';
+import { messageContentToText } from '../providers/provider-http.utils';
 import { ToolResult } from '../tools/tool-result.types';
 import { DEFAULT_SYSTEM_PROMPT } from './default-system-prompt';
 
@@ -11,6 +12,8 @@ export interface PromptBuildInput {
   relevantMemories?: MemoryEntity[];
   userPrompt: string;
   toolResults?: ToolResult[];
+  /** Content parts (images, extracted document text) resolved from attachmentIds — appended to the current turn's user message only, never persisted into history as an array. */
+  attachmentContentParts?: AIContentPart[];
 }
 
 @Injectable()
@@ -33,7 +36,7 @@ export class PromptBuilderService {
       ...this.buildToolMessages(input.toolResults),
       {
         role: 'user',
-        content: input.userPrompt.trim(),
+        content: buildUserContent(input.userPrompt.trim(), input.attachmentContentParts),
       },
     );
 
@@ -98,11 +101,28 @@ function normalizeHistory(history: AIMessage[] | undefined): AIMessage[] {
     return [];
   }
 
+  // History loaded from the database is always plain text (attachments are
+  // never persisted as multimodal content — see PromptBuildInput's doc
+  // comment), but the type covers both, so normalize defensively.
   return history
     .map((message) => ({
       role: message.role,
-      content: message.content.trim(),
+      content: messageContentToText(message.content).trim(),
       ...(message.name ? { name: message.name.trim() } : {}),
     }))
     .filter((message) => message.content.length > 0);
+}
+
+function buildUserContent(
+  text: string,
+  attachmentContentParts: AIContentPart[] | undefined,
+): string | AIContentPart[] {
+  if (!attachmentContentParts || attachmentContentParts.length === 0) {
+    return text;
+  }
+  // Omit an empty text part for attachment-only messages (no caption)
+  // rather than sending providers a blank {type:'text', text:''} block.
+  return text.length > 0
+    ? [...attachmentContentParts, { type: 'text', text }]
+    : attachmentContentParts;
 }

@@ -202,6 +202,7 @@ class AiApiService {
     required String content,
     String? systemPrompt,
     List<String> workspaceContext = const [],
+    List<String> attachmentIds = const [],
     double? temperature,
     int? maxOutputTokens,
     CancelToken? cancelToken,
@@ -212,6 +213,9 @@ class AiApiService {
     }
     if (workspaceContext.isNotEmpty) {
       data['workspaceContext'] = workspaceContext;
+    }
+    if (attachmentIds.isNotEmpty) {
+      data['attachmentIds'] = attachmentIds;
     }
     if (temperature != null) {
       data['temperature'] = temperature;

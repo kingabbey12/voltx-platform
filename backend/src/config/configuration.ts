@@ -153,4 +153,31 @@ export default () => ({
       },
     },
   },
+  attachments: {
+    // "local" (filesystem, dev default) or "s3" (any S3-compatible
+    // endpoint: AWS S3, Cloudflare R2, Supabase Storage, MinIO).
+    storageProvider: process.env.ATTACHMENTS_STORAGE_PROVIDER ?? 'local',
+    localRootDir: process.env.ATTACHMENTS_LOCAL_ROOT_DIR ?? '.attachments-storage',
+    maxFileSizeBytes: parseInt(
+      process.env.ATTACHMENTS_MAX_FILE_SIZE_BYTES ?? `${25 * 1024 * 1024}`,
+      10,
+    ),
+    signedUrlTtlSeconds: parseInt(process.env.ATTACHMENTS_SIGNED_URL_TTL_SECONDS ?? '900', 10),
+    s3: {
+      // For R2/Supabase/MinIO, set endpoint + forcePathStyle=true; leave
+      // endpoint unset for real AWS S3.
+      bucket: process.env.ATTACHMENTS_S3_BUCKET ?? '',
+      region: process.env.ATTACHMENTS_S3_REGION ?? 'auto',
+      endpoint: process.env.ATTACHMENTS_S3_ENDPOINT ?? undefined,
+      accessKeyId: process.env.ATTACHMENTS_S3_ACCESS_KEY_ID ?? '',
+      secretAccessKey: process.env.ATTACHMENTS_S3_SECRET_ACCESS_KEY ?? '',
+      forcePathStyle: process.env.ATTACHMENTS_S3_FORCE_PATH_STYLE === 'true',
+    },
+    virusScan: {
+      // If unset, uploads skip real scanning (NoopVirusScanProvider) —
+      // safe for local dev, must be configured before production use.
+      clamavHost: process.env.CLAMAV_HOST ?? '',
+      clamavPort: parseInt(process.env.CLAMAV_PORT ?? '3310', 10),
+    },
+  },
 });

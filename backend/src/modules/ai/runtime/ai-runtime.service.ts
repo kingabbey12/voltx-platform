@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AttachmentContentBuilderService } from '../../attachments/attachment-content-builder.service';
 import { ModelRegistryService } from '../models/model-registry.service';
 import {
   AIChatResponse,
@@ -27,6 +28,7 @@ export class AIRuntimeService {
     private readonly memoryService: MemoryService,
     private readonly toolService: ToolService,
     private readonly configService: ConfigService,
+    private readonly attachmentContentBuilderService: AttachmentContentBuilderService,
   ) {
     this.maxRetries = configService.get<number>('ai.maxRetries', 2);
     this.retryBaseDelayMs = configService.get<number>('ai.retryBaseDelayMs', 250);
@@ -132,6 +134,13 @@ export class AIRuntimeService {
       conversationHistory: input.conversationHistory,
     });
 
+    const attachmentContentParts = input.attachmentIds?.length
+      ? await this.attachmentContentBuilderService.build(
+          input.attachmentIds,
+          model.supportsVision ?? false,
+        )
+      : undefined;
+
     return {
       provider,
       model,
@@ -144,6 +153,7 @@ export class AIRuntimeService {
           relevantMemories,
           userPrompt: input.userPrompt,
           toolResults: input.toolResults,
+          attachmentContentParts,
         }),
         temperature: input.temperature,
         maxOutputTokens: input.maxOutputTokens,

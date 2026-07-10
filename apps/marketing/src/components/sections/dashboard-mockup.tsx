@@ -3,6 +3,8 @@
 import { motion } from "framer-motion";
 import {
   Bot,
+  CheckCircle2,
+  DollarSign,
   LayoutDashboard,
   MessageSquare,
   Search,
@@ -31,7 +33,10 @@ const bars = [38, 54, 42, 68, 51, 74, 60, 82, 66, 90, 78, 96];
 
 export function DashboardMockup() {
   return (
-    <div aria-hidden="true" className="relative mx-auto w-full max-w-5xl">
+    <div
+      aria-hidden="true"
+      className="relative mx-auto w-full max-w-[86rem] px-4 sm:px-6 lg:px-8"
+    >
       {/* ambient glow */}
       <div
         aria-hidden
@@ -172,7 +177,7 @@ export function DashboardMockup() {
         </div>
       </motion.div>
 
-      {/* floating badges */}
+      {/* floating status cards */}
       <motion.div
         initial={{ opacity: 0, scale: 0.85, x: -20 }}
         animate={{ opacity: 1, scale: 1, x: 0 }}
@@ -181,11 +186,11 @@ export function DashboardMockup() {
       >
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/15">
-            <TrendingUp className="h-4 w-4 text-emerald-400" />
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-foreground">Deal closed</p>
-            <p className="text-[11px] text-muted-foreground">+$42,000 ARR</p>
+            <p className="text-xs font-semibold text-foreground">AI Agent Active</p>
+            <p className="text-[11px] text-muted-foreground">12 tasks completed today</p>
           </div>
         </div>
       </motion.div>
@@ -199,11 +204,11 @@ export function DashboardMockup() {
       >
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15">
-            <Sparkles className="h-4 w-4 text-primary" />
+            <DollarSign className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-foreground">Meeting summarized</p>
-            <p className="text-[11px] text-muted-foreground">3 action items created</p>
+            <p className="text-xs font-semibold text-foreground">$24,580 Revenue Managed</p>
+            <p className="text-[11px] text-muted-foreground">+18% this month</p>
           </div>
         </div>
       </motion.div>

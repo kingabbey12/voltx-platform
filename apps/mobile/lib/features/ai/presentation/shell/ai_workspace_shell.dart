@@ -72,8 +72,9 @@ class AiChatLayout extends HookConsumerWidget {
             ToolExecutionPanel(execution: chatState.activeTool!),
           PromptEditor(
             isStreaming: chatState.isStreaming,
-            onSend: (text) =>
-                ref.read(aiChatProvider(conversationId).notifier).sendMessage(text),
+            onSend: (text, attachments) => ref
+                .read(aiChatProvider(conversationId).notifier)
+                .sendMessage(text, attachments: attachments),
             onStop: () =>
                 ref.read(aiChatProvider(conversationId).notifier).stopGeneration(),
           ),
@@ -125,9 +126,9 @@ class AiChatLayout extends HookConsumerWidget {
                 ToolExecutionPanel(execution: chatState.activeTool!),
               PromptEditor(
                 isStreaming: chatState.isStreaming,
-                onSend: (text) => ref
+                onSend: (text, attachments) => ref
                     .read(aiChatProvider(conversationId).notifier)
-                    .sendMessage(text),
+                    .sendMessage(text, attachments: attachments),
                 onStop: () => ref
                     .read(aiChatProvider(conversationId).notifier)
                     .stopGeneration(),

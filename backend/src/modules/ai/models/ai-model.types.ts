@@ -4,9 +4,18 @@ export type AIModelFamily = 'gpt-5' | 'claude' | 'gemini';
 
 export type AIMessageRole = 'system' | 'user' | 'assistant' | 'tool';
 
+export type AIContentPart =
+  { type: 'text'; text: string } | { type: 'image'; mimeType: string; base64Data: string };
+
+/**
+ * `content` is a plain string for every historical/system/tool message —
+ * only the current turn's user message becomes an array when attachments
+ * are attached (see PromptBuilderService + AttachmentContentBuilderService),
+ * so provider message-mapping code must handle both.
+ */
 export interface AIMessage {
   role: AIMessageRole;
-  content: string;
+  content: string | AIContentPart[];
   name?: string;
 }
 
@@ -23,6 +32,8 @@ export interface AIModelDefinition {
   displayName: string;
   supportsStreaming: boolean;
   supportsEmbeddings: boolean;
+  /** Whether this model accepts image content parts directly (native multimodal input). */
+  supportsVision?: boolean;
   maxInputTokens?: number;
   maxOutputTokens?: number;
 }
@@ -90,6 +101,7 @@ export interface AIRuntimeChatInput {
   workspaceContext?: string[];
   conversationHistory?: AIMessage[];
   userPrompt: string;
+  attachmentIds?: string[];
   toolResults?: Array<{
     toolName: string;
     content: string;

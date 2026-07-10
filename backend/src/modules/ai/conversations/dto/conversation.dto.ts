@@ -137,9 +137,11 @@ export class MessageToolResultDto {
 }
 
 export class CreateMessageDto {
+  // No @MinLength here on purpose — a message consisting only of
+  // attachments (no caption) is valid, same as any modern chat app.
+  // ConversationService enforces "content OR attachmentIds required".
   @ApiProperty({ example: 'Summarize the current workspace risk posture.' })
   @IsString()
-  @MinLength(1)
   @MaxLength(50000)
   content!: string;
 
@@ -164,6 +166,16 @@ export class CreateMessageDto {
   @ValidateNested({ each: true })
   @Type(() => MessageToolResultDto)
   toolResults?: MessageToolResultDto[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Attachment ids to include with this message (images, PDFs, documents, etc.)',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  attachmentIds?: string[];
 
   @ApiPropertyOptional({ example: 0.2, minimum: 0, maximum: 2 })
   @IsOptional()

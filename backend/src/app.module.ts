@@ -16,6 +16,7 @@ import { TenantModule } from './common/tenant/tenant.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AgentModule } from './modules/ai/agents/agent.module';
 import { AIModule } from './modules/ai/ai.module';
+import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { CommunicationsModule } from './modules/communications/communications.module';
 import { HealthModule } from './modules/health/health.module';
 import { IntegrationModule } from './modules/integrations/integration.module';
@@ -66,6 +67,7 @@ import { WorkflowModule } from './modules/workflows/workflow.module';
     AuditModule,
     AIModule,
     AgentModule,
+    AttachmentsModule,
     AuthModule,
     CommunicationsModule,
     HealthModule,

@@ -7,6 +7,7 @@ import { KnowledgeDocumentRepository } from './documents/knowledge-document.repo
 import { DocxTextExtractor } from './extraction/docx-text-extractor';
 import { PdfTextExtractor } from './extraction/pdf-text-extractor';
 import { PlainTextExtractor } from './extraction/plain-text-extractor';
+import { PptxTextExtractor } from './extraction/pptx-text-extractor';
 import { TextExtractorRegistry } from './extraction/text-extractor.registry';
 import { XlsxTextExtractor } from './extraction/xlsx-text-extractor';
 import { KnowledgeGraphRepository } from './graph/knowledge-graph.repository';
@@ -34,6 +35,7 @@ import { KnowledgeSourceRepository } from './sources/knowledge-source.repository
     PdfTextExtractor,
     DocxTextExtractor,
     XlsxTextExtractor,
+    PptxTextExtractor,
     PlainTextExtractor,
     TextExtractorRegistry,
     TextChunkerService,
@@ -50,6 +52,7 @@ import { KnowledgeSourceRepository } from './sources/knowledge-source.repository
     KnowledgeIngestionService,
     KnowledgeStatsService,
     KnowledgeSourceRepository,
+    TextExtractorRegistry,
   ],
 })
 export class KnowledgeModule {}

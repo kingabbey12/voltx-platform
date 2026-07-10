@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { DocxTextExtractor } from './docx-text-extractor';
 import { PdfTextExtractor } from './pdf-text-extractor';
 import { PlainTextExtractor } from './plain-text-extractor';
+import { PptxTextExtractor } from './pptx-text-extractor';
 import { ExtractTextInput, TextExtractor } from './text-extractor.interface';
 import { XlsxTextExtractor } from './xlsx-text-extractor';
 
@@ -13,9 +14,16 @@ export class TextExtractorRegistry {
     pdfTextExtractor: PdfTextExtractor,
     docxTextExtractor: DocxTextExtractor,
     xlsxTextExtractor: XlsxTextExtractor,
+    pptxTextExtractor: PptxTextExtractor,
     plainTextExtractor: PlainTextExtractor,
   ) {
-    this.extractors = [pdfTextExtractor, docxTextExtractor, xlsxTextExtractor, plainTextExtractor];
+    this.extractors = [
+      pdfTextExtractor,
+      docxTextExtractor,
+      xlsxTextExtractor,
+      pptxTextExtractor,
+      plainTextExtractor,
+    ];
   }
 
   async extract(input: ExtractTextInput): Promise<string> {

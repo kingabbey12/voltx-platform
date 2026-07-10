@@ -1,6 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import {
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -378,6 +379,57 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   STRIPE_WEBHOOK_SECRET?: string;
+
+  @IsOptional()
+  @IsIn(['local', 's3'])
+  ATTACHMENTS_STORAGE_PROVIDER?: string;
+
+  @IsOptional()
+  @IsString()
+  ATTACHMENTS_LOCAL_ROOT_DIR?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  ATTACHMENTS_MAX_FILE_SIZE_BYTES?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  ATTACHMENTS_SIGNED_URL_TTL_SECONDS?: number;
+
+  @IsOptional()
+  @IsString()
+  ATTACHMENTS_S3_BUCKET?: string;
+
+  @IsOptional()
+  @IsString()
+  ATTACHMENTS_S3_REGION?: string;
+
+  @IsOptional()
+  @IsString()
+  ATTACHMENTS_S3_ENDPOINT?: string;
+
+  @IsOptional()
+  @IsString()
+  ATTACHMENTS_S3_ACCESS_KEY_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  ATTACHMENTS_S3_SECRET_ACCESS_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  ATTACHMENTS_S3_FORCE_PATH_STYLE?: string;
+
+  @IsOptional()
+  @IsString()
+  CLAMAV_HOST?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  CLAMAV_PORT?: number;
 }
 
 export function validate(config: Record<string, unknown>): EnvironmentVariables {

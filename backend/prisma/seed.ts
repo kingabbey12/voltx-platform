@@ -76,6 +76,9 @@ const PERMISSION_DEFINITIONS = [
   { key: 'communications.message.create', resource: 'comms_message', action: 'create', description: 'Send messages across connected channels' },
   { key: 'notification.read', resource: 'notification', action: 'read', description: 'View your own notifications' },
   { key: 'notification.update', resource: 'notification', action: 'update', description: 'Mark notifications read and update notification preferences' },
+  { key: 'attachment.create', resource: 'attachment', action: 'create', description: 'Upload files and attach them to conversations or CRM records' },
+  { key: 'attachment.read', resource: 'attachment', action: 'read', description: 'View and download attachments' },
+  { key: 'attachment.delete', resource: 'attachment', action: 'delete', description: 'Delete attachments' },
 ] as const;
 
 const ROLE_DEFINITIONS = [
@@ -151,6 +154,9 @@ const ROLE_DEFINITIONS = [
       'communications.message.create',
       'notification.read',
       'notification.update',
+      'attachment.create',
+      'attachment.read',
+      'attachment.delete',
     ],
   },
   {
@@ -182,6 +188,8 @@ const ROLE_DEFINITIONS = [
       'communications.message.create',
       'notification.read',
       'notification.update',
+      'attachment.create',
+      'attachment.read',
     ],
   },
   {
@@ -206,6 +214,7 @@ const ROLE_DEFINITIONS = [
       'communications.conversation.read',
       'notification.read',
       'notification.update',
+      'attachment.read',
     ],
   },
 ] as const;

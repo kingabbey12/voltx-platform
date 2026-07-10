@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { AttachmentService } from '../../attachments/attachment.service';
 import { AuditService } from '../../audit/audit.service';
 import { AIGatewayService } from '../gateway/ai-gateway.service';
 import { AiGatewayStreamEvent } from '../gateway/ai-gateway-stream-event.types';
@@ -34,6 +35,7 @@ export class ConversationService {
     private readonly aiGatewayService: AIGatewayService,
     private readonly memoryService: MemoryService,
     private readonly auditService: AuditService,
+    private readonly attachmentService: AttachmentService,
   ) {}
 
   async createConversation(dto: CreateConversationDto): Promise<ConversationResponseDto> {
@@ -135,6 +137,10 @@ export class ConversationService {
     dto: CreateMessageDto,
     signal?: AbortSignal,
   ): AsyncGenerator<AiGatewayStreamEvent, CreateConversationMessageResponseDto> {
+    if (dto.content.trim().length === 0 && !dto.attachmentIds?.length) {
+      throw new BadRequestException('Message must include text or at least one attachment');
+    }
+
     yield { type: 'status', status: 'queued' };
 
     const conversation = await this.getConversationOrThrow(conversationId);
@@ -148,6 +154,14 @@ export class ConversationService {
       role: 'USER',
       content: dto.content.trim(),
     });
+
+    if (dto.attachmentIds?.length) {
+      await Promise.all(
+        dto.attachmentIds.map((attachmentId) =>
+          this.attachmentService.addReference(attachmentId, 'AI_MESSAGE', userMessage.id),
+        ),
+      );
+    }
 
     const toolMessages = dto.toolResults
       ? await Promise.all(
@@ -188,6 +202,7 @@ export class ConversationService {
         model: conversation.model,
         conversationHistory: history.map(toAIMessage),
         userPrompt: dto.content,
+        attachmentIds: dto.attachmentIds,
         systemPrompt: dto.systemPrompt,
         workspaceContext: dto.workspaceContext,
         toolResults: dto.toolResults,

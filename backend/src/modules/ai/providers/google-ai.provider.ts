@@ -22,6 +22,7 @@ import {
   getRecord,
   getString,
   isRecord,
+  messageContentToText,
 } from './provider-http.utils';
 
 const GOOGLE_MODELS: AIModelDefinition[] = [
@@ -32,6 +33,7 @@ const GOOGLE_MODELS: AIModelDefinition[] = [
     displayName: 'Gemini 2.5 Pro',
     supportsStreaming: true,
     supportsEmbeddings: false,
+    supportsVision: true,
   },
   {
     id: 'gemini-2.5-flash',
@@ -40,6 +42,7 @@ const GOOGLE_MODELS: AIModelDefinition[] = [
     displayName: 'Gemini 2.5 Flash',
     supportsStreaming: true,
     supportsEmbeddings: false,
+    supportsVision: true,
   },
   {
     id: 'text-embedding-004',
@@ -239,14 +242,26 @@ function toGeminiContents(messages: AIMessage[]): Array<Record<string, unknown>>
     .filter((message) => message.role !== 'system')
     .map((message) => ({
       role: message.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: message.content }],
+      parts: toGeminiParts(message.content),
     }));
+}
+
+/** Gemini content parts: `{text}` / `{inlineData:{mimeType,data}}`. */
+function toGeminiParts(content: AIMessage['content']): Array<Record<string, unknown>> {
+  if (typeof content === 'string') {
+    return [{ text: content }];
+  }
+  return content.map((part) =>
+    part.type === 'image'
+      ? { inlineData: { mimeType: part.mimeType, data: part.base64Data } }
+      : { text: part.text },
+  );
 }
 
 function extractSystemInstruction(messages: AIMessage[]): string | undefined {
   const systemMessages = messages
     .filter((message) => message.role === 'system')
-    .map((message) => message.content.trim())
+    .map((message) => messageContentToText(message.content).trim())
     .filter((message) => message.length > 0);
 
   return systemMessages.length > 0 ? systemMessages.join('\n\n') : undefined;

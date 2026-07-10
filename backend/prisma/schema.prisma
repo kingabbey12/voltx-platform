@@ -169,6 +169,7 @@ model Organization {
   commsChannelConnections CommsChannelConnection[]
   commsConversations      CommsConversation[]
   commsConversationLabels ConversationLabel[]
+  attachments             Attachment[]
 
   @@index([status])
   @@map("organizations")
@@ -199,6 +200,7 @@ model User {
   sentInvitations         Invitation[]        @relation("InvitationInvitedBy")
   acceptedInvitations     Invitation[]        @relation("InvitationAcceptedBy")
   notifications           Notification[]
+  attachments             Attachment[]
 
   @@index([status])
   @@map("users")
@@ -1925,4 +1927,110 @@ model Notification {
   @@index([organizationId, userId, read])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+// ============================================================================
+// Attachments — organization-scoped file storage shared by AI chat, CRM
+// entities, and communications, with a swappable storage backend (local
+// filesystem for dev, S3-compatible for prod — see
+// src/modules/attachments/storage). AttachmentReference is deliberately
+// polymorphic (referenceType + referenceId, no formal relation) since one
+// attachment can be linked to a conversation, a CRM record, or an AI
+// session — the same pattern IntegrationApiUsageLog/IntegrationHealthCheck
+// use for cross-cutting rows that don't belong to one parent table.
+// ============================================================================
+
+enum AttachmentStatus {
+  PENDING
+  UPLOADING
+  PROCESSING
+  READY
+  QUARANTINED
+  FAILED
+}
+
+enum AttachmentReferenceType {
+  AI_CONVERSATION
+  AI_MESSAGE
+  CRM_CONTACT
+  CRM_COMPANY
+  CRM_LEAD
+  CRM_OPPORTUNITY
+  CRM_ACTIVITY
+  COMMS_MESSAGE
+}
+
+/// A single stored file. `storageKey` is opaque to callers — only the
+/// configured StorageProvider knows how to resolve it into bytes.
+/// `version` bumps on replace-in-place (rare); most edits create a new
+/// Attachment row instead, with AttachmentVersion reserved for the
+/// explicit "replace this exact file" flow.
+model Attachment {
+  id              String                @id @default(uuid()) @db.Uuid
+  organizationId  String                @map("organization_id") @db.Uuid
+  uploadedBy      String                @map("uploaded_by") @db.Uuid
+  fileName        String                @map("file_name")
+  mimeType        String                @map("mime_type")
+  sizeBytes       Int                   @map("size_bytes")
+  storageProvider String                @map("storage_provider")
+  storageKey      String                @map("storage_key")
+  checksumSha256  String?               @map("checksum_sha256")
+  status          AttachmentStatus      @default(PENDING)
+  scanResult      String?               @map("scan_result")
+  thumbnailKey    String?               @map("thumbnail_key")
+  width           Int?
+  height          Int?
+  extractedText   String?               @map("extracted_text") @db.Text
+  metadata        Json                  @default("{}")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  deletedAt       DateTime?             @map("deleted_at")
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploader        User                  @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+  versions        AttachmentVersion[]
+  references      AttachmentReference[]
+
+  @@index([organizationId])
+  @@index([uploadedBy])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([organizationId, createdAt])
+  @@map("attachments")
+}
+
+/// Append-only history of prior file content for an Attachment that was
+/// explicitly replaced in place (not a new upload). createdBy tracks who
+/// performed the replace; the current content always lives on Attachment
+/// itself, never solely in the latest version row.
+model AttachmentVersion {
+  id             String     @id @default(uuid()) @db.Uuid
+  attachmentId   String     @map("attachment_id") @db.Uuid
+  organizationId String     @map("organization_id") @db.Uuid
+  versionNumber  Int        @map("version_number")
+  storageKey     String     @map("storage_key")
+  sizeBytes      Int        @map("size_bytes")
+  checksumSha256 String?    @map("checksum_sha256")
+  createdBy      String     @map("created_by") @db.Uuid
+  createdAt      DateTime   @default(now()) @map("created_at")
+  attachment     Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  @@unique([attachmentId, versionNumber])
+  @@index([organizationId])
+  @@map("attachment_versions")
+}
+
+/// Polymorphic link from an Attachment to whatever it's attached to.
+model AttachmentReference {
+  id             String                  @id @default(uuid()) @db.Uuid
+  attachmentId   String                  @map("attachment_id") @db.Uuid
+  organizationId String                  @map("organization_id") @db.Uuid
+  referenceType  AttachmentReferenceType @map("reference_type")
+  referenceId    String                  @map("reference_id") @db.Uuid
+  createdAt      DateTime                @default(now()) @map("created_at")
+  attachment     Attachment              @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  @@unique([attachmentId, referenceType, referenceId])
+  @@index([organizationId])
+  @@index([referenceType, referenceId])
+  @@map("attachment_references")
 }

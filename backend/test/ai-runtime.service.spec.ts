@@ -5,6 +5,7 @@ import {
   AIModelDefinition,
   AIStreamEvent,
 } from '../src/modules/ai/models/ai-model.types';
+import { AttachmentContentBuilderService } from '../src/modules/attachments/attachment-content-builder.service';
 import { MemoryService } from '../src/modules/ai/memory/memory.service';
 import { ModelRegistryService } from '../src/modules/ai/models/model-registry.service';
 import { PromptBuilderService } from '../src/modules/ai/prompts/prompt-builder.service';
@@ -91,6 +92,12 @@ describe('AIRuntimeService', () => {
         {
           provide: AI_PROVIDERS,
           useValue: [provider],
+        },
+        {
+          provide: AttachmentContentBuilderService,
+          useValue: {
+            build: jest.fn().mockResolvedValue([]),
+          },
         },
       ],
     }).compile();

@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AttachmentsModule } from '../attachments/attachments.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { AIController } from './ai.controller';
 import { ConversationController } from './conversations/conversation.controller';
@@ -22,7 +23,13 @@ import { AIRuntimeService } from './runtime/ai-runtime.service';
 import { ToolModule } from './tools/tool.module';
 
 @Module({
-  imports: [ConfigModule, ToolModule, MemoryModule, forwardRef(() => KnowledgeModule)],
+  imports: [
+    ConfigModule,
+    ToolModule,
+    MemoryModule,
+    forwardRef(() => KnowledgeModule),
+    AttachmentsModule,
+  ],
   controllers: [AIController, ConversationController],
   providers: [
     AIRuntimeService,

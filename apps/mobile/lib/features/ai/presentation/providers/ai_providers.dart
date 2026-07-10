@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/analytics/analytics_service.dart';
 import '../../../../core/network/network_providers.dart';
+import '../../../attachments/data/models/attachment_models.dart';
 import '../../../knowledge/data/models/knowledge_models.dart';
 import '../../../knowledge/data/repositories/knowledge_repository.dart';
 import '../../../knowledge/presentation/providers/knowledge_providers.dart';
@@ -347,14 +348,12 @@ class AiChatState {
     this.isStreaming = false,
     this.tokensUsed = 0,
     this.activeTool,
-    this.pendingAttachments = const [],
   });
 
   final List<AiMessage> messages;
   final bool isStreaming;
   final int tokensUsed;
   final AiToolExecution? activeTool;
-  final List<AiAttachment> pendingAttachments;
 
   AiChatState copyWith({
     List<AiMessage>? messages,
@@ -362,14 +361,12 @@ class AiChatState {
     int? tokensUsed,
     AiToolExecution? activeTool,
     bool clearTool = false,
-    List<AiAttachment>? pendingAttachments,
   }) {
     return AiChatState(
       messages: messages ?? this.messages,
       isStreaming: isStreaming ?? this.isStreaming,
       tokensUsed: tokensUsed ?? this.tokensUsed,
       activeTool: clearTool ? null : (activeTool ?? this.activeTool),
-      pendingAttachments: pendingAttachments ?? this.pendingAttachments,
     );
   }
 }
@@ -424,20 +421,12 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
     );
   }
 
-  void removePendingAttachment(String id) {
-    state = state.copyWith(
-      pendingAttachments: [
-        for (final a in state.pendingAttachments)
-          if (a.id != id) a,
-      ],
-    );
-  }
-
-  Future<void> sendMessage(String text) async {
+  Future<void> sendMessage(String text, {List<RemoteAttachment> attachments = const []}) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty || state.isStreaming) {
+    if ((trimmed.isEmpty && attachments.isEmpty) || state.isStreaming) {
       return;
     }
+    final attachmentIds = attachments.map((a) => a.id).toList();
 
     if (_useMockFallback) {
       final now = DateTime.now();
@@ -474,7 +463,7 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
       role: AiMessageRole.user,
       content: trimmed,
       timestamp: now,
-      attachments: List.of(state.pendingAttachments),
+      knownAttachments: attachments,
     );
     final assistantId = 'assistant-${now.millisecondsSinceEpoch}';
     final assistantPlaceholder = AiMessage(
@@ -489,7 +478,6 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
     state = state.copyWith(
       messages: [...state.messages, userMessage, assistantPlaceholder],
       isStreaming: true,
-      pendingAttachments: [],
       activeTool: null,
     );
 
@@ -499,7 +487,12 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
     _streamCancelToken = CancelToken();
 
     _streamSubscription = _api
-        .streamMessage(_conversationId, content: trimmed, cancelToken: _streamCancelToken)
+        .streamMessage(
+          _conversationId,
+          content: trimmed,
+          attachmentIds: attachmentIds,
+          cancelToken: _streamCancelToken,
+        )
         .listen(
       (event) {
         switch (event) {

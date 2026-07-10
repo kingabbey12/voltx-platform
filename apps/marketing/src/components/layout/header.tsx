@@ -3,23 +3,33 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
 import { Menu, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mainNav, siteConfig } from "@/config/site";
 import { Button } from "@/components/ui/button";
 
+const mobileMenuVariants = {
+  hidden: { opacity: 0, height: 0 },
+  visible: {
+    opacity: 1,
+    height: "auto",
+    transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1], when: "beforeChildren", staggerChildren: 0.05 },
+  },
+  exit: { opacity: 0, height: 0, transition: { duration: 0.2, ease: "easeIn" } },
+};
+
+const mobileItemVariants = {
+  hidden: { opacity: 0, y: -8 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] } },
+};
+
 export function Header() {
   const pathname = usePathname();
-  const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const { scrollY } = useScroll();
+  const glassOpacity = useTransform(scrollY, [0, 80], [0, 1]);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -33,15 +43,16 @@ export function Header() {
   }, [mobileOpen]);
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-50 w-full transition-all duration-300",
-        scrolled
-          ? "border-b border-border/80 bg-background/70 backdrop-blur-xl"
-          : "border-b border-transparent bg-transparent",
-      )}
-    >
-      <div className="container flex h-16 items-center justify-between md:h-20">
+    <header className="sticky top-0 z-50 w-full">
+      {/* Glass layer fades in smoothly with scroll position, rather than
+          snapping between two states, for a more premium feel. */}
+      <motion.div
+        aria-hidden
+        style={{ opacity: glassOpacity }}
+        className="pointer-events-none absolute inset-0 border-b border-border/80 bg-background/70 backdrop-blur-xl"
+      />
+
+      <div className="container relative flex h-16 items-center justify-between md:h-20">
         <Link
           href="/"
           className="flex items-center gap-2.5 text-lg font-semibold tracking-tight"
@@ -62,18 +73,20 @@ export function Header() {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative rounded-full px-4 py-2 text-sm font-medium text-foreground/70 transition-colors hover:text-foreground",
+                  "group relative rounded-full px-4 py-2 text-sm font-medium text-foreground/70 transition-colors hover:text-foreground",
                   active && "text-foreground",
                 )}
               >
-                {active && (
+                <span className="relative">{item.label}</span>
+                {active ? (
                   <motion.span
-                    layoutId="nav-active"
-                    className="absolute inset-0 rounded-full bg-white/5"
+                    layoutId="nav-underline"
+                    className="absolute inset-x-3 bottom-0.5 h-[2px] rounded-full bg-gradient-to-r from-primary to-accent"
                     transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                   />
+                ) : (
+                  <span className="absolute inset-x-3 bottom-0.5 h-[2px] scale-x-0 rounded-full bg-foreground/20 transition-transform duration-300 ease-out group-hover:scale-x-100" />
                 )}
-                <span className="relative">{item.label}</span>
               </Link>
             );
           })}
@@ -96,7 +109,18 @@ export function Header() {
           aria-controls="mobile-menu"
           aria-label={mobileOpen ? "Close menu" : "Open menu"}
         >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={mobileOpen ? "close" : "open"}
+              initial={{ opacity: 0, rotate: -45 }}
+              animate={{ opacity: 1, rotate: 0 }}
+              exit={{ opacity: 0, rotate: 45 }}
+              transition={{ duration: 0.2 }}
+              className="flex"
+            >
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </motion.span>
+          </AnimatePresence>
         </button>
       </div>
 
@@ -104,33 +128,37 @@ export function Header() {
         {mobileOpen && (
           <motion.div
             id="mobile-menu"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className="overflow-hidden border-b border-border/80 bg-background/95 backdrop-blur-xl md:hidden"
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            variants={mobileMenuVariants}
+            className="relative overflow-hidden border-b border-border/80 bg-background/95 backdrop-blur-xl md:hidden"
           >
             <nav className="container flex flex-col gap-1 py-4" aria-label="Mobile">
               {mainNav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "rounded-lg px-3 py-3 text-base font-medium text-foreground/80 hover:bg-white/5 hover:text-foreground",
-                    pathname === item.href && "bg-white/5 text-foreground",
-                  )}
-                >
-                  {item.label}
-                </Link>
+                <motion.div key={item.href} variants={mobileItemVariants}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "block rounded-lg px-3 py-3 text-base font-medium text-foreground/80 transition-colors hover:bg-white/5 hover:text-foreground",
+                      pathname === item.href && "bg-white/5 text-foreground",
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                </motion.div>
               ))}
-              <div className="mt-2 flex flex-col gap-2 border-t border-border/60 pt-4">
+              <motion.div
+                variants={mobileItemVariants}
+                className="mt-2 flex flex-col gap-2 border-t border-border/60 pt-4"
+              >
                 <Button variant="secondary" asChild>
                   <a href={siteConfig.appUrl}>Sign in</a>
                 </Button>
                 <Button asChild>
                   <a href={siteConfig.appUrl}>Start Free</a>
                 </Button>
-              </div>
+              </motion.div>
             </nav>
           </motion.div>
         )}

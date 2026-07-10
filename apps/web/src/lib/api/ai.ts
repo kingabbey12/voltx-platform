@@ -59,10 +59,16 @@ export const aiApi = {
       query: { page: 1, limit: 50, ...query },
     }),
 
-  sendMessage: (conversationId: string, content: string, workspaceContext?: string[]) =>
+  sendMessage: (
+    conversationId: string,
+    content: string,
+    workspaceContext?: string[],
+    attachmentIds?: string[],
+  ) =>
     apiClient.post<CreateMessageResult>(`/ai/conversations/${conversationId}/messages`, {
       content,
       ...(workspaceContext && workspaceContext.length > 0 ? { workspaceContext } : {}),
+      ...(attachmentIds && attachmentIds.length > 0 ? { attachmentIds } : {}),
     }),
 
   executeTool: (conversationId: string, toolName: string, input: Record<string, unknown>) =>

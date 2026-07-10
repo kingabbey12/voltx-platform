@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AIMessage } from '../models/ai-model.types';
+import { messageContentToText } from '../providers/provider-http.utils';
 import { MemoryRepository } from './memory.repository';
 import { MemoryScoreBreakdown, MemoryScorer } from './memory.scorer';
 import { MemoryEntity } from './entities/memory.entity';
@@ -75,7 +76,9 @@ function buildQueryText(input: SelectRelevantMemoriesInput): string {
   const parts = [
     input.userPrompt.trim(),
     ...(input.workspaceContext ?? []).map((item) => item.trim()),
-    ...(input.conversationHistory ?? []).slice(-5).map((message) => message.content.trim()),
+    ...(input.conversationHistory ?? [])
+      .slice(-5)
+      .map((message) => messageContentToText(message.content).trim()),
   ].filter((item) => item.length > 0);
 
   return parts.join('\n');

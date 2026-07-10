@@ -21,6 +21,8 @@ export interface AiGatewayChatInput {
   workspaceContext?: string[];
   conversationHistory?: AIMessage[];
   userPrompt: string;
+  /** Resolved into content parts (images, extracted document text) once the target model is known — see AIRuntimeService.prepareChatRequest. */
+  attachmentIds?: string[];
   toolResults?: Array<{
     toolName: string;
     content: string;

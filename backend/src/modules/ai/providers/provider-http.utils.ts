@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { AIContentPart } from '../models/ai-model.types';
 import { AIProviderError } from './ai-provider.interface';
 import { classifyProviderError, extractProviderRequestId } from './provider-error-classifier';
 
@@ -6,6 +7,17 @@ const logger = new Logger('AIProviderHttp');
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+/** Text-only view of a message's content — for places (system prompt extraction, non-vision providers) that need a plain string regardless of whether the message carries image parts. */
+export function messageContentToText(content: string | AIContentPart[]): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  return content
+    .filter((part): part is Extract<AIContentPart, { type: 'text' }> => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n');
 }
 
 export function getString(record: Record<string, unknown>, key: string): string | undefined {

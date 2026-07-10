@@ -66,6 +66,7 @@ export class AIGatewayService {
         workspaceContext: mergedWorkspaceContext,
         conversationHistory: input.conversationHistory,
         userPrompt: input.userPrompt,
+        attachmentIds: input.attachmentIds,
         toolResults: input.toolResults,
         temperature: input.temperature,
         maxOutputTokens: input.maxOutputTokens ?? defaultMaxOutputTokens(input.requestType),

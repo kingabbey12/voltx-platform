@@ -29,7 +29,8 @@ export function useCreateConversation() {
 export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (content: string) => aiApi.sendMessage(conversationId, content),
+    mutationFn: ({ content, attachmentIds }: { content: string; attachmentIds?: string[] }) =>
+      aiApi.sendMessage(conversationId, content, undefined, attachmentIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai", "conversations", conversationId, "messages"] });
       queryClient.invalidateQueries({ queryKey: ["ai", "conversations"] });

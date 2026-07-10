@@ -5,6 +5,7 @@ import {
   AIChatResponse,
   AIEmbeddingRequest,
   AIEmbeddingResponse,
+  AIMessage,
   AIModelDefinition,
   AIProviderChatRequest,
   AIStreamEvent,
@@ -32,6 +33,7 @@ const OPENAI_MODELS: AIModelDefinition[] = [
     displayName: 'GPT-5',
     supportsStreaming: true,
     supportsEmbeddings: false,
+    supportsVision: true,
   },
   {
     id: 'gpt-5-mini',
@@ -40,6 +42,7 @@ const OPENAI_MODELS: AIModelDefinition[] = [
     displayName: 'GPT-5 Mini',
     supportsStreaming: true,
     supportsEmbeddings: false,
+    supportsVision: true,
   },
   {
     id: 'text-embedding-3-large',
@@ -109,11 +112,7 @@ export class OpenAIProvider implements AIProvider {
         headers: this.buildHeaders(),
         body: JSON.stringify({
           model: this.wireModel(request.model),
-          messages: request.messages.map((message) => ({
-            role: message.role,
-            content: message.content,
-            ...(message.name ? { name: message.name } : {}),
-          })),
+          messages: toOpenAIMessages(request.messages),
           ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
           ...(request.maxOutputTokens !== undefined
             ? { max_completion_tokens: request.maxOutputTokens }
@@ -171,11 +170,7 @@ export class OpenAIProvider implements AIProvider {
           // streamed chunk — token usage / cost tracking would silently
           // report zero for every real (non-mocked) streaming chat call.
           stream_options: { include_usage: true },
-          messages: request.messages.map((message) => ({
-            role: message.role,
-            content: message.content,
-            ...(message.name ? { name: message.name } : {}),
-          })),
+          messages: toOpenAIMessages(request.messages),
           ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
           ...(request.maxOutputTokens !== undefined
             ? { max_completion_tokens: request.maxOutputTokens }
@@ -319,4 +314,24 @@ function getFirstChoiceRecord(
   const choices = getArray(payload, 'choices');
   const firstChoice = choices?.[0];
   return isRecord(firstChoice) ? firstChoice : undefined;
+}
+
+function toOpenAIMessages(messages: AIMessage[]): Array<Record<string, unknown>> {
+  return messages.map((message) => ({
+    role: message.role,
+    content: toOpenAIContent(message.content),
+    ...(message.name ? { name: message.name } : {}),
+  }));
+}
+
+/** OpenAI chat/completions content blocks: `{type:'text',text}` / `{type:'image_url',image_url:{url:'data:<mime>;base64,<data>'}}`. Plain strings pass through unchanged. */
+function toOpenAIContent(content: AIMessage['content']): string | Array<Record<string, unknown>> {
+  if (typeof content === 'string') {
+    return content;
+  }
+  return content.map((part) =>
+    part.type === 'image'
+      ? { type: 'image_url', image_url: { url: `data:${part.mimeType};base64,${part.base64Data}` } }
+      : { type: 'text', text: part.text },
+  );
 }
