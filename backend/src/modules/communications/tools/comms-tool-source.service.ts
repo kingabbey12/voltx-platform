@@ -3,6 +3,9 @@ import { TenantContextService } from '../../../common/tenant/tenant-context.serv
 import { AITool, ToolSchema } from '../../ai/tools/tool.interface';
 import { DynamicToolSource, ToolRegistry } from '../../ai/tools/tool.registry';
 import { ContactsService } from '../../sales/contacts/contacts.service';
+import { ChannelConnectionRepository } from '../channel-connections/channel-connection.repository';
+import { CommsChannel } from '../channels/channel-provider.interface';
+import { ConversationRepository } from '../conversation/conversation.repository';
 import { ConversationService } from '../conversation/conversation.service';
 import { MessageRepository } from '../conversation/message.repository';
 import { AIConversationSummaryRepository } from '../conversation/ai-conversation-summary.repository';
@@ -27,6 +30,8 @@ export class CommsToolSourceService implements DynamicToolSource, OnModuleInit {
     private readonly commsAiService: CommsAiService,
     private readonly contactsService: ContactsService,
     private readonly tenantContextService: TenantContextService,
+    private readonly channelConnectionRepository: ChannelConnectionRepository,
+    private readonly conversationRepository: ConversationRepository,
   ) {}
 
   onModuleInit(): void {
@@ -34,7 +39,129 @@ export class CommsToolSourceService implements DynamicToolSource, OnModuleInit {
   }
 
   listTools(): AITool[] {
-    return [this.buildSummarizeTool(), this.buildDraftReplyTool(), this.buildExtractContactTool()];
+    return [
+      this.buildSummarizeTool(),
+      this.buildDraftReplyTool(),
+      this.buildExtractContactTool(),
+      this.buildSendReplyTool(),
+      this.buildSendChannelMessageTool('WHATSAPP', 'send_whatsapp_message', 'WhatsApp'),
+      this.buildSendChannelMessageTool('TWILIO_SMS', 'send_sms_message', 'SMS'),
+    ];
+  }
+
+  /**
+   * Finds the org's active connection for `channel`, then either reuses
+   * the existing conversation for `toAddress` or creates one — mirroring
+   * exactly how ingestInboundMessage threads a conversation by
+   * connectionId+externalThreadId, just from the outbound side. No new
+   * conversation-management logic: same repository methods, same
+   * threading key.
+   */
+  private async findOrCreateOutboundConversation(
+    channel: CommsChannel,
+    toAddress: string,
+  ): Promise<string> {
+    const connections = await this.channelConnectionRepository.findAll({
+      page: 1,
+      limit: 1,
+      channel,
+      status: 'CONNECTED',
+    });
+    const connection = connections.items[0];
+    if (!connection) {
+      throw new Error(`No connected ${channel} connection for this organization`);
+    }
+
+    const existing = await this.conversationRepository.findByConnectionAndExternalThreadUnscoped(
+      connection.id,
+      toAddress,
+    );
+    if (existing) {
+      return existing.id;
+    }
+
+    const created = await this.conversationRepository.create({
+      connectionId: connection.id,
+      channel,
+      externalThreadId: toAddress,
+    });
+    return created.id;
+  }
+
+  private buildSendReplyTool(): AITool {
+    const conversationService = this.conversationService;
+    const tenantContextService = this.tenantContextService;
+    const schema: ToolSchema = {
+      type: 'object',
+      properties: {
+        conversationId: {
+          type: 'string',
+          description:
+            'Conversation id to reply in (any channel — email, Slack, Teams, WhatsApp, SMS).',
+          required: true,
+        },
+        body: { type: 'string', description: 'Message text to send.', required: true },
+      },
+    };
+
+    return {
+      name: 'comms_send_reply',
+      description:
+        'Send a real reply into an existing unified-inbox conversation, on whichever channel that conversation is on (Gmail, Outlook, Slack, Teams, WhatsApp, or SMS). This is a genuine, persisted send — not a draft.',
+      inputSchema: schema,
+      execute: async (input: { conversationId: string; body: string }) => {
+        if (!input.body?.trim()) {
+          throw new Error('body is required');
+        }
+        const { userId } = tenantContextService.getOrThrow();
+        const sent = await conversationService.sendMessage({
+          conversationId: input.conversationId,
+          body: input.body,
+          senderId: userId,
+        });
+        return { id: sent.id, status: sent.status };
+      },
+    };
+  }
+
+  private buildSendChannelMessageTool(
+    channel: CommsChannel,
+    toolName: string,
+    displayName: string,
+  ): AITool {
+    const conversationService = this.conversationService;
+    const tenantContextService = this.tenantContextService;
+    const findOrCreateOutboundConversation = this.findOrCreateOutboundConversation.bind(this);
+    const schema: ToolSchema = {
+      type: 'object',
+      properties: {
+        to: {
+          type: 'string',
+          description: 'Recipient phone number, e.g. +15551234567.',
+          required: true,
+        },
+        body: { type: 'string', description: 'Message text to send.', required: true },
+      },
+    };
+
+    return {
+      name: toolName,
+      description: `Send a real outbound ${displayName} message to a phone number, starting a new conversation if one doesn't already exist. This is a genuine, persisted send.`,
+      inputSchema: schema,
+      execute: async (input: { to: string; body: string }) => {
+        if (!input.to?.trim() || !input.body?.trim()) {
+          throw new Error('to and body are required');
+        }
+        const { userId } = tenantContextService.getOrThrow();
+        const conversationId = await findOrCreateOutboundConversation(channel, input.to);
+        const sent = await conversationService.sendMessage({
+          conversationId,
+          body: input.body,
+          senderId: userId,
+        });
+        return { id: sent.id, conversationId, status: sent.status };
+      },
+    };
   }
 
   private async loadThread(conversationId: string): Promise<string[]> {

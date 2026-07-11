@@ -9,6 +9,8 @@ import {
 import { ModelRegistryService } from '../src/modules/ai/models/model-registry.service';
 import { PrismaService } from '../src/database/prisma.service';
 import { UsersRepository } from '../src/modules/users/users.repository';
+import { ToolRegistry } from '../src/modules/ai/tools/tool.registry';
+import { AiToolPermissionService } from '../src/modules/ai/gateway/ai-tool-permission.service';
 import { createTestApp } from './create-test-app';
 import {
   authenticateContext,
@@ -121,5 +123,39 @@ describe('AI Tools (e2e)', () => {
     expect(executions).toHaveLength(1);
     expect(executions[0]?.toolName).toBe('calculator');
     expect(executions[0]?.status).toBe('SUCCEEDED');
+  });
+
+  describe('RBAC coverage', () => {
+    // Tools intentionally callable by any authenticated org member — pure
+    // utilities with no domain sensitivity, matching
+    // TOOL_PERMISSION_REQUIREMENTS' own documented default.
+    const INTENTIONALLY_UNRESTRICTED = new Set([
+      'calculator',
+      'datetime',
+      'uuid',
+      'json',
+      'http_get',
+      'http_post',
+    ]);
+
+    it('every registered tool is either gated by a permission or on the intentional public allowlist', () => {
+      const toolRegistry = app.get(ToolRegistry);
+      const permissionService = app.get(AiToolPermissionService);
+
+      const ungated: string[] = [];
+      for (const descriptor of toolRegistry.list()) {
+        if (INTENTIONALLY_UNRESTRICTED.has(descriptor.name)) continue;
+        try {
+          permissionService.assertPermitted(descriptor.name, []);
+          // No permission required and no exception thrown with an empty
+          // grant set — this tool is unintentionally unrestricted.
+          ungated.push(descriptor.name);
+        } catch {
+          // Threw with an empty grant set — genuinely gated. Expected.
+        }
+      }
+
+      expect(ungated).toEqual([]);
+    });
   });
 });

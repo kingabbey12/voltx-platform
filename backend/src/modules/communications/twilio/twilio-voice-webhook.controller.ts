@@ -7,6 +7,7 @@ import { ChannelConnectionService } from '../channel-connections/channel-connect
 import { ChannelProviderRegistry } from '../channels/channel-provider.registry';
 import { CallRepository } from '../calls/call.repository';
 import { CommsCallStatus } from '../calls/entities/call.entity';
+import { WorkflowEventBusService } from '../../workflows/scheduling/workflow-event-bus.service';
 
 interface RequestWithRawBody extends Request {
   rawBody?: Buffer;
@@ -42,6 +43,7 @@ export class TwilioVoiceWebhookController {
     private readonly channelConnectionRepository: ChannelConnectionRepository,
     private readonly channelConnectionService: ChannelConnectionService,
     private readonly callRepository: CallRepository,
+    private readonly workflowEventBus: WorkflowEventBusService,
   ) {}
 
   @Post('incoming')
@@ -120,6 +122,16 @@ export class TwilioVoiceWebhookController {
         ...(durationSeconds ? { durationSeconds: Number(durationSeconds) } : {}),
         ...(twilioStatus === 'completed' ? { endedAt: new Date() } : {}),
       });
+      if (twilioStatus === 'completed') {
+        this.workflowEventBus.emit('VOICE_COMPLETED', {
+          organizationId: call.organizationId,
+          connectionId: call.connectionId,
+          callId: call.id,
+          fromNumber: call.fromNumber,
+          toNumber: call.toNumber,
+          durationSeconds: durationSeconds ? Number(durationSeconds) : undefined,
+        });
+      }
     }
 
     response.status(HttpStatus.OK).send();

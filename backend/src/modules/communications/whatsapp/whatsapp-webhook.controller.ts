@@ -16,6 +16,7 @@ import { ChannelConnectionRepository } from '../channel-connections/channel-conn
 import { ChannelConnectionService } from '../channel-connections/channel-connection.service';
 import { ChannelProviderRegistry } from '../channels/channel-provider.registry';
 import { ConversationService } from '../conversation/conversation.service';
+import { WorkflowEventBusService } from '../../workflows/scheduling/workflow-event-bus.service';
 
 interface RequestWithRawBody extends Request {
   rawBody?: Buffer;
@@ -41,6 +42,7 @@ export class WhatsAppWebhookController {
     private readonly channelConnectionRepository: ChannelConnectionRepository,
     private readonly channelConnectionService: ChannelConnectionService,
     private readonly conversationService: ConversationService,
+    private readonly workflowEventBus: WorkflowEventBusService,
   ) {}
 
   @Get()
@@ -113,12 +115,22 @@ export class WhatsAppWebhookController {
         credential,
       });
       for (const message of messages) {
-        await this.conversationService.ingestInboundMessage(
+        const ingested = await this.conversationService.ingestInboundMessage(
           connection.organizationId,
           connection.id,
           'WHATSAPP',
           message,
         );
+        if (ingested) {
+          this.workflowEventBus.emit('WHATSAPP_RECEIVED', {
+            organizationId: ingested.organizationId,
+            connectionId: connection.id,
+            conversationId: ingested.conversationId,
+            messageId: ingested.id,
+            from: message.fromAddress,
+            body: ingested.body,
+          });
+        }
       }
     }
 

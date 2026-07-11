@@ -46,3 +46,11 @@ export class WorkflowApprovalResponseDto {
 }
 
 export class WorkflowApprovalSuccessResponseDto extends ApiSuccessResponseDto<WorkflowApprovalResponseDto> {}
+
+export class PaginatedWorkflowApprovalsResponseDto {
+  @ApiProperty({ type: [WorkflowApprovalResponseDto] }) items!: WorkflowApprovalResponseDto[];
+  @ApiProperty() total!: number;
+  @ApiProperty() page!: number;
+  @ApiProperty() limit!: number;
+  @ApiProperty() totalPages!: number;
+}

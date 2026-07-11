@@ -180,6 +180,34 @@ describe('WorkflowDefinitionValidatorService', () => {
       expect(() => service.validate(definition)).toThrow('requires config.webhookUrl');
     });
 
+    it('rejects a notification-channel NOTIFICATION step missing userId', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          {
+            id: 'notify',
+            name: 'Notify',
+            type: 'NOTIFICATION',
+            config: { channel: 'notification', message: 'hi' },
+          },
+        ],
+      };
+      expect(() => service.validate(definition)).toThrow('requires config.userId');
+    });
+
+    it('accepts a notification-channel NOTIFICATION step with userId', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          {
+            id: 'notify',
+            name: 'Notify',
+            type: 'NOTIFICATION',
+            config: { channel: 'notification', message: 'hi', userId: 'user-1' },
+          },
+        ],
+      };
+      expect(() => service.validate(definition)).not.toThrow();
+    });
+
     it('rejects an APPROVAL step missing message', () => {
       const definition: WorkflowDefinition = {
         steps: [{ id: 'approve', name: 'Approve', type: 'APPROVAL', config: { message: '' } }],
@@ -192,6 +220,183 @@ describe('WorkflowDefinitionValidatorService', () => {
         steps: [{ id: 'wait', name: 'Wait', type: 'DELAY', config: { delayMs: 0 } }],
       };
       expect(() => service.validate(definition)).toThrow('(DELAY) requires config.delayMs');
+    });
+
+    it('accepts a valid LOOP step', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          {
+            id: 'for-each-contact',
+            name: 'For each contact',
+            type: 'LOOP',
+            config: { itemsPath: 'input.contacts', steps: [toolStep({ id: 'notify-one' })] },
+          },
+        ],
+      };
+      expect(() => service.validate(definition)).not.toThrow();
+    });
+
+    it('rejects a LOOP step missing itemsPath', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          {
+            id: 'loop',
+            name: 'Loop',
+            type: 'LOOP',
+            config: { itemsPath: '', steps: [toolStep()] },
+          },
+        ],
+      };
+      expect(() => service.validate(definition)).toThrow('(LOOP) requires config.itemsPath');
+    });
+
+    it('rejects a LOOP step with no nested steps', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          { id: 'loop', name: 'Loop', type: 'LOOP', config: { itemsPath: 'input.x', steps: [] } },
+        ],
+      };
+      expect(() => service.validate(definition)).toThrow('at least one nested step');
+    });
+
+    it('rejects a LOOP step with duplicate nested step ids', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          {
+            id: 'loop',
+            name: 'Loop',
+            type: 'LOOP',
+            config: {
+              itemsPath: 'input.x',
+              steps: [toolStep({ id: 'dup' }), toolStep({ id: 'dup' })],
+            },
+          },
+        ],
+      };
+      expect(() => service.validate(definition)).toThrow('duplicate nested step id "dup"');
+    });
+
+    it('rejects a LOOP step whose nested step is itself invalid', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          {
+            id: 'loop',
+            name: 'Loop',
+            type: 'LOOP',
+            config: {
+              itemsPath: 'input.x',
+              steps: [toolStep({ config: { toolName: '', input: {} } })],
+            },
+          },
+        ],
+      };
+      expect(() => service.validate(definition)).toThrow('(TOOL) requires config.toolName');
+    });
+
+    it('accepts a valid SWITCH step', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          {
+            id: 'route',
+            name: 'Route',
+            type: 'SWITCH',
+            config: {
+              path: 'context.classify.category',
+              cases: [{ value: 'billing', next: 'handle-billing' }],
+              defaultNext: 'handle-other',
+            },
+          },
+        ],
+      };
+      expect(() => service.validate(definition)).not.toThrow();
+    });
+
+    it('rejects a SWITCH step missing path', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          {
+            id: 'route',
+            name: 'Route',
+            type: 'SWITCH',
+            config: { path: '', cases: [{ value: 'x', next: 'y' }] },
+          },
+        ],
+      };
+      expect(() => service.validate(definition)).toThrow('(SWITCH) requires config.path');
+    });
+
+    it('rejects a SWITCH step with no cases', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          { id: 'route', name: 'Route', type: 'SWITCH', config: { path: 'context.x', cases: [] } },
+        ],
+      };
+      expect(() => service.validate(definition)).toThrow('at least one entry in config.cases');
+    });
+
+    it('rejects a SWITCH case with no next target', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          {
+            id: 'route',
+            name: 'Route',
+            type: 'SWITCH',
+            config: { path: 'context.x', cases: [{ value: 'a', next: '' }] },
+          },
+        ],
+      };
+      expect(() => service.validate(definition)).toThrow('no "next" target');
+    });
+  });
+
+  describe('composite condition validation', () => {
+    it('accepts a valid and/or/not tree', () => {
+      const definition: WorkflowDefinition = {
+        steps: [
+          agentStep({
+            condition: {
+              and: [
+                { path: 'input.a', operator: 'truthy' },
+                {
+                  or: [
+                    { path: 'input.b', operator: 'truthy' },
+                    { not: { path: 'input.c', operator: 'truthy' } },
+                  ],
+                },
+              ],
+            },
+          }),
+        ],
+      };
+      expect(() => service.validate(definition)).not.toThrow();
+    });
+
+    it('rejects an empty "and" condition', () => {
+      const definition: WorkflowDefinition = {
+        steps: [agentStep({ condition: { and: [] } })],
+      };
+      expect(() => service.validate(definition)).toThrow('empty "and" condition');
+    });
+
+    it('rejects an empty "or" condition', () => {
+      const definition: WorkflowDefinition = {
+        steps: [agentStep({ condition: { or: [] } })],
+      };
+      expect(() => service.validate(definition)).toThrow('empty "or" condition');
+    });
+
+    it('rejects a leaf with an empty path nested inside a composite tree', () => {
+      const definition: WorkflowDefinition = {
+        steps: [agentStep({ condition: { and: [{ path: '', operator: 'truthy' }] } })],
+      };
+      expect(() => service.validate(definition)).toThrow('empty path');
+    });
+
+    it('rejects a "regex" condition whose value is not a string', () => {
+      const definition: WorkflowDefinition = {
+        steps: [agentStep({ condition: { path: 'input.a', operator: 'regex', value: 123 } })],
+      };
+      expect(() => service.validate(definition)).toThrow('must be a string pattern');
     });
   });
 });

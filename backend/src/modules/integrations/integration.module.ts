@@ -23,10 +23,10 @@ import { IntegrationKnowledgeContributorService } from './knowledge/integration-
 import { OAuthService } from './oauth/oauth.service';
 import { INTEGRATION_PROVIDERS, IntegrationProvider } from './provider/integration-provider.types';
 import { IntegrationProviderRegistry } from './provider/integration-provider.registry';
-import { EncryptionService } from './security/encryption.service';
 import { IntegrationToolSourceService } from './tools/integration-tool-source.service';
 import { IntegrationStepExecutor } from './workflow/integration-step-executor';
 import { IntegrationWorkflowRegistrarService } from './workflow/integration-workflow-registrar.service';
+import { IntegrationWorkflowEventBridgeService } from './workflow/integration-workflow-event-bridge.service';
 import { IntegrationWebhookReceiverController } from './webhooks/integration-webhook-receiver.controller';
 import { IntegrationWebhookReceiverService } from './webhooks/integration-webhook-receiver.service';
 import { IntegrationStatsService } from './observability/integration-stats.service';
@@ -71,7 +71,6 @@ const CONNECTORS = [
       inject: CONNECTORS,
     },
     IntegrationProviderRegistry,
-    EncryptionService,
     OAuthService,
     IntegrationConnectionRepository,
     IntegrationCredentialRepository,
@@ -90,13 +89,13 @@ const CONNECTORS = [
     IntegrationWebhookReceiverService,
     IntegrationStepExecutor,
     IntegrationWorkflowRegistrarService,
+    IntegrationWorkflowEventBridgeService,
     IntegrationToolSourceService,
   ],
   exports: [
     IntegrationDispatcherService,
     IntegrationEventBusService,
     OAuthService,
-    EncryptionService,
     GoogleGmailConnector,
     SlackConnector,
     MicrosoftOutlookConnector,

@@ -294,6 +294,16 @@ describe('Workflow Engine (e2e)', () => {
     });
     expect(approval).not.toBeNull();
 
+    const pendingResponse = await request(app.getHttpServer())
+      .get('/api/v1/workflows/approvals')
+      .set(bearerAuthHeaders(accessToken))
+      .expect(200);
+    const pendingBody = (
+      pendingResponse.body as ApiSuccessResponse<{ items: Array<{ id: string; status: string }> }>
+    ).data;
+    expect(pendingBody.items.some((item) => item.id === approval!.id)).toBe(true);
+    expect(pendingBody.items.every((item) => item.status === 'PENDING')).toBe(true);
+
     const decideResponse = await request(app.getHttpServer())
       .post(`/api/v1/workflows/approvals/${approval!.id}/decide`)
       .set(bearerAuthHeaders(accessToken))
@@ -305,6 +315,15 @@ describe('Workflow Engine (e2e)', () => {
 
     const finalRun = await getRun(accessToken, run.id);
     expect(finalRun.status).toBe('SUCCEEDED');
+
+    const afterDecisionResponse = await request(app.getHttpServer())
+      .get('/api/v1/workflows/approvals')
+      .set(bearerAuthHeaders(accessToken))
+      .expect(200);
+    const afterDecisionItems = (
+      afterDecisionResponse.body as ApiSuccessResponse<{ items: Array<{ id: string }> }>
+    ).data.items;
+    expect(afterDecisionItems.some((item) => item.id === approval!.id)).toBe(false);
   });
 
   it('rejects an approval and the run fails', async () => {

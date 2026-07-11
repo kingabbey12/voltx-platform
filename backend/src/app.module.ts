@@ -32,6 +32,8 @@ import { RolesModule } from './modules/roles/roles.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { UsersModule } from './modules/users/users.module';
 import { WorkflowModule } from './modules/workflows/workflow.module';
+import { WorkflowEventsModule } from './modules/workflows/scheduling/workflow-events.module';
+import { EncryptionModule } from './modules/integrations/security/encryption.module';
 
 @Module({
   imports: [
@@ -66,6 +68,8 @@ import { WorkflowModule } from './modules/workflows/workflow.module';
     MetricsModule,
     TenantModule,
     AuditModule,
+    WorkflowEventsModule,
+    EncryptionModule,
     AIModule,
     AgentModule,
     AttachmentsModule,

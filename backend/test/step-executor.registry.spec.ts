@@ -18,6 +18,8 @@ describe('StepExecutorRegistry', () => {
       stubExecutor('NOTIFICATION') as never,
       stubExecutor('APPROVAL') as never,
       stubExecutor('DELAY') as never,
+      stubExecutor('LOOP') as never,
+      stubExecutor('SWITCH') as never,
     );
   });
 

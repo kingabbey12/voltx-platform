@@ -1,11 +1,13 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { WorkflowStepType } from '../definition/workflow-definition.types';
 import { AgentStepExecutor } from './agent-step-executor';
 import { ApiStepExecutor } from './api-step-executor';
 import { ApprovalStepExecutor } from './approval-step-executor';
 import { DelayStepExecutor } from './delay-step-executor';
+import { LoopStepExecutor } from './loop-step-executor';
 import { NotificationStepExecutor } from './notification-step-executor';
 import { StepExecutor } from './step-executor.interface';
+import { SwitchStepExecutor } from './switch-step-executor';
 import { ToolStepExecutor } from './tool-step-executor';
 import { WebhookStepExecutor } from './webhook-step-executor';
 
@@ -22,6 +24,9 @@ export class StepExecutorRegistry {
     notificationStepExecutor: NotificationStepExecutor,
     approvalStepExecutor: ApprovalStepExecutor,
     delayStepExecutor: DelayStepExecutor,
+    @Inject(forwardRef(() => LoopStepExecutor))
+    loopStepExecutor: LoopStepExecutor,
+    switchStepExecutor: SwitchStepExecutor,
   ) {
     this.executorsByType = new Map<WorkflowStepType, StepExecutor>([
       [agentStepExecutor.type, agentStepExecutor],
@@ -31,6 +36,8 @@ export class StepExecutorRegistry {
       [notificationStepExecutor.type, notificationStepExecutor],
       [approvalStepExecutor.type, approvalStepExecutor],
       [delayStepExecutor.type, delayStepExecutor],
+      [loopStepExecutor.type, loopStepExecutor],
+      [switchStepExecutor.type, switchStepExecutor],
     ]);
   }
 

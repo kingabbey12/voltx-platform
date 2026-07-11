@@ -1,5 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { WorkflowDefinition, WorkflowStepDefinition } from './workflow-definition.types';
+import {
+  StepConditionNode,
+  WorkflowDefinition,
+  WorkflowStepDefinition,
+} from './workflow-definition.types';
 import { findDependencyCycle } from './workflow-graph.util';
 
 /**
@@ -62,8 +66,35 @@ export class WorkflowDefinitionValidatorService {
     if (!step.condition) {
       return;
     }
-    if (!step.condition.path || step.condition.path.trim().length === 0) {
-      throw new BadRequestException(`Step "${step.id}" has a condition with an empty path`);
+    this.validateConditionNode(step.id, step.condition);
+  }
+
+  private validateConditionNode(stepId: string, node: StepConditionNode): void {
+    if ('and' in node) {
+      if (node.and.length === 0) {
+        throw new BadRequestException(`Step "${stepId}" has an empty "and" condition`);
+      }
+      node.and.forEach((child) => this.validateConditionNode(stepId, child));
+      return;
+    }
+    if ('or' in node) {
+      if (node.or.length === 0) {
+        throw new BadRequestException(`Step "${stepId}" has an empty "or" condition`);
+      }
+      node.or.forEach((child) => this.validateConditionNode(stepId, child));
+      return;
+    }
+    if ('not' in node) {
+      this.validateConditionNode(stepId, node.not);
+      return;
+    }
+    if (!node.path || node.path.trim().length === 0) {
+      throw new BadRequestException(`Step "${stepId}" has a condition with an empty path`);
+    }
+    if (node.operator === 'regex' && typeof node.value !== 'string') {
+      throw new BadRequestException(
+        `Step "${stepId}" has a "regex" condition whose value must be a string pattern`,
+      );
     }
   }
 
@@ -125,6 +156,11 @@ export class WorkflowDefinitionValidatorService {
             `Step "${step.id}" (NOTIFICATION) with channel "webhook" requires config.webhookUrl`,
           );
         }
+        if (step.config.channel === 'notification' && !step.config.userId) {
+          throw new BadRequestException(
+            `Step "${step.id}" (NOTIFICATION) with channel "notification" requires config.userId`,
+          );
+        }
         return;
       case 'APPROVAL':
         if (!step.config.message || step.config.message.trim().length === 0) {
@@ -148,10 +184,54 @@ export class WorkflowDefinitionValidatorService {
           );
         }
         return;
+      case 'LOOP': {
+        if (!step.config.itemsPath || step.config.itemsPath.trim().length === 0) {
+          throw new BadRequestException(`Step "${step.id}" (LOOP) requires config.itemsPath`);
+        }
+        if (!step.config.steps || step.config.steps.length === 0) {
+          throw new BadRequestException(
+            `Step "${step.id}" (LOOP) requires at least one nested step in config.steps`,
+          );
+        }
+        const nestedIds = new Set<string>();
+        for (const nested of step.config.steps) {
+          if (!nested.id || nested.id.trim().length === 0) {
+            throw new BadRequestException(`Step "${step.id}" (LOOP) has a nested step with no id`);
+          }
+          if (nestedIds.has(nested.id)) {
+            throw new BadRequestException(
+              `Step "${step.id}" (LOOP) has duplicate nested step id "${nested.id}"`,
+            );
+          }
+          nestedIds.add(nested.id);
+          this.validateCondition(nested);
+          this.validateCompensation(nested);
+          this.validateStepConfig(nested);
+          this.validateRetryPolicy(nested);
+        }
+        return;
+      }
+      case 'SWITCH':
+        if (!step.config.path || step.config.path.trim().length === 0) {
+          throw new BadRequestException(`Step "${step.id}" (SWITCH) requires config.path`);
+        }
+        if (!step.config.cases || step.config.cases.length === 0) {
+          throw new BadRequestException(
+            `Step "${step.id}" (SWITCH) requires at least one entry in config.cases`,
+          );
+        }
+        for (const branch of step.config.cases) {
+          if (!branch.next || branch.next.trim().length === 0) {
+            throw new BadRequestException(
+              `Step "${step.id}" (SWITCH) has a case with no "next" target`,
+            );
+          }
+        }
+        return;
       default:
         throw new BadRequestException(
           `Step "${(step as WorkflowStepDefinition).id}" has an unknown step type. ` +
-            'Valid types: AGENT, TOOL, API, WEBHOOK, NOTIFICATION, APPROVAL, DELAY, INTEGRATION',
+            'Valid types: AGENT, TOOL, API, WEBHOOK, NOTIFICATION, APPROVAL, DELAY, INTEGRATION, LOOP, SWITCH',
         );
     }
   }

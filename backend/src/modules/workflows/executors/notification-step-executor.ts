@@ -1,4 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { NotificationService } from '../../notifications/notification.service';
 import { NotificationStepDefinition } from '../definition/workflow-definition.types';
 import { normalizeStepUrl } from './http-request.util';
 import { StepExecutionContext, StepExecutionResult, StepExecutor } from './step-executor.interface';
@@ -7,6 +8,8 @@ import { StepExecutionContext, StepExecutionResult, StepExecutor } from './step-
 export class NotificationStepExecutor implements StepExecutor {
   readonly type = 'NOTIFICATION' as const;
   private readonly logger = new Logger(NotificationStepExecutor.name);
+
+  constructor(private readonly notificationService: NotificationService) {}
 
   async execute(
     step: NotificationStepDefinition,
@@ -18,6 +21,22 @@ export class NotificationStepExecutor implements StepExecutor {
         step.config.message,
       );
       return { output: { delivered: true, channel: 'log' } };
+    }
+
+    if (step.config.channel === 'notification') {
+      if (!step.config.userId) {
+        throw new Error(`Notification step "${step.id}" is missing config.userId`);
+      }
+      const created = await this.notificationService.create({
+        organizationId: context.organizationId,
+        userId: step.config.userId,
+        category: 'WORKFLOW',
+        title: step.config.title ?? 'Workflow notification',
+        body: step.config.message,
+        actionUrl: `/workflows/runs/${context.workflowRunId}`,
+        metadata: step.config.metadata,
+      });
+      return { output: { delivered: true, channel: 'notification', notificationId: created.id } };
     }
 
     const url = normalizeStepUrl(step.config.webhookUrl ?? '');

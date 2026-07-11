@@ -4,6 +4,7 @@ import { App } from 'supertest/types';
 import { ApiSuccessResponse } from '../src/common/interceptors/response.interceptor';
 import { PrismaService } from '../src/database/prisma.service';
 import { UsersRepository } from '../src/modules/users/users.repository';
+import { WorkflowEventBusService } from '../src/modules/workflows/scheduling/workflow-event-bus.service';
 import { createTestApp } from './create-test-app';
 import {
   createRoutedFetchMock,
@@ -43,6 +44,7 @@ describe('Communications — WhatsApp Business (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let usersRepository: UsersRepository;
+  let workflowEventBus: WorkflowEventBusService;
   const originalFetch = global.fetch;
 
   beforeAll(async () => {
@@ -51,10 +53,12 @@ describe('Communications — WhatsApp Business (e2e)', () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
     usersRepository = app.get(UsersRepository);
+    workflowEventBus = app.get(WorkflowEventBusService);
   });
 
   beforeEach(async () => {
     await resetAndSeedAuthTestData(prisma);
+    jest.spyOn(workflowEventBus, 'emit');
   });
 
   afterEach(() => {
@@ -193,6 +197,11 @@ describe('Communications — WhatsApp Business (e2e)', () => {
       text: 'Hi, is my order ready?',
     });
     await postWebhook(body).expect(200);
+
+    expect(workflowEventBus.emit).toHaveBeenCalledWith(
+      'WHATSAPP_RECEIVED',
+      expect.objectContaining({ body: 'Hi, is my order ready?' }),
+    );
 
     const listResponse = await request(app.getHttpServer())
       .get('/api/v1/communications/conversations')

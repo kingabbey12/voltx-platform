@@ -514,4 +514,8 @@ export class WorkflowService {
   async listDeadLetters(page: number, limit: number) {
     return this.workflowDeadLetterRepository.findAll(page, limit);
   }
+
+  async listPendingApprovals(page: number, limit: number) {
+    return this.workflowApprovalRepository.listPending(page, limit);
+  }
 }

@@ -213,6 +213,17 @@ export class AttachmentService {
     return this.attachmentRepository.findByIdOrThrow(id);
   }
 
+  /**
+   * Overwrites the extracted-text field outside the normal upload-time
+   * pipeline — used by OcrService to backfill text for image attachments,
+   * which the pipeline's TextExtractorRegistry never populates on its own
+   * (OCR is a distinct, on-demand step, not part of every upload).
+   */
+  async updateExtractedText(id: string, extractedText: string): Promise<AttachmentEntity> {
+    await this.attachmentRepository.findByIdOrThrow(id);
+    return this.attachmentRepository.update(id, { extractedText });
+  }
+
   async getSignedDownloadUrl(id: string): Promise<{ url: string; expiresAt: string }> {
     const attachment = await this.attachmentRepository.findByIdOrThrow(id);
     await this.assertNotQuarantined(attachment, 'signed_url');

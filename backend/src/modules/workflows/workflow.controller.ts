@@ -29,7 +29,11 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserInterface } from '../auth/interfaces/current-user.interface';
 import { Permissions } from '../permissions/decorators/permissions.decorator';
 import { PermissionGuard } from '../permissions/guards/permission.guard';
-import { DecideApprovalDto, WorkflowApprovalResponseDto } from './dto/workflow-approval.dto';
+import {
+  DecideApprovalDto,
+  PaginatedWorkflowApprovalsResponseDto,
+  WorkflowApprovalResponseDto,
+} from './dto/workflow-approval.dto';
 import {
   ListWorkflowDeadLettersQueryDto,
   ListWorkflowLogsQueryDto,
@@ -121,6 +125,25 @@ export class WorkflowController {
       total,
       page,
       limit,
+    };
+  }
+
+  // NOTE: this route MUST be registered before ':id' too, same reason as
+  // 'dead-letters' just above.
+  @Get('approvals')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('workflow.approve')
+  @ApiOperation({ summary: 'List this organization’s pending workflow approvals' })
+  @ApiOkResponse({ type: PaginatedWorkflowApprovalsResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
+  async listApprovals(@Query('page') page?: string, @Query('limit') limit?: string) {
+    const result = await this.workflowService.listPendingApprovals(
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 20,
+    );
+    return {
+      ...result,
+      items: result.items.map((item) => WorkflowApprovalResponseDto.fromEntity(item)),
     };
   }
 

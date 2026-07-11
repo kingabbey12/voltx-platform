@@ -4,6 +4,7 @@ import { App } from 'supertest/types';
 import { ApiSuccessResponse } from '../src/common/interceptors/response.interceptor';
 import { PrismaService } from '../src/database/prisma.service';
 import { UsersRepository } from '../src/modules/users/users.repository';
+import { WorkflowEventBusService } from '../src/modules/workflows/scheduling/workflow-event-bus.service';
 import { createTestApp } from './create-test-app';
 import {
   binaryFetchResponse,
@@ -55,6 +56,7 @@ describe('Communications — Twilio SMS & Voice (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let usersRepository: UsersRepository;
+  let workflowEventBus: WorkflowEventBusService;
   const originalFetch = global.fetch;
 
   beforeAll(async () => {
@@ -62,10 +64,12 @@ describe('Communications — Twilio SMS & Voice (e2e)', () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
     usersRepository = app.get(UsersRepository);
+    workflowEventBus = app.get(WorkflowEventBusService);
   });
 
   beforeEach(async () => {
     await resetAndSeedAuthTestData(prisma);
+    jest.spyOn(workflowEventBus, 'emit');
   });
 
   afterEach(() => {
@@ -160,6 +164,11 @@ describe('Communications — Twilio SMS & Voice (e2e)', () => {
         inboundForm,
         SMS_AUTH_TOKEN,
       ).expect(200);
+
+      expect(workflowEventBus.emit).toHaveBeenCalledWith(
+        'SMS_RECEIVED',
+        expect.objectContaining({ from: CUSTOMER_NUMBER, body: 'Do you have this in stock?' }),
+      );
 
       const listResponse = await request(app.getHttpServer())
         .get('/api/v1/communications/conversations')
@@ -289,6 +298,11 @@ describe('Communications — Twilio SMS & Voice (e2e)', () => {
         }),
         VOICE_AUTH_TOKEN,
       ).expect(200);
+
+      expect(workflowEventBus.emit).toHaveBeenCalledWith(
+        'VOICE_COMPLETED',
+        expect.objectContaining({ durationSeconds: 87 }),
+      );
 
       await signedFormPost(
         '/api/v1/communications/webhooks/twilio/voice/recording',

@@ -15,6 +15,9 @@ import { ImageProcessingService } from './processing/image-processing.service';
 import { StorageModule } from './storage/storage.module';
 import { VirusScanModule } from './virus-scan/virus-scan.module';
 import { AttachmentsToolSourceService } from './tools/attachments-tool-source.service';
+import { DocumentToolSourceService } from './documents/document-tool-source.service';
+import { OcrService } from './documents/ocr.service';
+import { PdfGenerationService } from './documents/pdf-generation.service';
 
 // Same REDIS_ENABLED-gated pattern as communications.module.ts's AI process
 // queue — when Redis isn't configured, AttachmentProcessingQueueService
@@ -52,6 +55,9 @@ const queueProcessors = redisEnabled ? [AttachmentProcessingProcessor] : [];
     AttachmentProcessingQueueService,
     ImageProcessingService,
     AttachmentsToolSourceService,
+    PdfGenerationService,
+    OcrService,
+    DocumentToolSourceService,
     ...queueProcessors,
   ],
   exports: [AttachmentService, AttachmentRepository, AttachmentContentBuilderService],

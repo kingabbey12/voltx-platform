@@ -2,7 +2,9 @@ import { AgentStepExecutor } from '../src/modules/workflows/executors/agent-step
 import { ApiStepExecutor } from '../src/modules/workflows/executors/api-step-executor';
 import { ApprovalStepExecutor } from '../src/modules/workflows/executors/approval-step-executor';
 import { DelayStepExecutor } from '../src/modules/workflows/executors/delay-step-executor';
+import { LoopStepExecutor } from '../src/modules/workflows/executors/loop-step-executor';
 import { NotificationStepExecutor } from '../src/modules/workflows/executors/notification-step-executor';
+import { SwitchStepExecutor } from '../src/modules/workflows/executors/switch-step-executor';
 import { ToolStepExecutor } from '../src/modules/workflows/executors/tool-step-executor';
 import { WebhookStepExecutor } from '../src/modules/workflows/executors/webhook-step-executor';
 import {
@@ -10,11 +12,16 @@ import {
   ApiStepDefinition,
   ApprovalStepDefinition,
   DelayStepDefinition,
+  LoopStepDefinition,
   NotificationStepDefinition,
+  SwitchStepDefinition,
   ToolStepDefinition,
   WebhookStepDefinition,
 } from '../src/modules/workflows/definition/workflow-definition.types';
-import { StepExecutionContext } from '../src/modules/workflows/executors/step-executor.interface';
+import {
+  StepExecutionContext,
+  StepExecutor,
+} from '../src/modules/workflows/executors/step-executor.interface';
 
 function contextFixture(overrides: Partial<StepExecutionContext> = {}): StepExecutionContext {
   return {
@@ -225,11 +232,13 @@ describe('WebhookStepExecutor', () => {
 });
 
 describe('NotificationStepExecutor', () => {
+  let notificationService: { create: jest.Mock };
   let executor: NotificationStepExecutor;
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    executor = new NotificationStepExecutor();
+    notificationService = { create: jest.fn() };
+    executor = new NotificationStepExecutor(notificationService as never);
   });
 
   afterEach(() => {
@@ -246,6 +255,49 @@ describe('NotificationStepExecutor', () => {
 
     const result = await executor.execute(step, contextFixture());
     expect(result.output).toEqual({ delivered: true, channel: 'log' });
+  });
+
+  it('delivers a notification-channel message via the real NotificationService', async () => {
+    notificationService.create.mockResolvedValue({ id: 'notif-1' });
+    const step: NotificationStepDefinition = {
+      id: 'notify',
+      name: 'Notify',
+      type: 'NOTIFICATION',
+      config: {
+        channel: 'notification',
+        message: 'Deal closed.',
+        userId: 'user-1',
+        title: 'Deal update',
+      },
+    };
+
+    const result = await executor.execute(step, contextFixture());
+
+    expect(notificationService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        userId: 'user-1',
+        category: 'WORKFLOW',
+        title: 'Deal update',
+        body: 'Deal closed.',
+      }),
+    );
+    expect(result.output).toEqual({
+      delivered: true,
+      channel: 'notification',
+      notificationId: 'notif-1',
+    });
+  });
+
+  it('throws when the notification channel is missing userId', async () => {
+    const step: NotificationStepDefinition = {
+      id: 'notify',
+      name: 'Notify',
+      type: 'NOTIFICATION',
+      config: { channel: 'notification', message: 'Deal closed.' },
+    };
+
+    await expect(executor.execute(step, contextFixture())).rejects.toThrow('missing config.userId');
   });
 
   it('delivers a webhook-channel notification via fetch', async () => {
@@ -316,11 +368,26 @@ describe('ApprovalStepExecutor', () => {
     findByStepRun: jest.Mock;
     create: jest.Mock;
   };
+  let authContextRepository: { listActiveUserIdsWithPermission: jest.Mock };
+  let notificationService: { create: jest.Mock };
   let executor: ApprovalStepExecutor;
 
   beforeEach(() => {
-    workflowApprovalRepository = { findByStepRun: jest.fn(), create: jest.fn() };
-    executor = new ApprovalStepExecutor(workflowApprovalRepository as never);
+    workflowApprovalRepository = {
+      findByStepRun: jest.fn(),
+      create: jest
+        .fn()
+        .mockResolvedValue({ id: 'approval-1', workflowRunId: 'run-1', stepRunId: 'step-run-1' }),
+    };
+    authContextRepository = {
+      listActiveUserIdsWithPermission: jest.fn().mockResolvedValue(['user-1', 'user-2']),
+    };
+    notificationService = { create: jest.fn().mockResolvedValue(undefined) };
+    executor = new ApprovalStepExecutor(
+      workflowApprovalRepository as never,
+      authContextRepository as never,
+      notificationService as never,
+    );
   });
 
   const step: ApprovalStepDefinition = {
@@ -339,6 +406,36 @@ describe('ApprovalStepExecutor', () => {
     expect(workflowApprovalRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({ workflowRunId: 'run-1', stepRunId: 'step-run-1' }),
     );
+  });
+
+  it('notifies every user with workflow.approve permission when the approval is first created', async () => {
+    workflowApprovalRepository.findByStepRun.mockResolvedValue(null);
+
+    await executor.execute(step, contextFixture());
+
+    expect(authContextRepository.listActiveUserIdsWithPermission).toHaveBeenCalledWith(
+      'org-1',
+      'workflow.approve',
+    );
+    expect(notificationService.create).toHaveBeenCalledTimes(2);
+    expect(notificationService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        userId: 'user-1',
+        category: 'WORKFLOW',
+        title: 'Workflow approval needed',
+        body: 'Approve the deal?',
+      }),
+    );
+  });
+
+  it('does not fail the step when notifying approvers throws', async () => {
+    workflowApprovalRepository.findByStepRun.mockResolvedValue(null);
+    authContextRepository.listActiveUserIdsWithPermission.mockRejectedValue(new Error('db down'));
+
+    const result = await executor.execute(step, contextFixture());
+
+    expect(result.waiting).toBe(true);
   });
 
   it('reports waiting again when the approval is still pending', async () => {
@@ -380,5 +477,178 @@ describe('ApprovalStepExecutor', () => {
     workflowApprovalRepository.findByStepRun.mockResolvedValue({ status: 'EXPIRED' });
 
     await expect(executor.execute(step, contextFixture())).rejects.toThrow('expired');
+  });
+});
+
+describe('SwitchStepExecutor', () => {
+  let executor: SwitchStepExecutor;
+
+  beforeEach(() => {
+    executor = new SwitchStepExecutor();
+  });
+
+  const step: SwitchStepDefinition = {
+    id: 'route',
+    name: 'Route',
+    type: 'SWITCH',
+    config: {
+      path: 'context.classify.category',
+      cases: [
+        { value: 'billing', next: 'handle-billing' },
+        { value: 'support', next: 'handle-support' },
+      ],
+      defaultNext: 'handle-other',
+    },
+  };
+
+  it('resolves the matching case and returns its next target', async () => {
+    const result = await executor.execute(
+      step,
+      contextFixture({ runContext: { classify: { category: 'support' } } }),
+    );
+    expect(result.output).toEqual({ matchedValue: 'support', next: 'handle-support' });
+  });
+
+  it('falls back to defaultNext when nothing matches', async () => {
+    const result = await executor.execute(
+      step,
+      contextFixture({ runContext: { classify: { category: 'unknown' } } }),
+    );
+    expect(result.output).toEqual({ matchedValue: 'unknown', next: 'handle-other' });
+  });
+
+  it('returns null next when nothing matches and there is no defaultNext', async () => {
+    const noDefaultStep: SwitchStepDefinition = {
+      ...step,
+      config: { ...step.config, defaultNext: undefined },
+    };
+    const result = await executor.execute(
+      noDefaultStep,
+      contextFixture({ runContext: { classify: { category: 'unknown' } } }),
+    );
+    expect(result.output).toEqual({ matchedValue: 'unknown', next: null });
+  });
+});
+
+describe('LoopStepExecutor', () => {
+  let registry: { get: jest.Mock };
+  let executor: LoopStepExecutor;
+
+  beforeEach(() => {
+    registry = { get: jest.fn() };
+    executor = new LoopStepExecutor(registry as never);
+  });
+
+  function stubExecutor(output: Record<string, unknown>): StepExecutor {
+    return { type: 'TOOL', execute: jest.fn().mockResolvedValue({ output }) };
+  }
+
+  const step: LoopStepDefinition = {
+    id: 'for-each-contact',
+    name: 'For each contact',
+    type: 'LOOP',
+    config: {
+      itemsPath: 'input.contacts',
+      steps: [
+        {
+          id: 'notify-one',
+          name: 'Notify one',
+          type: 'TOOL',
+          config: { toolName: 'x', input: {} },
+        },
+      ],
+    },
+  };
+
+  it('runs the nested steps once per item and accumulates outputs', async () => {
+    const nested = stubExecutor({ sent: true });
+    registry.get.mockReturnValue(nested);
+
+    const result = await executor.execute(
+      step,
+      contextFixture({ runInput: { contacts: ['a@x.com', 'b@x.com'] } }),
+    );
+
+    expect(nested.execute).toHaveBeenCalledTimes(2);
+    expect(result.output).toEqual({
+      items: [{ 'notify-one': { sent: true } }, { 'notify-one': { sent: true } }],
+      count: 2,
+    });
+  });
+
+  it('exposes loopItem/loopIndex to nested step context', async () => {
+    const nested = stubExecutor({ ok: true });
+    registry.get.mockReturnValue(nested);
+
+    await executor.execute(step, contextFixture({ runInput: { contacts: ['only@x.com'] } }));
+
+    const [, nestedContext] = (nested.execute as jest.Mock).mock.calls[0] as [
+      unknown,
+      { runContext: { loopItem: unknown; loopIndex: number } },
+    ];
+    expect(nestedContext.runContext.loopItem).toBe('only@x.com');
+    expect(nestedContext.runContext.loopIndex).toBe(0);
+  });
+
+  it('skips a nested step whose condition evaluates false', async () => {
+    const nested = stubExecutor({ ok: true });
+    registry.get.mockReturnValue(nested);
+    const gatedStep: LoopStepDefinition = {
+      ...step,
+      config: {
+        ...step.config,
+        steps: [
+          {
+            id: 'notify-one',
+            name: 'Notify one',
+            type: 'TOOL',
+            config: { toolName: 'x', input: {} },
+            condition: { path: 'input.enabled', operator: 'truthy' },
+          },
+        ],
+      },
+    };
+
+    const result = await executor.execute(
+      gatedStep,
+      contextFixture({ runInput: { contacts: ['a@x.com'], enabled: false } }),
+    );
+
+    expect(nested.execute).not.toHaveBeenCalled();
+    expect(result.output).toEqual({ items: [{}], count: 1 });
+  });
+
+  it('respects maxIterations', async () => {
+    const nested = stubExecutor({ ok: true });
+    registry.get.mockReturnValue(nested);
+    const limitedStep: LoopStepDefinition = {
+      ...step,
+      config: { ...step.config, maxIterations: 1 },
+    };
+
+    const result = await executor.execute(
+      limitedStep,
+      contextFixture({ runInput: { contacts: ['a@x.com', 'b@x.com', 'c@x.com'] } }),
+    );
+
+    expect(nested.execute).toHaveBeenCalledTimes(1);
+    expect(result.output.count).toBe(1);
+  });
+
+  it('throws when itemsPath does not resolve to an array', async () => {
+    await expect(
+      executor.execute(step, contextFixture({ runInput: { contacts: 'not-an-array' } })),
+    ).rejects.toThrow('did not resolve to an array');
+  });
+
+  it('throws immediately when the signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      executor.execute(
+        step,
+        contextFixture({ runInput: { contacts: ['a@x.com'] }, signal: controller.signal }),
+      ),
+    ).rejects.toThrow('aborted');
   });
 });

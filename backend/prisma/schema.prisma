@@ -178,6 +178,10 @@ model Organization {
   commsConversations      CommsConversation[]
   commsConversationLabels ConversationLabel[]
   attachments             Attachment[]
+  workflowTemplates       WorkflowTemplate[]
+  workflowSecrets         WorkflowSecret[]
+  workflowWebhooks        WorkflowWebhook[]
+  workflowVariables       WorkflowVariable[]
 
   @@index([status])
   @@map("organizations")
@@ -282,27 +286,27 @@ model ToolExecution {
 }
 
 model Memory {
-  id             String         @id @default(uuid()) @db.Uuid
-  organizationId String         @map("organization_id") @db.Uuid
-  userId         String         @map("user_id") @db.Uuid
-  conversationId String         @map("conversation_id") @db.Uuid
+  id             String                       @id @default(uuid()) @db.Uuid
+  organizationId String                       @map("organization_id") @db.Uuid
+  userId         String                       @map("user_id") @db.Uuid
+  conversationId String                       @map("conversation_id") @db.Uuid
   category       String
   importance     Float
   content        String
-  embeddingId    String?        @map("embedding_id")
+  embeddingId    String?                      @map("embedding_id")
   /// Content embedding for semantic memory scoring — same pgvector
   /// pattern as KnowledgeChunk.embedding (Unsupported since Prisma has no
   /// native vector type; all reads/writes go through raw SQL in
   /// MemoryRepository). Computed once at capture time in
   /// MemoryService.captureConversationMemories.
   embedding      Unsupported("vector(1536)")?
-  metadata       Json           @default("{}")
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
-  deletedAt      DateTime?      @map("deleted_at")
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  metadata       Json                         @default("{}")
+  createdAt      DateTime                     @default(now()) @map("created_at")
+  updatedAt      DateTime                     @updatedAt @map("updated_at")
+  deletedAt      DateTime?                    @map("deleted_at")
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation                 @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   accesses       MemoryAccess[]
 
   @@index([organizationId])
@@ -354,28 +358,28 @@ model Agent {
 }
 
 model AgentRun {
-  id             String         @id @default(uuid()) @db.Uuid
-  agentId        String         @map("agent_id") @db.Uuid
-  conversationId String         @map("conversation_id") @db.Uuid
-  parentRunId    String?        @map("parent_run_id") @db.Uuid
-  rootRunId      String?        @map("root_run_id") @db.Uuid
-  depth          Int            @default(0)
+  id             String                @id @default(uuid()) @db.Uuid
+  agentId        String                @map("agent_id") @db.Uuid
+  conversationId String                @map("conversation_id") @db.Uuid
+  parentRunId    String?               @map("parent_run_id") @db.Uuid
+  rootRunId      String?               @map("root_run_id") @db.Uuid
+  depth          Int                   @default(0)
   status         AgentRunStatus
-  input          Json           @default("{}")
-  output         Json           @default("{}")
-  currentStep    Int            @default(0) @map("current_step")
-  iterationCount Int            @default(0) @map("iteration_count")
-  toolCallCount  Int            @default(0) @map("tool_call_count")
-  startedAt      DateTime       @map("started_at")
-  completedAt    DateTime?      @map("completed_at")
-  durationMs     Int?           @map("duration_ms")
-  tokenUsage     Json           @default("{}") @map("token_usage")
+  input          Json                  @default("{}")
+  output         Json                  @default("{}")
+  currentStep    Int                   @default(0) @map("current_step")
+  iterationCount Int                   @default(0) @map("iteration_count")
+  toolCallCount  Int                   @default(0) @map("tool_call_count")
+  startedAt      DateTime              @map("started_at")
+  completedAt    DateTime?             @map("completed_at")
+  durationMs     Int?                  @map("duration_ms")
+  tokenUsage     Json                  @default("{}") @map("token_usage")
   error          String?
-  createdAt      DateTime       @default(now()) @map("created_at")
-  agent          Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  parentRun      AgentRun?      @relation("AgentRunHierarchy", fields: [parentRunId], references: [id], onDelete: Cascade)
-  childRuns      AgentRun[]     @relation("AgentRunHierarchy")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  agent          Agent                 @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  conversation   Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  parentRun      AgentRun?             @relation("AgentRunHierarchy", fields: [parentRunId], references: [id], onDelete: Cascade)
+  childRuns      AgentRun[]            @relation("AgentRunHierarchy")
   aiUsageLogs    AiUsageLog[]
   steps          AgentRunStep[]
   sentMessages   AgentMessage[]
@@ -397,18 +401,18 @@ model AgentRun {
 /// permission override; AgentLoopService pauses the run to
 /// WAITING_APPROVAL until this is decided.
 model AgentActionApproval {
-  id             String                     @id @default(uuid()) @db.Uuid
-  organizationId String                     @map("organization_id") @db.Uuid
-  agentRunId     String                     @map("agent_run_id") @db.Uuid
-  toolName       String                     @map("tool_name")
-  input          Json                       @default("{}")
-  status         AgentActionApprovalStatus  @default(PENDING)
-  approverUserId String?                    @map("approver_user_id") @db.Uuid
+  id             String                    @id @default(uuid()) @db.Uuid
+  organizationId String                    @map("organization_id") @db.Uuid
+  agentRunId     String                    @map("agent_run_id") @db.Uuid
+  toolName       String                    @map("tool_name")
+  input          Json                      @default("{}")
+  status         AgentActionApprovalStatus @default(PENDING)
+  approverUserId String?                   @map("approver_user_id") @db.Uuid
   comment        String?
-  expiresAt      DateTime?                  @map("expires_at")
-  decidedAt      DateTime?                  @map("decided_at")
-  createdAt      DateTime                   @default(now()) @map("created_at")
-  agentRun       AgentRun                   @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime?                 @map("expires_at")
+  decidedAt      DateTime?                 @map("decided_at")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  agentRun       AgentRun                  @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([agentRunId])
@@ -997,6 +1001,14 @@ enum WorkflowStepType {
   APPROVAL
   DELAY
   INTEGRATION
+  /// Iterates an array from context/input, running its nested steps once
+  /// per item. Explicit parallel-branch fan-out (independent of
+  /// iteration) is already implicit via the DAG's `dependsOn` — this type
+  /// exists for "repeat these steps for each X", not for concurrency.
+  LOOP
+  /// Multi-branch on a resolved value — each branch names the stepId to
+  /// continue from, exactly one branch's target runs.
+  SWITCH
 }
 
 enum WorkflowTriggerType {
@@ -1064,6 +1076,8 @@ model Workflow {
   versions         WorkflowVersion[]
   runs             WorkflowRun[]
   schedules        WorkflowSchedule[]
+  webhooks         WorkflowWebhook[]
+  variables        WorkflowVariable[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -1298,20 +1312,128 @@ model WorkflowDeadLetter {
 /// best-effort (resolved from the job's payload where possible) and
 /// nullable since not every job's payload cheaply resolves to one.
 model BackgroundJobFailure {
-  id             String    @id @default(uuid()) @db.Uuid
-  organizationId String?   @map("organization_id") @db.Uuid
-  queueName      String    @map("queue_name")
-  jobName        String    @map("job_name")
-  jobId          String?   @map("job_id")
-  payload        Json      @default("{}")
-  failureReason  String    @map("failure_reason")
-  attemptsMade   Int       @map("attempts_made")
-  createdAt      DateTime  @default(now()) @map("created_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  queueName      String   @map("queue_name")
+  jobName        String   @map("job_name")
+  jobId          String?  @map("job_id")
+  payload        Json     @default("{}")
+  failureReason  String   @map("failure_reason")
+  attemptsMade   Int      @map("attempts_made")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   @@index([organizationId])
   @@index([queueName])
   @@index([createdAt])
   @@map("background_job_failures")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Workflow Automation Platform (v2.0)
+// ─────────────────────────────────────────────────────────────
+
+enum WorkflowVariableType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}
+
+/// A reusable workflow blueprint. System templates (`isSystem: true`,
+/// `organizationId: null`) ship with the platform and are visible to
+/// every org; a custom template is a per-org copy an admin saved from an
+/// existing workflow. `definition` is the same validated
+/// WorkflowDefinition JSON shape a WorkflowVersion holds — instantiating
+/// a template just creates a real Workflow + first WorkflowVersion from
+/// it, it isn't a parallel execution path.
+model WorkflowTemplate {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String?       @map("organization_id") @db.Uuid
+  key            String        @unique
+  name           String
+  description    String?
+  category       String
+  definition     Json
+  isSystem       Boolean       @default(false) @map("is_system")
+  createdBy      String?       @map("created_by") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([category])
+  @@index([isSystem])
+  @@index([deletedAt])
+  @@map("workflow_templates")
+}
+
+/// An encrypted, org-scoped named value workflow steps can reference
+/// (e.g. a third-party API key) without embedding it in a workflow
+/// definition. `encryptedValue` uses the same EncryptionService every
+/// other credential in this codebase uses — the value is never returned
+/// by any read endpoint, only key/metadata are.
+model WorkflowSecret {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  key            String
+  encryptedValue String       @map("encrypted_value") @db.Text
+  description    String?
+  createdBy      String       @map("created_by") @db.Uuid
+  lastRotatedAt  DateTime?    @map("last_rotated_at")
+  lastUsedAt     DateTime?    @map("last_used_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+  @@map("workflow_secrets")
+}
+
+/// A registered inbound webhook that starts a workflow run — mirrors
+/// IntegrationWebhookEndpoint's pattern exactly (`token` is the
+/// unguessable path segment, `encryptedSecret` verifies the caller's
+/// HMAC signature, never authorizes the URL by itself).
+model WorkflowWebhook {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  workflowId      String       @map("workflow_id") @db.Uuid
+  token           String       @unique
+  encryptedSecret String       @map("encrypted_secret") @db.Text
+  enabled         Boolean      @default(true)
+  lastTriggeredAt DateTime?    @map("last_triggered_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow        Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([workflowId])
+  @@map("workflow_webhooks")
+}
+
+/// A named value steps can reference via `{{variables.<key>}}` in
+/// addition to `{{input.x}}`/`{{context.x}}`. `workflowId: null` is an
+/// org-level shared variable (visible to every workflow in the org);
+/// non-null scopes it to one workflow.
+model WorkflowVariable {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  workflowId     String?              @map("workflow_id") @db.Uuid
+  key            String
+  type           WorkflowVariableType @default(STRING)
+  defaultValue   Json                 @default("null") @map("default_value")
+  description    String?
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow       Workflow?            @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, workflowId, key])
+  @@index([organizationId])
+  @@index([workflowId])
+  @@map("workflow_variables")
 }
 
 // ─────────────────────────────────────────────────────────────
