@@ -22,6 +22,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
+    "prisma:seed:templates": "ts-node --transpile-only prisma/seed-workflow-templates.ts",
     "reencrypt-secrets": "ts-node --transpile-only scripts/reencrypt-secrets.ts",
     "postinstall": "prisma generate"
   },
