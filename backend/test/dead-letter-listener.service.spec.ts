@@ -80,7 +80,7 @@ describe('DeadLetterListenerService', () => {
     service.onModuleInit();
 
     expect(failedHandlers.has(AGENT_TASK_QUEUE)).toBe(true);
-    expect(failedHandlers.size).toBe(3);
+    expect(failedHandlers.size).toBe(4);
   });
 
   it('ignores a failure while retries remain', async () => {

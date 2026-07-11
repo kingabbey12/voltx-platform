@@ -5,8 +5,14 @@ import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom
 import { AGENT_TASK_QUEUE } from '../ai/agents/jobs/agent-task-queue.constants';
 import { ATTACHMENT_PROCESS_QUEUE } from '../attachments/processing/attachment-processing.constants';
 import { AI_PROCESS_QUEUE } from '../communications/jobs/communications-jobs.constants';
+import { WORKFLOW_RUN_QUEUE } from '../workflows/jobs/workflow-run-queue.constants';
 
-const MONITORED_QUEUES = [AGENT_TASK_QUEUE, ATTACHMENT_PROCESS_QUEUE, AI_PROCESS_QUEUE];
+const MONITORED_QUEUES = [
+  AGENT_TASK_QUEUE,
+  ATTACHMENT_PROCESS_QUEUE,
+  AI_PROCESS_QUEUE,
+  WORKFLOW_RUN_QUEUE,
+];
 
 @Injectable()
 export class MetricsService implements OnModuleDestroy {

@@ -11,7 +11,7 @@ import { AIProviderName } from '../ai/models/ai-model.types';
 import { ConversationResponseDto } from '../ai/conversations/dto/conversation.dto';
 import { ConversationService } from '../ai/conversations/conversation.service';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
-import { drainToReturnValue } from '../ai/streaming/drain-generator';
+import { WorkflowRunQueueService } from './jobs/workflow-run-queue.service';
 import { WorkflowDefinition } from './definition/workflow-definition.types';
 import { WorkflowDefinitionValidatorService } from './definition/workflow-definition-validator.service';
 import { WorkflowEngineService } from './engine/workflow-engine.service';
@@ -77,6 +77,7 @@ export class WorkflowService {
     private readonly auditService: AuditService,
     private readonly tenantContextService: TenantContextService,
     private readonly configService: ConfigService,
+    private readonly workflowRunQueueService: WorkflowRunQueueService,
   ) {}
 
   async createWorkflow(request: CreateWorkflowRequest): Promise<WorkflowEntity> {
@@ -311,7 +312,12 @@ export class WorkflowService {
     if (run.status !== 'PENDING') {
       return run;
     }
-    await drainToReturnValue(this.workflowEngineService.executeRun(run.id, grantedPermissions));
+    await this.workflowRunQueueService.enqueueRun(
+      run.id,
+      run.version,
+      grantedPermissions,
+      run.organizationId,
+    );
     return this.getRunOrThrow(run.id);
   }
 
@@ -389,7 +395,12 @@ export class WorkflowService {
         `Workflow run "${runId}" cannot be resumed (status: ${run.status})`,
       );
     }
-    await drainToReturnValue(this.workflowEngineService.executeRun(runId, grantedPermissions));
+    await this.workflowRunQueueService.enqueueRun(
+      runId,
+      run.version,
+      grantedPermissions,
+      run.organizationId,
+    );
     await this.auditService.record({
       action: 'resume',
       resource: 'workflow_run',
@@ -451,7 +462,7 @@ export class WorkflowService {
     }
 
     await this.workflowStepRunRepository.resetFailedForRetry(runId);
-    await this.workflowRunRepository.updateWithVersion(runId, run.version, {
+    const reset = await this.workflowRunRepository.updateWithVersion(runId, run.version, {
       status: 'PAUSED',
       error: null,
     });
@@ -463,7 +474,12 @@ export class WorkflowService {
       metadata: {},
     });
 
-    await drainToReturnValue(this.workflowEngineService.executeRun(runId, grantedPermissions));
+    await this.workflowRunQueueService.enqueueRun(
+      runId,
+      reset.version,
+      grantedPermissions,
+      reset.organizationId,
+    );
     return this.getRunOrThrow(runId);
   }
 
@@ -496,8 +512,12 @@ export class WorkflowService {
       metadata: { decision, workflowRunId: approval.workflowRunId },
     });
 
-    await drainToReturnValue(
-      this.workflowEngineService.executeRun(approval.workflowRunId, grantedPermissions),
+    const run = await this.getRunOrThrow(approval.workflowRunId);
+    await this.workflowRunQueueService.enqueueRun(
+      approval.workflowRunId,
+      run.version,
+      grantedPermissions,
+      run.organizationId,
     );
 
     return decided;
