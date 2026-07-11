@@ -4,6 +4,7 @@ import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { OrganizationModule } from '../organization/organization.module';
 import { UsersModule } from '../users/users.module';
+import { BillingModule } from '../billing/billing.module';
 import { AuthContextRepository } from './auth-context.repository';
 import { AuthContextService } from './auth-context.service';
 import { AuthController } from './auth.controller';
@@ -37,6 +38,7 @@ import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
     }),
     UsersModule,
     OrganizationModule,
+    BillingModule,
   ],
   controllers: [AuthController],
   providers: [

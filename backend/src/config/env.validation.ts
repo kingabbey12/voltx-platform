@@ -425,6 +425,10 @@ class EnvironmentVariables {
   STRIPE_WEBHOOK_SECRET?: string;
 
   @IsOptional()
+  @IsString()
+  PLATFORM_ADMIN_EMAILS?: string;
+
+  @IsOptional()
   @IsIn(['local', 's3'])
   ATTACHMENTS_STORAGE_PROVIDER?: string;
 

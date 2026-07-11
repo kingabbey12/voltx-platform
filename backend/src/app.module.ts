@@ -14,6 +14,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { TenantModule } from './common/tenant/tenant.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { AgentModule } from './modules/ai/agents/agent.module';
 import { AIModule } from './modules/ai/ai.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
@@ -74,6 +75,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     AgentModule,
     AttachmentsModule,
     BackgroundJobsModule,
+    BillingModule,
     AuthModule,
     CommunicationsModule,
     HealthModule,

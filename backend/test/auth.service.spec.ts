@@ -11,6 +11,9 @@ import { VerificationTokenService } from '../src/modules/auth/verification-token
 import { OrganizationRepository } from '../src/modules/organization/organization.repository';
 import { PrismaService } from '../src/database/prisma.service';
 import { UsersRepository } from '../src/modules/users/users.repository';
+import { BillingAccountService } from '../src/modules/billing/billing-account.service';
+import { PlanService } from '../src/modules/billing/plan.service';
+import { SubscriptionService } from '../src/modules/billing/subscription.service';
 import * as passwordUtil from '../src/modules/auth/utils/password.util';
 import * as refreshTokenUtil from '../src/modules/auth/utils/refresh-token.util';
 
@@ -22,6 +25,7 @@ describe('AuthService', () => {
   let authContextRepository: jest.Mocked<AuthContextRepository>;
   let usersRepository: jest.Mocked<UsersRepository>;
   let jwtService: jest.Mocked<JwtService>;
+  let configService: jest.Mocked<ConfigService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -65,6 +69,7 @@ describe('AuthService', () => {
           provide: UsersRepository,
           useValue: {
             findById: jest.fn(),
+            setPlatformAdmin: jest.fn(),
           },
         },
         {
@@ -93,7 +98,28 @@ describe('AuthService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn().mockReturnValue('15m'),
+            get: jest.fn((key: string) => {
+              if (key === 'billing.platformAdminEmails') return [];
+              return '15m';
+            }),
+          },
+        },
+        {
+          provide: BillingAccountService,
+          useValue: {
+            createForOrganization: jest.fn(),
+          },
+        },
+        {
+          provide: SubscriptionService,
+          useValue: {
+            createTrialSubscription: jest.fn(),
+          },
+        },
+        {
+          provide: PlanService,
+          useValue: {
+            getPlanByKeyOrThrow: jest.fn(),
           },
         },
       ],
@@ -106,6 +132,7 @@ describe('AuthService', () => {
     authContextRepository = module.get(AuthContextRepository);
     usersRepository = module.get(UsersRepository);
     jwtService = module.get(JwtService);
+    configService = module.get(ConfigService);
   });
 
   it('issues tokens on successful login', async () => {
@@ -140,6 +167,7 @@ describe('AuthService', () => {
       phoneNumber: null,
       jobTitle: null,
       status: UserStatus.ACTIVE,
+      isPlatformAdmin: false,
       lastLoginAt: null,
       emailVerifiedAt: null,
       createdAt: new Date(),
@@ -161,6 +189,131 @@ describe('AuthService', () => {
       new Date('2026-08-01'),
     );
     expect(authRepository.updateLastLoginAt).toHaveBeenCalledWith('user-id');
+  });
+
+  describe('platform admin self-heal on login', () => {
+    function mockSuccessfulLoginUpTo(profileOverrides: { isPlatformAdmin: boolean }) {
+      jest.spyOn(passwordUtil, 'verifyPassword').mockResolvedValue(true);
+      jest.spyOn(refreshTokenUtil, 'generateRefreshToken').mockReturnValue('refresh-token');
+      jest.spyOn(refreshTokenUtil, 'hashRefreshToken').mockReturnValue('refresh-hash');
+      jest
+        .spyOn(refreshTokenUtil, 'getRefreshTokenExpiresAt')
+        .mockReturnValue(new Date('2026-08-01'));
+
+      authRepository.findUserByEmail.mockResolvedValue({
+        id: 'user-id',
+        email: 'jane.doe@example.com',
+        passwordHash: 'hash',
+        status: UserStatus.ACTIVE,
+      });
+      authContextRepository.findActiveMembershipContext.mockResolvedValue({
+        id: 'membership-id',
+        organizationId: 'org-id',
+        userId: 'user-id',
+        roleId: 'role-id',
+        roleKey: 'admin',
+        roleName: 'Admin',
+      });
+      jwtService.signAsync.mockResolvedValue('access-token');
+      usersRepository.findById.mockResolvedValue({
+        id: 'user-id',
+        email: 'jane.doe@example.com',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        avatarUrl: null,
+        phoneNumber: null,
+        jobTitle: null,
+        status: UserStatus.ACTIVE,
+        isPlatformAdmin: profileOverrides.isPlatformAdmin,
+        lastLoginAt: null,
+        emailVerifiedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      });
+    }
+
+    it('grants platform admin when the email is allow-listed and not yet granted', async () => {
+      mockSuccessfulLoginUpTo({ isPlatformAdmin: false });
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'billing.platformAdminEmails') return ['jane.doe@example.com'];
+        return '15m';
+      });
+      usersRepository.setPlatformAdmin.mockResolvedValue({
+        id: 'user-id',
+        email: 'jane.doe@example.com',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        avatarUrl: null,
+        phoneNumber: null,
+        jobTitle: null,
+        status: UserStatus.ACTIVE,
+        isPlatformAdmin: true,
+        lastLoginAt: null,
+        emailVerifiedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      });
+
+      const result = await service.login({
+        email: 'jane.doe@example.com',
+        password: 'SecurePassword123!',
+        organizationId: 'org-id',
+      });
+
+      expect(usersRepository.setPlatformAdmin).toHaveBeenCalledWith('user-id', true);
+      expect(result.user.isPlatformAdmin).toBe(true);
+    });
+
+    it('revokes platform admin when the email is no longer allow-listed', async () => {
+      mockSuccessfulLoginUpTo({ isPlatformAdmin: true });
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'billing.platformAdminEmails') return [];
+        return '15m';
+      });
+      usersRepository.setPlatformAdmin.mockResolvedValue({
+        id: 'user-id',
+        email: 'jane.doe@example.com',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        avatarUrl: null,
+        phoneNumber: null,
+        jobTitle: null,
+        status: UserStatus.ACTIVE,
+        isPlatformAdmin: false,
+        lastLoginAt: null,
+        emailVerifiedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      });
+
+      const result = await service.login({
+        email: 'jane.doe@example.com',
+        password: 'SecurePassword123!',
+        organizationId: 'org-id',
+      });
+
+      expect(usersRepository.setPlatformAdmin).toHaveBeenCalledWith('user-id', false);
+      expect(result.user.isPlatformAdmin).toBe(false);
+    });
+
+    it('does not call setPlatformAdmin when the flag already matches the allowlist', async () => {
+      mockSuccessfulLoginUpTo({ isPlatformAdmin: false });
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'billing.platformAdminEmails') return [];
+        return '15m';
+      });
+
+      await service.login({
+        email: 'jane.doe@example.com',
+        password: 'SecurePassword123!',
+        organizationId: 'org-id',
+      });
+
+      expect(usersRepository.setPlatformAdmin).not.toHaveBeenCalled();
+    });
   });
 
   it('rejects login with invalid credentials', async () => {

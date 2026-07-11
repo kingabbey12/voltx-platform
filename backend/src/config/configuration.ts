@@ -198,4 +198,24 @@ export default () => ({
       clamavPort: parseInt(process.env.CLAMAV_PORT ?? '3310', 10),
     },
   },
+  billing: {
+    // Voltx's OWN Stripe account, billing organizations for their
+    // subscription — distinct from integrations.providers.stripe above,
+    // which is a customer's own connected Stripe account (per-org OAuth/
+    // API-key credential, used by the AI tool catalog). Same env var
+    // names as that pre-existing (never-wired-up) declaration since
+    // nothing else reads them, but a dedicated config path here so the
+    // two concerns never collide.
+    stripe: {
+      apiKey: process.env.STRIPE_API_KEY ?? '',
+      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+    },
+    // Comma-separated allowlist of emails granted cross-organization
+    // Super Admin Billing Console access — checked (and self-healed
+    // onto User.isPlatformAdmin) at login, never self-service.
+    platformAdminEmails: (process.env.PLATFORM_ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((email) => email.trim().toLowerCase())
+      .filter((email) => email.length > 0),
+  },
 });

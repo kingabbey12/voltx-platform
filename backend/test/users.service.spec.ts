@@ -30,6 +30,7 @@ describe('UsersService', () => {
     phoneNumber: '+14155552671',
     jobTitle: 'Engineering Manager',
     status: UserStatus.ACTIVE,
+    isPlatformAdmin: false,
     lastLoginAt: null,
     emailVerifiedAt: new Date('2026-07-03T00:00:00.000Z'),
     createdAt: new Date('2026-07-03T00:00:00.000Z'),

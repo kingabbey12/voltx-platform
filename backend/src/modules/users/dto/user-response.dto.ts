@@ -56,6 +56,12 @@ export class UserResponseDto {
   @ApiProperty({ enum: UserStatus, example: UserStatus.ACTIVE })
   status!: UserStatus;
 
+  @ApiProperty({
+    example: false,
+    description: 'Cross-organization Super Admin Billing Console access',
+  })
+  isPlatformAdmin!: boolean;
+
   @ApiPropertyOptional({ example: '2026-07-03T00:00:00.000Z', nullable: true })
   lastLoginAt!: string | null;
 
@@ -78,6 +84,7 @@ export class UserResponseDto {
     dto.phoneNumber = entity.phoneNumber;
     dto.jobTitle = entity.jobTitle;
     dto.status = entity.status;
+    dto.isPlatformAdmin = entity.isPlatformAdmin;
     dto.lastLoginAt = entity.lastLoginAt?.toISOString() ?? null;
     dto.emailVerifiedAt = entity.emailVerifiedAt?.toISOString() ?? null;
     dto.createdAt = entity.createdAt.toISOString();

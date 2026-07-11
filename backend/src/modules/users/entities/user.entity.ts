@@ -9,6 +9,7 @@ export class UserEntity {
   phoneNumber!: string | null;
   jobTitle!: string | null;
   status!: UserStatus;
+  isPlatformAdmin!: boolean;
   lastLoginAt!: Date | null;
   emailVerifiedAt!: Date | null;
   createdAt!: Date;

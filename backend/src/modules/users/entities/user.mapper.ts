@@ -11,6 +11,7 @@ export function toUserEntity(record: User): UserEntity {
   entity.phoneNumber = record.phoneNumber;
   entity.jobTitle = record.jobTitle;
   entity.status = record.status;
+  entity.isPlatformAdmin = record.isPlatformAdmin;
   entity.lastLoginAt = record.lastLoginAt;
   entity.emailVerifiedAt = record.emailVerifiedAt;
   entity.createdAt = record.createdAt;

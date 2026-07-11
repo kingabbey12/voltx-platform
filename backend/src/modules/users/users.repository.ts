@@ -76,6 +76,19 @@ export class UsersRepository {
     return record ? toUserEntity(record) : null;
   }
 
+  /**
+   * Unscoped by design — used by PlatformAdminGuard, which must resolve
+   * the caller's own user row (to check isPlatformAdmin) independent of
+   * whatever organization their JWT's tenant context happens to carry.
+   */
+  async findByIdUnscoped(id: string): Promise<UserEntity | null> {
+    const record = await this.prisma.system.user.findFirst({
+      where: { id, deletedAt: null },
+    });
+
+    return record ? toUserEntity(record) : null;
+  }
+
   async findByEmail(email: string): Promise<UserEntity | null> {
     const record = await this.prisma.system.user.findFirst({
       where: { email: email.toLowerCase(), deletedAt: null },
@@ -146,6 +159,20 @@ export class UsersRepository {
       data,
     });
 
+    return toUserEntity(record);
+  }
+
+  /**
+   * Self-healing setter used by AuthService.login() to grant/reflect
+   * cross-organization Super Admin Billing Console access from the
+   * PLATFORM_ADMIN_EMAILS env allowlist — unscoped, since this must work
+   * regardless of which organization the login's tenant context resolves to.
+   */
+  async setPlatformAdmin(id: string, isPlatformAdmin: boolean): Promise<UserEntity> {
+    const record = await this.prisma.system.user.update({
+      where: { id },
+      data: { isPlatformAdmin },
+    });
     return toUserEntity(record);
   }
 

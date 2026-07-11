@@ -12,6 +12,10 @@ import { OrganizationRepository } from '../organization/organization.repository'
 import { generateUniqueOrganizationSlug } from '../organization/utils/organization-slug.util';
 import { UsersRepository } from '../users/users.repository';
 import { UserResponseDto } from '../users/dto/user-response.dto';
+import { UserEntity } from '../users/entities/user.entity';
+import { BillingAccountService } from '../billing/billing-account.service';
+import { PlanService } from '../billing/plan.service';
+import { SubscriptionService } from '../billing/subscription.service';
 import { AuthContextRepository, MembershipSummary } from './auth-context.repository';
 import { AuthRepository } from './auth.repository';
 import { ACCESS_TOKEN_EXPIRES_IN } from './constants/auth.constants';
@@ -49,6 +53,9 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly billingAccountService: BillingAccountService,
+    private readonly subscriptionService: SubscriptionService,
+    private readonly planService: PlanService,
   ) {}
 
   async login(dto: LoginDto): Promise<LoginResponseDto> {
@@ -79,10 +86,12 @@ export class AuthService {
     const tokens = await this.issueTokens(user.id, membership.organizationId);
     await this.authRepository.updateLastLoginAt(user.id);
 
-    const profile = await this.usersRepository.findById(user.id);
+    let profile = await this.usersRepository.findById(user.id);
     if (!profile) {
       throw new UnauthorizedException('Authenticated user not found');
     }
+
+    profile = (await this.selfHealPlatformAdmin(profile)) ?? profile;
 
     return {
       ...tokens,
@@ -138,6 +147,7 @@ export class AuthService {
     });
 
     await this.verificationTokenService.issueEmailVerificationToken(user.id);
+    await this.startTrialSubscription(organization.id, user.id, user.email);
     const tokens = await this.issueTokens(user.id, organization.id);
     const profile = await this.usersRepository.findById(user.id);
 
@@ -149,6 +159,49 @@ export class AuthService {
       ...tokens,
       user: UserResponseDto.fromEntity(profile),
     };
+  }
+
+  /**
+   * Every new organization starts on a real, locally-tracked trial of
+   * the Professional plan — no Stripe Subscription object exists yet
+   * (Phase 2's StripeSubscriptionService creates one the moment a
+   * payment method is attached or the trial converts). Not in the same
+   * $transaction as org/user/membership creation, matching this
+   * method's existing precedent of issuing the email verification token
+   * as a best-effort follow-up step after that core transaction commits.
+   */
+  private async startTrialSubscription(
+    organizationId: string,
+    userId: string,
+    email: string,
+  ): Promise<void> {
+    const billingAccount = await this.billingAccountService.createForOrganization({
+      organizationId,
+      email,
+    });
+    const plan = await this.planService.getPlanByKeyOrThrow('professional');
+    await this.subscriptionService.createTrialSubscription(
+      organizationId,
+      billingAccount.id,
+      plan,
+      userId,
+    );
+  }
+
+  /**
+   * Grants (and self-heals, if already granted) cross-organization Super
+   * Admin Billing Console access from the PLATFORM_ADMIN_EMAILS env
+   * allowlist — checked on every login rather than only at account
+   * creation, so adding/removing an email from the allowlist takes
+   * effect on that user's next login without any manual DB step.
+   */
+  private async selfHealPlatformAdmin(profile: UserEntity): Promise<UserEntity | null> {
+    const allowlist = this.configService.get<string[]>('billing.platformAdminEmails', []);
+    const shouldBeAdmin = allowlist.includes(profile.email.toLowerCase());
+    if (shouldBeAdmin === profile.isPlatformAdmin) {
+      return null;
+    }
+    return this.usersRepository.setPlatformAdmin(profile.id, shouldBeAdmin);
   }
 
   async refresh(refreshToken: string): Promise<AuthTokensDto> {
