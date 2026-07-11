@@ -86,7 +86,7 @@ export default function WorkflowsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
+    <div>
       <PageHeader
         title="Workflows"
         description="Automate multi-step processes — including AI reasoning steps."
