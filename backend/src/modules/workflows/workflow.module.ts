@@ -32,6 +32,7 @@ import { WorkflowStepRunRepository } from './workflow-step-run.repository';
 import { WorkflowRepository } from './workflow.repository';
 import { WorkflowVersionRepository } from './workflow-version.repository';
 import { WorkflowToolSourceService } from './tools/workflow-tool-source.service';
+import { WorkflowAiService } from './ai/workflow-ai.service';
 import { WorkflowTemplateController } from './workflow-template.controller';
 import { WorkflowTemplateRepository } from './workflow-template.repository';
 import { WorkflowTemplateService } from './workflow-template.service';
@@ -114,6 +115,7 @@ const queueProcessors = redisEnabled ? [WorkflowRunProcessor] : [];
     WorkflowScheduleService,
     WorkflowService,
     WorkflowToolSourceService,
+    WorkflowAiService,
     WorkflowTemplateService,
     WorkflowSecretService,
     WorkflowVariableService,

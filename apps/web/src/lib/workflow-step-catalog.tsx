@@ -63,6 +63,12 @@ export const COMMON_TOOL_NAMES: string[] = [
   "get_attachment_text",
   "get_revenue_summary",
   "get_pipeline_summary",
+  "calculator",
+  "datetime",
+  "uuid",
+  "json",
+  "http_get",
+  "http_post",
 ];
 
 export const STEP_TYPE_CATALOG: StepTypeSpec[] = [
