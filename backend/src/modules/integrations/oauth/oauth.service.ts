@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { OAuthProviderConfig, OAuthTokenResult } from '../provider/integration-provider.types';
 
 interface RawTokenResponse {
@@ -23,6 +28,7 @@ export class OAuthService {
   private readonly logger = new Logger(OAuthService.name);
 
   buildAuthorizationUrl(config: OAuthProviderConfig, state: string, redirectUri: string): string {
+    this.assertConfigured(config);
     const url = new URL(config.authorizationUrl);
     url.searchParams.set('client_id', config.clientId);
     url.searchParams.set('redirect_uri', redirectUri);
@@ -42,6 +48,7 @@ export class OAuthService {
     code: string,
     redirectUri: string,
   ): Promise<OAuthTokenResult> {
+    this.assertConfigured(config);
     return this.requestToken(config, {
       grant_type: 'authorization_code',
       code,
@@ -55,12 +62,40 @@ export class OAuthService {
     config: OAuthProviderConfig,
     refreshToken: string,
   ): Promise<OAuthTokenResult> {
+    this.assertConfigured(config);
     return this.requestToken(config, {
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
       client_id: config.clientId,
       client_secret: config.clientSecret,
     });
+  }
+
+  /**
+   * OAuth client credentials are optional at the platform-config level
+   * (a deployment may not offer every third-party integration), so this
+   * can't be a boot-time requirement the way encryption/storage/Redis are.
+   * Without this guard, a missing clientId/clientSecret silently produces
+   * a broken authorization URL (`client_id=`) or a token request that
+   * fails opaquely at the provider — this fails closed with a clear
+   * message the moment someone actually tries to use the unconfigured
+   * provider.
+   */
+  private assertConfigured(config: OAuthProviderConfig): void {
+    if (!config.clientId || !config.clientSecret) {
+      const provider = this.providerHostname(config.authorizationUrl);
+      throw new ServiceUnavailableException(
+        `OAuth is not configured for ${provider} — missing client ID or client secret`,
+      );
+    }
+  }
+
+  private providerHostname(authorizationUrl: string): string {
+    try {
+      return new URL(authorizationUrl).hostname;
+    } catch {
+      return 'this provider';
+    }
   }
 
   private async requestToken(

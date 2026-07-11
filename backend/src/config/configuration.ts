@@ -56,6 +56,15 @@ export default () => ({
       maxToolCalls: parseInt(process.env.AI_AGENT_LOOP_MAX_TOOL_CALLS ?? '12', 10),
       timeoutMs: parseInt(process.env.AI_AGENT_LOOP_TIMEOUT_MS ?? '120000', 10),
     },
+    httpTool: {
+      // Comma-separated hostnames/domain suffixes. Empty means "allow any
+      // public host" — subject to the mandatory private/loopback/metadata
+      // block-list enforced by OutboundHttpGuardService regardless.
+      allowedHosts: (process.env.AI_HTTP_TOOL_ALLOWED_HOSTS ?? '')
+        .split(',')
+        .map((host) => host.trim().toLowerCase())
+        .filter(Boolean),
+    },
     multiAgent: {
       maxAgents: parseInt(process.env.AI_MULTI_AGENT_MAX_AGENTS ?? '10', 10),
       maxDepth: parseInt(process.env.AI_MULTI_AGENT_MAX_DEPTH ?? '3', 10),
@@ -113,6 +122,8 @@ export default () => ({
   },
   integrations: {
     encryptionKey: process.env.INTEGRATIONS_ENCRYPTION_KEY ?? '',
+    // Set only while rotating to a new key — see docs/operations/key-rotation.md.
+    encryptionKeyPrevious: process.env.INTEGRATIONS_ENCRYPTION_KEY_PREVIOUS ?? '',
     webhookBaseUrl: process.env.INTEGRATIONS_WEBHOOK_BASE_URL ?? '',
     pollIntervalMs: parseInt(process.env.INTEGRATIONS_POLL_INTERVAL_MS ?? '300000', 10),
     maxRetries: parseInt(process.env.INTEGRATIONS_MAX_RETRIES ?? '3', 10),

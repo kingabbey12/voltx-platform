@@ -1,8 +1,17 @@
 import { InternalServerErrorException } from '@nestjs/common';
 import { EncryptionService } from '../src/modules/integrations/security/encryption.service';
 
-function buildService(key = 'test-encryption-key-0123456789'): EncryptionService {
-  const configService = { get: jest.fn().mockReturnValue(key) };
+function buildService(
+  key = 'test-encryption-key-0123456789',
+  previousKey?: string,
+): EncryptionService {
+  const configService = {
+    get: jest.fn((path: string, defaultValue?: string) => {
+      if (path === 'integrations.encryptionKey') return key;
+      if (path === 'integrations.encryptionKeyPrevious') return previousKey ?? defaultValue ?? '';
+      return defaultValue;
+    }),
+  };
   const service = new EncryptionService(configService as never);
   service.onModuleInit();
   return service;
@@ -54,6 +63,41 @@ describe('EncryptionService', () => {
     const [iv, authTag, data] = ciphertext.split(':');
     const tamperedData = data.slice(0, -2) + (data.slice(-2) === '00' ? '01' : '00');
     expect(() => service.decrypt(`${iv}:${authTag}:${tamperedData}`)).toThrow();
+  });
+
+  describe('production boot safety', () => {
+    it('refuses to start when INTEGRATIONS_ENCRYPTION_KEY is unset', () => {
+      expect(() => buildService('')).toThrow(/INTEGRATIONS_ENCRYPTION_KEY/);
+    });
+
+    it('refuses to start when INTEGRATIONS_ENCRYPTION_KEY is too short', () => {
+      expect(() => buildService('short')).toThrow(/INTEGRATIONS_ENCRYPTION_KEY/);
+    });
+  });
+
+  describe('key rotation', () => {
+    it('decrypts old ciphertext with the previous key while encrypting under the new key', () => {
+      const oldKeyService = buildService('old-encryption-key-0123456789');
+      const ciphertext = oldKeyService.encrypt('rotated-secret');
+
+      const rotatedService = buildService(
+        'new-encryption-key-9876543210',
+        'old-encryption-key-0123456789',
+      );
+
+      expect(rotatedService.decrypt(ciphertext)).toBe('rotated-secret');
+
+      // New encryptions always use the current key, never the previous one.
+      const freshCiphertext = rotatedService.encrypt('another-secret');
+      expect(() => oldKeyService.decrypt(freshCiphertext)).toThrow();
+    });
+
+    it('rethrows the original error when no previous key is configured', () => {
+      const serviceA = buildService('key-one-0123456789');
+      const serviceB = buildService('key-two-9876543210');
+      const ciphertext = serviceA.encrypt('secret');
+      expect(() => serviceB.decrypt(ciphertext)).toThrow();
+    });
   });
 
   describe('safeEqual', () => {

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
+import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 
 export interface CreateAIConversationSummaryData {
   conversationId: string;
@@ -32,13 +33,18 @@ interface AIConversationSummaryClient {
 
 @Injectable()
 export class AIConversationSummaryRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async create(
     organizationId: string,
     data: CreateAIConversationSummaryData,
   ): Promise<AIConversationSummaryRecord> {
-    const version = await this.client().count({ where: { conversationId: data.conversationId } });
+    const version = await this.client().count({
+      where: { conversationId: data.conversationId, organizationId },
+    });
     return this.client().create({
       data: {
         organizationId,
@@ -53,8 +59,9 @@ export class AIConversationSummaryRepository {
   }
 
   async findLatest(conversationId: string): Promise<AIConversationSummaryRecord | null> {
+    const tenant = this.tenantContextService.getOrThrow();
     return this.client().findFirst({
-      where: { conversationId },
+      where: { conversationId, organizationId: tenant.organizationId },
       orderBy: { version: 'desc' },
     });
   }

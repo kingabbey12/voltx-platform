@@ -277,7 +277,7 @@ export class AttachmentRepository {
   ): Promise<AttachmentVersionEntity> {
     const tenant = this.tenantContextService.getOrThrow();
     const lastVersion = await this.prisma.system.attachmentVersion.findFirst({
-      where: { attachmentId },
+      where: { attachmentId, organizationId: tenant.organizationId },
       orderBy: { versionNumber: 'desc' },
     });
 

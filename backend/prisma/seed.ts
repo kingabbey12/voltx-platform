@@ -83,6 +83,8 @@ const PERMISSION_DEFINITIONS = [
   { key: 'attachment.create', resource: 'attachment', action: 'create', description: 'Upload files and attach them to conversations or CRM records' },
   { key: 'attachment.read', resource: 'attachment', action: 'read', description: 'View and download attachments' },
   { key: 'attachment.delete', resource: 'attachment', action: 'delete', description: 'Delete attachments' },
+  { key: 'attachment.admin_override', resource: 'attachment', action: 'admin_override', description: 'Download a quarantined attachment despite a failed virus scan' },
+  { key: 'ops.dead_letter.read', resource: 'ops_dead_letter', action: 'read', description: 'View background jobs that exhausted their retry attempts' },
 ] as const;
 
 const ROLE_DEFINITIONS = [

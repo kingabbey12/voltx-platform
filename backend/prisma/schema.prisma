@@ -1292,6 +1292,28 @@ model WorkflowDeadLetter {
   @@map("workflow_dead_letters")
 }
 
+/// v1.9.1 hardening — generic dead-letter record for any BullMQ queue
+/// (comms AI processing, attachment processing, AI agent-task resume)
+/// once a job exhausts its configured retry attempts. organizationId is
+/// best-effort (resolved from the job's payload where possible) and
+/// nullable since not every job's payload cheaply resolves to one.
+model BackgroundJobFailure {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  queueName      String    @map("queue_name")
+  jobName        String    @map("job_name")
+  jobId          String?   @map("job_id")
+  payload        Json      @default("{}")
+  failureReason  String    @map("failure_reason")
+  attemptsMade   Int       @map("attempts_made")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([organizationId])
+  @@index([queueName])
+  @@index([createdAt])
+  @@map("background_job_failures")
+}
+
 // ─────────────────────────────────────────────────────────────
 // Enterprise Integration Platform (VT-025)
 // ─────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
+import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 
 export type CommsEventType =
   'DELIVERED' | 'READ' | 'TYPING' | 'REACTION_ADDED' | 'REACTION_REMOVED';
@@ -33,7 +34,10 @@ interface CommunicationEventClient {
 /** Append-only fact log for delivered/read/typing/reaction events — see CommunicationEvent's schema doc comment. */
 @Injectable()
 export class CommunicationEventRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async createUnscoped(
     organizationId: string,
@@ -52,8 +56,9 @@ export class CommunicationEventRepository {
   }
 
   async findByConversation(conversationId: string): Promise<CommunicationEventRecord[]> {
+    const tenant = this.tenantContextService.getOrThrow();
     return this.client().findMany({
-      where: { conversationId },
+      where: { conversationId, organizationId: tenant.organizationId },
       orderBy: { occurredAt: 'asc' },
     });
   }

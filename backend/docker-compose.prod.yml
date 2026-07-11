@@ -71,6 +71,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-voltx}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-voltx}
+      REDIS_ENABLED: 'true'
       REDIS_URL: redis://redis:6379
     ports:
       - '${PORT:-3000}:3000'

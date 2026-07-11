@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../../database/prisma.service';
+import { TenantContextService } from '../../../../common/tenant/tenant-context.service';
 
 export type AgentMessageType = 'REQUEST' | 'RESPONSE' | 'STATUS' | 'OBSERVATION' | 'COMPLETION';
 
@@ -47,7 +48,7 @@ interface AgentMessageClient {
     };
   }): Promise<RawAgentMessageRecord>;
   findMany(args: {
-    where: { rootRunId: string };
+    where: Record<string, unknown>;
     orderBy: { createdAt: 'asc' };
   }): Promise<RawAgentMessageRecord[]>;
 }
@@ -62,7 +63,10 @@ interface AgentMessageClient {
  */
 @Injectable()
 export class AgentMessageRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async create(data: CreateAgentMessageData): Promise<AgentMessageRecord> {
     const record = await this.client().create({
@@ -80,8 +84,9 @@ export class AgentMessageRepository {
   }
 
   async listForRoot(rootRunId: string): Promise<AgentMessageRecord[]> {
+    const tenant = this.tenantContextService.getOrThrow();
     const records = await this.client().findMany({
-      where: { rootRunId },
+      where: { rootRunId, fromAgentRun: { agent: { organizationId: tenant.organizationId } } },
       orderBy: { createdAt: 'asc' },
     });
 

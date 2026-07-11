@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { AITool, ToolSchema } from '../../ai/tools/tool.interface';
+import { AITool, ToolExecutionError, ToolSchema } from '../../ai/tools/tool.interface';
 import { DynamicToolSource, ToolRegistry } from '../../ai/tools/tool.registry';
 import { AttachmentService } from '../attachment.service';
 
@@ -74,6 +74,12 @@ export class AttachmentsToolSourceService implements DynamicToolSource, OnModule
       inputSchema: schema,
       async execute(input: { attachmentId: string }) {
         const attachment = await attachmentService.getById(input.attachmentId);
+        if (attachment.status === 'QUARANTINED') {
+          throw new ToolExecutionError(
+            'This file failed a virus scan and its content cannot be read.',
+            'attachment_quarantined',
+          );
+        }
         return {
           id: attachment.id,
           fileName: attachment.fileName,

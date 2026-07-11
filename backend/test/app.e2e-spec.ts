@@ -36,6 +36,16 @@ describe('AppController (e2e)', () => {
       });
   });
 
+  it('/api/v1/health (GET) omits the redis dependency when REDIS_ENABLED is not set', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/health')
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as ApiSuccessResponse<HealthCheckResult>;
+        expect(body.data.dependencies.redis).toBeUndefined();
+      });
+  });
+
   it('/readiness (GET)', async () => {
     await request(app.getHttpServer())
       .get('/readiness')

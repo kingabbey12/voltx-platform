@@ -18,6 +18,7 @@ describe('AttachmentService', () => {
   let storageProvider: jest.Mocked<StorageProvider>;
   let processingQueue: jest.Mocked<AttachmentProcessingQueueService>;
   let tenantContextService: jest.Mocked<TenantContextService>;
+  let auditService: jest.Mocked<AuditService>;
 
   const attachmentEntity: AttachmentEntity = {
     id: 'attachment-1',
@@ -97,6 +98,7 @@ describe('AttachmentService', () => {
     storageProvider = module.get(STORAGE_PROVIDER);
     processingQueue = module.get(AttachmentProcessingQueueService);
     tenantContextService = module.get(TenantContextService);
+    auditService = module.get(AuditService);
 
     tenantContextService.getOrThrow.mockReturnValue({
       organizationId: 'org-1',
@@ -125,7 +127,7 @@ describe('AttachmentService', () => {
         'org-1',
         expect.objectContaining({ fileName: 'report.pdf', status: 'PENDING' }),
       );
-      expect(processingQueue.enqueue).toHaveBeenCalledWith(attachmentEntity.id);
+      expect(processingQueue.enqueue).toHaveBeenCalledWith(attachmentEntity.id, 'org-1');
       expect(result).toEqual(attachmentEntity);
     });
 
@@ -254,7 +256,7 @@ describe('AttachmentService', () => {
         attachmentEntity.id,
         expect.objectContaining({ status: 'PENDING', sizeBytes: 2048 }),
       );
-      expect(processingQueue.enqueue).toHaveBeenCalledWith(attachmentEntity.id);
+      expect(processingQueue.enqueue).toHaveBeenCalledWith(attachmentEntity.id, 'org-1');
       expect(result.sizeBytes).toBe(2048);
     });
   });
@@ -267,6 +269,9 @@ describe('AttachmentService', () => {
         ForbiddenException,
       );
       expect(storageProvider.getReadStream).not.toHaveBeenCalled();
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'attachment.quarantine_blocked' }),
+      );
     });
 
     it('streams a ready attachment', async () => {
@@ -278,6 +283,81 @@ describe('AttachmentService', () => {
 
       expect(result.stream).toBe(fakeStream);
       expect(storageProvider.getReadStream).toHaveBeenCalledWith(attachmentEntity.storageKey);
+    });
+  });
+
+  describe('getSignedDownloadUrl', () => {
+    it('refuses to sign a URL for a quarantined attachment', async () => {
+      repository.findByIdOrThrow.mockResolvedValue({ ...attachmentEntity, status: 'QUARANTINED' });
+
+      await expect(service.getSignedDownloadUrl(attachmentEntity.id)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(storageProvider.getSignedDownloadUrl).not.toHaveBeenCalled();
+    });
+
+    it('signs a URL for a ready attachment', async () => {
+      repository.findByIdOrThrow.mockResolvedValue({ ...attachmentEntity, status: 'READY' });
+      storageProvider.getSignedDownloadUrl.mockResolvedValue('https://example.com/signed');
+
+      const result = await service.getSignedDownloadUrl(attachmentEntity.id);
+
+      expect(result.url).toBe('https://example.com/signed');
+    });
+  });
+
+  describe('getThumbnailReadStream', () => {
+    it('refuses to stream a thumbnail for a quarantined attachment', async () => {
+      repository.findByIdOrThrow.mockResolvedValue({
+        ...attachmentEntity,
+        status: 'QUARANTINED',
+        thumbnailKey: 'org-1/uuid/report.pdf.thumb.webp',
+      });
+
+      await expect(service.getThumbnailReadStream(attachmentEntity.id)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(storageProvider.getReadStream).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when the attachment has no thumbnail', async () => {
+      repository.findByIdOrThrow.mockResolvedValue({ ...attachmentEntity, status: 'READY' });
+
+      await expect(service.getThumbnailReadStream(attachmentEntity.id)).rejects.toThrow(
+        /no thumbnail/,
+      );
+    });
+
+    it('streams a ready attachment thumbnail', async () => {
+      repository.findByIdOrThrow.mockResolvedValue({
+        ...attachmentEntity,
+        status: 'READY',
+        thumbnailKey: 'org-1/uuid/report.pdf.thumb.webp',
+      });
+      const fakeStream = {} as NodeJS.ReadableStream;
+      storageProvider.getReadStream.mockResolvedValue(fakeStream);
+
+      const result = await service.getThumbnailReadStream(attachmentEntity.id);
+
+      expect(result.stream).toBe(fakeStream);
+      expect(storageProvider.getReadStream).toHaveBeenCalledWith(
+        'org-1/uuid/report.pdf.thumb.webp',
+      );
+    });
+  });
+
+  describe('getReadStreamForDownloadAsAdmin', () => {
+    it('bypasses the quarantine gate and audit-logs the override', async () => {
+      repository.findByIdOrThrow.mockResolvedValue({ ...attachmentEntity, status: 'QUARANTINED' });
+      const fakeStream = {} as NodeJS.ReadableStream;
+      storageProvider.getReadStream.mockResolvedValue(fakeStream);
+
+      const result = await service.getReadStreamForDownloadAsAdmin(attachmentEntity.id);
+
+      expect(result.stream).toBe(fakeStream);
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'attachment.quarantine_override' }),
+      );
     });
   });
 

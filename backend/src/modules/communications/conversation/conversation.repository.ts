@@ -77,6 +77,10 @@ interface CommsConversationClient {
     where: { id: string };
     data: Record<string, unknown>;
   }): Promise<CommsConversationRecord>;
+  updateMany(args: {
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }): Promise<{ count: number }>;
 }
 
 @Injectable()
@@ -192,7 +196,11 @@ export class ConversationRepository {
   }
 
   async softDelete(id: string): Promise<void> {
-    await this.client().update({ where: { id }, data: { deletedAt: new Date() } });
+    const tenant = this.tenantContextService.getOrThrow();
+    await this.client().updateMany({
+      where: { id, organizationId: tenant.organizationId },
+      data: { deletedAt: new Date() },
+    });
   }
 
   private client(): CommsConversationClient {

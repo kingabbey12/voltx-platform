@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { WorkflowExecutionLogEntity, WorkflowLogLevel } from './entities/workflow-support.entity';
 
 export interface CreateWorkflowLogData {
@@ -43,7 +44,10 @@ interface WorkflowLogClient {
 export class WorkflowLogRepository {
   private readonly logger = new Logger(WorkflowLogRepository.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async create(data: CreateWorkflowLogData): Promise<void> {
     try {
@@ -67,7 +71,8 @@ export class WorkflowLogRepository {
     page: number,
     limit: number,
   ): Promise<{ items: WorkflowExecutionLogEntity[]; total: number }> {
-    const where = { workflowRunId };
+    const tenant = this.tenantContextService.getOrThrow();
+    const where = { workflowRunId, workflowRun: { organizationId: tenant.organizationId } };
     const [records, total] = await Promise.all([
       this.client().findMany({
         where,

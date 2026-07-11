@@ -324,4 +324,85 @@ describe('Attachments (e2e)', () => {
     await request(app.getHttpServer()).get('/api/v1/attachments/some-id').expect(401);
     await request(app.getHttpServer()).post('/api/v1/attachments/upload').expect(401);
   });
+
+  it('blocks every read path for a quarantined attachment, except the audited admin override', async () => {
+    const { accessToken: adminToken } = await authenticateContext(app, prisma, usersRepository);
+    const { accessToken: memberToken } = await authenticateContext(
+      app,
+      prisma,
+      usersRepository,
+      'member',
+      { email: 'quarantine-member@example.com' },
+    );
+
+    const uploadResponse = await request(app.getHttpServer())
+      .post('/api/v1/attachments/upload')
+      .set(bearerAuthHeaders(adminToken))
+      .attach('file', Buffer.from('this file will be quarantined'), {
+        filename: 'quarantined.txt',
+        contentType: 'text/plain',
+      })
+      .expect(201);
+    const uploaded = (uploadResponse.body as ApiSuccessResponse<AttachmentBody>).data;
+    await waitUntilReady(app, adminToken, uploaded.id);
+
+    // Simulate a positive virus scan directly — the real pipeline
+    // (AttachmentProcessingService) sets this same status/scanResult on a
+    // scan hit; NoopVirusScanProvider always reports clean in this test
+    // environment, so there is no way to trigger it end-to-end here.
+    const attachmentClient = prisma.system as unknown as {
+      attachment: {
+        update(args: {
+          where: { id: string };
+          data: { status: string; scanResult: string };
+        }): Promise<unknown>;
+      };
+    };
+    await attachmentClient.attachment.update({
+      where: { id: uploaded.id },
+      data: { status: 'QUARANTINED', scanResult: 'EICAR-Test-Signature' },
+    });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/attachments/${uploaded.id}/download`)
+      .set(bearerAuthHeaders(adminToken))
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/attachments/${uploaded.id}/download-url`)
+      .set(bearerAuthHeaders(adminToken))
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/attachments/${uploaded.id}/thumbnail`)
+      .set(bearerAuthHeaders(adminToken))
+      .expect(403);
+
+    // A member (no attachment.admin_override permission) is denied the override.
+    await request(app.getHttpServer())
+      .get(`/api/v1/attachments/${uploaded.id}/download/admin-override`)
+      .set(bearerAuthHeaders(memberToken))
+      .expect(403);
+
+    // An admin (has attachment.admin_override) can still retrieve it.
+    const overrideResponse = await request(app.getHttpServer())
+      .get(`/api/v1/attachments/${uploaded.id}/download/admin-override`)
+      .set(bearerAuthHeaders(adminToken))
+      .expect(200);
+    expect(overrideResponse.text).toBe('this file will be quarantined');
+
+    const auditClient = prisma.system as unknown as {
+      auditLog: {
+        findMany(args: { where: Record<string, unknown> }): Promise<Array<{ action: string }>>;
+      };
+    };
+    const blockedAudits = await auditClient.auditLog.findMany({
+      where: { resourceId: uploaded.id, action: 'attachment.quarantine_blocked' },
+    });
+    const overrideAudits = await auditClient.auditLog.findMany({
+      where: { resourceId: uploaded.id, action: 'attachment.quarantine_override' },
+    });
+    expect(blockedAudits.length).toBeGreaterThanOrEqual(3);
+    expect(overrideAudits).toHaveLength(1);
+  });
 });

@@ -644,6 +644,56 @@ describe('Workflow Engine (e2e)', () => {
     expect(items.every((item) => item.name !== workflowA.name)).toBe(true);
   });
 
+  it('never returns another organization’s run logs or checkpoints, even when the run id is known', async () => {
+    const orgA = await authenticateContext(app, prisma, usersRepository, 'admin', {
+      email: 'workflow-logs-org-a@example.com',
+    });
+    const orgB = await authenticateContext(app, prisma, usersRepository, 'admin', {
+      email: 'workflow-logs-org-b@example.com',
+    });
+
+    const workflowA = await createAndPublish(orgA.accessToken, 'OrgA Checkpointed Workflow', {
+      steps: [toolStep('first'), toolStep('second', { dependsOn: ['first'] })],
+    });
+    const run = await runWorkflow(orgA.accessToken, workflowA.id);
+    expect(run.status).toBe('SUCCEEDED');
+
+    // Org A (the actual owner) can read its own run's logs and checkpoints.
+    const logsAsOrgA = await request(app.getHttpServer())
+      .get(`/api/v1/workflows/runs/${run.id}/logs`)
+      .set(bearerAuthHeaders(orgA.accessToken))
+      .expect(200);
+    expect(
+      (logsAsOrgA.body as ApiSuccessResponse<{ items: unknown[] }>).data.items.length,
+    ).toBeGreaterThan(0);
+
+    const checkpointsAsOrgA = await request(app.getHttpServer())
+      .get(`/api/v1/workflows/runs/${run.id}/checkpoints`)
+      .set(bearerAuthHeaders(orgA.accessToken))
+      .expect(200);
+    expect((checkpointsAsOrgA.body as ApiSuccessResponse<unknown[]>).data.length).toBeGreaterThan(
+      0,
+    );
+
+    // Org B, given the exact same run id, must see nothing — this is the
+    // cross-tenant leak this sprint closes (WorkflowLogRepository.listByRun
+    // / WorkflowCheckpointRepository.listByRun previously had no
+    // organizationId filter at all).
+    const logsAsOrgB = await request(app.getHttpServer())
+      .get(`/api/v1/workflows/runs/${run.id}/logs`)
+      .set(bearerAuthHeaders(orgB.accessToken))
+      .expect(200);
+    expect((logsAsOrgB.body as ApiSuccessResponse<{ items: unknown[] }>).data.items).toHaveLength(
+      0,
+    );
+
+    const checkpointsAsOrgB = await request(app.getHttpServer())
+      .get(`/api/v1/workflows/runs/${run.id}/checkpoints`)
+      .set(bearerAuthHeaders(orgB.accessToken))
+      .expect(200);
+    expect((checkpointsAsOrgB.body as ApiSuccessResponse<unknown[]>).data).toHaveLength(0);
+  });
+
   it('executes a large workflow (many sequential steps) correctly', async () => {
     const { accessToken } = await authenticateContext(app, prisma, usersRepository);
     const stepCount = 25;

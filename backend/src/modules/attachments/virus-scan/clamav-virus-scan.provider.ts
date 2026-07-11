@@ -29,6 +29,47 @@ export class ClamAvVirusScanProvider implements VirusScanProvider {
     return parseClamdReply(reply);
   }
 
+  /**
+   * Called only by VirusScanModule's production boot check — confirms
+   * clamd is actually reachable and responding, rather than deferring
+   * that discovery to the first real upload in production.
+   */
+  async ping(): Promise<void> {
+    const reply = await this.sendCommand('zPING\0');
+    if (!reply.replace(/\0/g, '').trim().endsWith('PONG')) {
+      throw new Error(`Unexpected ClamAV PING reply: "${reply}"`);
+    }
+  }
+
+  private sendCommand(command: string): Promise<string> {
+    return new Promise((resolvePromise, reject) => {
+      const socket = new Socket();
+      const chunks: Buffer[] = [];
+      let settled = false;
+
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        socket.destroy();
+        fn();
+      };
+
+      socket.setTimeout(SCAN_TIMEOUT_MS);
+      socket.once('timeout', () => finish(() => reject(new Error('ClamAV ping timed out'))));
+      socket.once('error', (error) => finish(() => reject(error)));
+      socket.once('close', () => {
+        if (!settled) {
+          finish(() => resolvePromise(Buffer.concat(chunks).toString('utf-8')));
+        }
+      });
+      socket.on('data', (data: Buffer) => chunks.push(data));
+
+      socket.connect({ host: this.host, port: this.port }, () => {
+        socket.write(command);
+      });
+    });
+  }
+
   private sendInstream(buffer: Buffer): Promise<string> {
     return new Promise((resolvePromise, reject) => {
       const socket = new Socket();

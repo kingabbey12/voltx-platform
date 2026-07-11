@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Injectable, Module } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ConfigModule } from '@nestjs/config';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -15,6 +15,7 @@ import {
   ToolExecutionContext,
   ToolSchema,
 } from './tool.interface';
+import { OutboundHttpGuardService } from './outbound-http-guard.service';
 import { ToolExecutor } from './tool.executor';
 import { ToolRegistry } from './tool.registry';
 import { ExecuteToolResponse, ToolService } from './tool.service';
@@ -206,6 +207,7 @@ class JsonTool implements AITool<{ operation: string; value: unknown }, { result
   }
 }
 
+@Injectable()
 class HttpGetTool implements AITool<
   { url: string; headers?: Record<string, string> },
   { status: number; body: unknown }
@@ -229,12 +231,14 @@ class HttpGetTool implements AITool<
     },
   };
 
+  constructor(private readonly outboundHttpGuard: OutboundHttpGuardService) {}
+
   async execute(
     input: { url: string; headers?: Record<string, string> },
     context: ToolExecutionContext,
   ): Promise<{ status: number; body: unknown }> {
     const url = normalizeHttpUrl(input.url);
-    const response = await fetch(url, {
+    const response = await this.outboundHttpGuard.fetch(url, this.name, {
       method: 'GET',
       headers: input.headers,
       signal: context.signal,
@@ -257,6 +261,7 @@ class HttpGetTool implements AITool<
   }
 }
 
+@Injectable()
 class HttpPostTool implements AITool<
   { url: string; headers?: Record<string, string>; body?: unknown },
   { status: number; body: unknown }
@@ -284,12 +289,14 @@ class HttpPostTool implements AITool<
     },
   };
 
+  constructor(private readonly outboundHttpGuard: OutboundHttpGuardService) {}
+
   async execute(
     input: { url: string; headers?: Record<string, string>; body?: unknown },
     context: ToolExecutionContext,
   ): Promise<{ status: number; body: unknown }> {
     const url = normalizeHttpUrl(input.url);
-    const response = await fetch(url, {
+    const response = await this.outboundHttpGuard.fetch(url, this.name, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -323,6 +330,7 @@ class HttpPostTool implements AITool<
     ToolRegistry,
     ToolExecutor,
     ToolService,
+    OutboundHttpGuardService,
     CalculatorTool,
     DatetimeTool,
     UuidTool,

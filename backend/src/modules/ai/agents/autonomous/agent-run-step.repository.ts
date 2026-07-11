@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../../database/prisma.service';
+import { TenantContextService } from '../../../../common/tenant/tenant-context.service';
 
 export type AgentRunStepType =
   | 'PLAN'
@@ -59,7 +60,7 @@ interface AgentRunStepClient {
     };
   }): Promise<RawAgentRunStepRecord>;
   findMany(args: {
-    where: { agentRunId: string };
+    where: Record<string, unknown>;
     orderBy: { stepNumber: 'asc' };
   }): Promise<RawAgentRunStepRecord[]>;
 }
@@ -72,7 +73,10 @@ interface AgentRunStepClient {
  */
 @Injectable()
 export class AgentRunStepRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async create(data: CreateAgentRunStepData): Promise<AgentRunStepRecord> {
     const record = await this.client().create({
@@ -91,8 +95,9 @@ export class AgentRunStepRepository {
   }
 
   async listForRun(agentRunId: string): Promise<AgentRunStepRecord[]> {
+    const tenant = this.tenantContextService.getOrThrow();
     const records = await this.client().findMany({
-      where: { agentRunId },
+      where: { agentRunId, agentRun: { agent: { organizationId: tenant.organizationId } } },
       orderBy: { stepNumber: 'asc' },
     });
 

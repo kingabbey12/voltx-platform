@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { WorkflowCheckpointEntity } from './entities/workflow-support.entity';
 
 export interface CreateWorkflowCheckpointData {
@@ -36,7 +37,10 @@ interface WorkflowCheckpointClient {
  */
 @Injectable()
 export class WorkflowCheckpointRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async create(data: CreateWorkflowCheckpointData): Promise<WorkflowCheckpointEntity> {
     const record = await this.client().create({
@@ -49,17 +53,20 @@ export class WorkflowCheckpointRepository {
     return toEntity(record);
   }
 
+  /** Called only by the engine with a workflowRunId it already resolved/created itself within the request's tenant context — no separate org check needed for correctness, but scoped anyway for defense-in-depth consistency with listByRun. */
   async findLatestForRun(workflowRunId: string): Promise<WorkflowCheckpointEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
     const records = await this.client().findMany({
-      where: { workflowRunId },
+      where: { workflowRunId, workflowRun: { organizationId: tenant.organizationId } },
       orderBy: [{ createdAt: 'desc' }],
     });
     return records[0] ? toEntity(records[0]) : null;
   }
 
   async listByRun(workflowRunId: string): Promise<WorkflowCheckpointEntity[]> {
+    const tenant = this.tenantContextService.getOrThrow();
     const records = await this.client().findMany({
-      where: { workflowRunId },
+      where: { workflowRunId, workflowRun: { organizationId: tenant.organizationId } },
       orderBy: [{ createdAt: 'asc' }],
     });
     return records.map(toEntity);

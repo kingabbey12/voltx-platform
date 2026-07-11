@@ -140,11 +140,12 @@ export class WorkflowStepRunRepository {
 
   /** Joins through workflow_runs since a step run isn't linked to its workflow directly, only its run. */
   async countByWorkflowAndType(workflowId: string, type: WorkflowStepType): Promise<number> {
+    const tenant = this.tenantContextService.getOrThrow();
     const rows = await this.prisma.system.$queryRaw<Array<{ count: bigint }>>`
       SELECT COUNT(*)::bigint AS count
       FROM workflow_step_runs sr
       INNER JOIN workflow_runs r ON r.id = sr.workflow_run_id
-      WHERE r.workflow_id = ${workflowId}::uuid AND sr.type = ${type}::"WorkflowStepType" AND sr.status = 'SUCCEEDED'
+      WHERE r.workflow_id = ${workflowId}::uuid AND r.organization_id = ${tenant.organizationId}::uuid AND sr.type = ${type}::"WorkflowStepType" AND sr.status = 'SUCCEEDED'
     `;
     return Number(rows[0]?.count ?? 0);
   }

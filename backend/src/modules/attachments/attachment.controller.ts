@@ -5,7 +5,6 @@ import {
   Delete,
   Get,
   Inject,
-  NotFoundException,
   Param,
   ParseIntPipe,
   Post,
@@ -224,12 +223,25 @@ export class AttachmentController {
     @Param('id') id: string,
     @Res({ passthrough: false }) res: Response,
   ): Promise<void> {
-    const attachment = await this.attachmentService.getById(id);
-    if (!attachment.thumbnailKey) {
-      throw new NotFoundException('This attachment has no thumbnail');
-    }
-    const stream = await this.storageProvider.getReadStream(attachment.thumbnailKey);
+    const { stream } = await this.attachmentService.getThumbnailReadStream(id);
     res.setHeader('Content-Type', 'image/webp');
+    stream.pipe(res);
+  }
+
+  @Get(':id/download/admin-override')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('attachment.admin_override')
+  @ApiOperation({
+    summary:
+      'Download a quarantined attachment despite a failed virus scan (owner/admin only, distinctly audited)',
+  })
+  async downloadAsAdmin(
+    @Param('id') id: string,
+    @Res({ passthrough: false }) res: Response,
+  ): Promise<void> {
+    const { stream, attachment } = await this.attachmentService.getReadStreamForDownloadAsAdmin(id);
+    res.setHeader('Content-Type', attachment.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${attachment.fileName}"`);
     stream.pipe(res);
   }
 

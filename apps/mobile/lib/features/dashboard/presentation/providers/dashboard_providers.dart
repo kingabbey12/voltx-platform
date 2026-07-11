@@ -7,6 +7,8 @@ import '../../../../router/routes.dart';
 import '../../../ai/data/models/ai_models.dart';
 import '../../../ai/data/services/ai_api_service.dart';
 import '../../../ai/presentation/providers/ai_providers.dart';
+import '../../../notifications/presentation/providers/notifications_providers.dart'
+    as real_notifications;
 import '../../../sales/data/models/sales_models.dart';
 import '../../../sales/presentation/providers/sales_providers.dart';
 import '../../data/mock/mock_dashboard_data.dart';
@@ -355,64 +357,30 @@ final dashboardForecastSeriesProvider = Provider<List<double>>((ref) {
   return _normalizeSeries(probabilities, fallbackLength: 7);
 });
 
+/// Adapts the real, server-persisted notification inbox
+/// ([real_notifications.notificationsProvider]) into the [DashboardNotification]
+/// shape the dashboard shell/screens already consume. Outside a Flutter
+/// binding (pure-Dart unit tests) falls back to the existing fixture data
+/// unchanged.
 final _dashboardNotificationsSourceProvider =
     Provider<List<DashboardNotification>>((ref) {
       if (!_hasFlutterBinding()) {
         return MockDashboardData.notifications;
       }
 
-      final activities = ref.watch(dashboardActivitiesProvider);
-      final opportunities =
-          ref.watch(_dashboardOpportunitiesProvider).valueOrNull?.items ??
-          const [];
-      final leads =
-          ref.watch(_dashboardLeadsProvider).valueOrNull?.items ?? const [];
-
-      final activityNotifications = activities.take(12).map((item) {
-        return DashboardNotification(
-          id: 'act-${item.id}',
-          title: item.title,
-          body: item.subtitle,
-          timestamp: item.timestamp,
-          read: false,
-          category: 'Activity',
-        );
-      });
-
-      final opportunityNotifications = opportunities
-          .where((item) => item.stage.toUpperCase().contains('RISK'))
-          .take(6)
+      final notifications = ref.watch(real_notifications.notificationsProvider);
+      return notifications
           .map(
             (item) => DashboardNotification(
-              id: 'opp-${item.id}',
-              title: 'Opportunity at risk',
-              body: item.title,
-              timestamp: _parseDate(item.updatedAt) ?? DateTime.now(),
-              read: false,
-              category: 'Pipeline',
+              id: item.id,
+              title: item.title,
+              body: item.body ?? '',
+              timestamp: item.createdAt,
+              read: item.read,
+              category: item.category,
             ),
-          );
-
-      final leadNotifications = leads
-          .where((item) => item.status.toUpperCase() == 'NEW')
-          .take(6)
-          .map(
-            (item) => DashboardNotification(
-              id: 'lead-${item.id}',
-              title: 'New lead',
-              body: item.title,
-              timestamp: _parseDate(item.createdAt) ?? DateTime.now(),
-              read: false,
-              category: 'Leads',
-            ),
-          );
-
-      final combined = [
-        ...activityNotifications,
-        ...opportunityNotifications,
-        ...leadNotifications,
-      ]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      return combined.take(20).toList();
+          )
+          .toList();
     });
 
 final dashboardNotificationsProvider =
@@ -426,6 +394,10 @@ final dashboardNotificationsProvider =
 
       final notifier = DashboardNotificationsNotifier(
         ref.watch(_dashboardNotificationsSourceProvider),
+        onMarkRead: (id) =>
+            ref.read(real_notifications.notificationsProvider.notifier).markRead(id),
+        onMarkAllRead: () =>
+            ref.read(real_notifications.notificationsProvider.notifier).markAllRead(),
       );
       ref.listen<List<DashboardNotification>>(
         _dashboardNotificationsSourceProvider,
@@ -438,26 +410,22 @@ final dashboardNotificationsProvider =
 
 class DashboardNotificationsNotifier
     extends StateNotifier<List<DashboardNotification>> {
-  DashboardNotificationsNotifier(List<DashboardNotification> source)
-    : super(List.of(source));
+  DashboardNotificationsNotifier(
+    List<DashboardNotification> source, {
+    this.onMarkRead,
+    this.onMarkAllRead,
+  }) : super(List.of(source));
+
+  /// Calls through to the real backend (`PATCH /notifications/:id/read` /
+  /// `POST /notifications/read-all`) when wired to live data; left null in
+  /// mock mode (no Flutter binding, or the constructor's fixture path).
+  final Future<void> Function(String id)? onMarkRead;
+  final Future<void> Function()? onMarkAllRead;
 
   int get unreadCount => state.where((n) => !n.read).length;
 
   void syncFromSource(List<DashboardNotification> source) {
-    final readMap = <String, bool>{
-      for (final item in state) item.id: item.read,
-    };
-    state = [
-      for (final item in source)
-        DashboardNotification(
-          id: item.id,
-          title: item.title,
-          body: item.body,
-          timestamp: item.timestamp,
-          read: readMap[item.id] ?? item.read,
-          category: item.category,
-        ),
-    ];
+    state = List.of(source);
   }
 
   void markRead(String id) {
@@ -475,6 +443,7 @@ class DashboardNotificationsNotifier
         else
           notification,
     ];
+    unawaited(onMarkRead?.call(id));
   }
 
   void markAllRead() {
@@ -489,10 +458,14 @@ class DashboardNotificationsNotifier
           category: notification.category,
         ),
     ];
+    unawaited(onMarkAllRead?.call());
   }
 }
 
 final unreadNotificationsCountProvider = Provider<int>((ref) {
+  if (_hasFlutterBinding()) {
+    return ref.watch(real_notifications.unreadNotificationCountProvider);
+  }
   final notifications = ref.watch(dashboardNotificationsProvider);
   return notifications.where((n) => !n.read).length;
 });

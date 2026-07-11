@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import {
@@ -109,7 +115,7 @@ export class AttachmentService {
       },
     });
 
-    this.processingQueue.enqueue(attachment.id);
+    this.processingQueue.enqueue(attachment.id, organizationId);
     return attachment;
   }
 
@@ -193,7 +199,7 @@ export class AttachmentService {
       metadata: { fileName: attachment.fileName, mimeType: attachment.mimeType, multipart: true },
     });
 
-    this.processingQueue.enqueue(attachmentId);
+    this.processingQueue.enqueue(attachmentId, attachment.organizationId);
     return updated;
   }
 
@@ -209,6 +215,8 @@ export class AttachmentService {
 
   async getSignedDownloadUrl(id: string): Promise<{ url: string; expiresAt: string }> {
     const attachment = await this.attachmentRepository.findByIdOrThrow(id);
+    await this.assertNotQuarantined(attachment, 'signed_url');
+
     const ttlSeconds = 900;
     const url = await this.storageProvider.getSignedDownloadUrl(
       attachment.storageKey,
@@ -222,11 +230,61 @@ export class AttachmentService {
     id: string,
   ): Promise<{ stream: NodeJS.ReadableStream; attachment: AttachmentEntity }> {
     const attachment = await this.attachmentRepository.findByIdOrThrow(id);
-    if (attachment.status === 'QUARANTINED') {
-      throw new ForbiddenException('This file failed a virus scan and cannot be downloaded');
-    }
+    await this.assertNotQuarantined(attachment, 'download');
     const stream = await this.storageProvider.getReadStream(attachment.storageKey);
     return { stream, attachment };
+  }
+
+  async getThumbnailReadStream(
+    id: string,
+  ): Promise<{ stream: NodeJS.ReadableStream; attachment: AttachmentEntity }> {
+    const attachment = await this.attachmentRepository.findByIdOrThrow(id);
+    await this.assertNotQuarantined(attachment, 'thumbnail');
+    if (!attachment.thumbnailKey) {
+      throw new NotFoundException('This attachment has no thumbnail');
+    }
+    const stream = await this.storageProvider.getReadStream(attachment.thumbnailKey);
+    return { stream, attachment };
+  }
+
+  /**
+   * Bypasses the quarantine gate — the ONLY read path in this service that
+   * does. Reserved for the admin-override endpoint, gated by the
+   * `attachment.admin_override` permission (owner/admin roles only) and
+   * distinctly audited, since a quarantined file failed a real virus scan.
+   */
+  async getReadStreamForDownloadAsAdmin(
+    id: string,
+  ): Promise<{ stream: NodeJS.ReadableStream; attachment: AttachmentEntity }> {
+    const attachment = await this.attachmentRepository.findByIdOrThrow(id);
+    const stream = await this.storageProvider.getReadStream(attachment.storageKey);
+
+    await this.auditService.record({
+      action: 'attachment.quarantine_override',
+      resource: 'attachment',
+      resourceId: id,
+      metadata: { fileName: attachment.fileName, status: attachment.status },
+    });
+
+    return { stream, attachment };
+  }
+
+  private async assertNotQuarantined(
+    attachment: AttachmentEntity,
+    action: 'download' | 'signed_url' | 'thumbnail',
+  ): Promise<void> {
+    if (attachment.status !== 'QUARANTINED') {
+      return;
+    }
+
+    await this.auditService.record({
+      action: 'attachment.quarantine_blocked',
+      resource: 'attachment',
+      resourceId: attachment.id,
+      metadata: { fileName: attachment.fileName, blockedAction: action },
+    });
+
+    throw new ForbiddenException('This file failed a virus scan and cannot be downloaded');
   }
 
   async delete(id: string): Promise<void> {

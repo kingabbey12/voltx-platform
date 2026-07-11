@@ -104,7 +104,11 @@ export class WorkflowStatsService {
 
     const row = rows[0];
     return {
-      totalTokens: row?.total_tokens ?? 0,
+      // SUM(int) returns Postgres bigint — Prisma's $queryRaw surfaces
+      // that as a native JS BigInt, which JSON.stringify cannot serialize
+      // (crashes the response with "Do not know how to serialize a
+      // BigInt"). Must convert, same as totalCostUsd below.
+      totalTokens: row?.total_tokens ? Number(row.total_tokens) : 0,
       totalCostUsd: row?.total_cost_usd ? Number(row.total_cost_usd) : 0,
     };
   }

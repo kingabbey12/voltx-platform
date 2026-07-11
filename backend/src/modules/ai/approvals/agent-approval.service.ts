@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
+import { AuthContextRepository } from '../../auth/auth-context.repository';
+import { NotificationService } from '../../notifications/notification.service';
 import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 import {
   AgentApprovalRepository,
@@ -23,6 +25,8 @@ export class AgentApprovalService {
     private readonly approvalRepository: AgentApprovalRepository,
     private readonly auditService: AuditService,
     private readonly tenantContextService: TenantContextService,
+    private readonly authContextRepository: AuthContextRepository,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async findOrCreatePending(
@@ -49,7 +53,38 @@ export class AgentApprovalService {
       metadata: { agentRunId, toolName },
     });
 
+    await this.notifyApprovers(tenant.organizationId, created);
+
     return created;
+  }
+
+  /** Best-effort — a notification failure must never block the tool call from pausing correctly. */
+  private async notifyApprovers(
+    organizationId: string,
+    approval: AgentActionApprovalEntity,
+  ): Promise<void> {
+    try {
+      const recipientUserIds = await this.authContextRepository.listActiveUserIdsWithPermission(
+        organizationId,
+        'ai.approval.decide',
+      );
+
+      await Promise.all(
+        recipientUserIds.map((userId) =>
+          this.notificationService.create({
+            organizationId,
+            userId,
+            category: 'AI',
+            title: `Approval needed: ${approval.toolName}`,
+            body: 'An AI agent is waiting for approval before it can continue.',
+            actionUrl: '/ai/operator',
+            metadata: { approvalId: approval.id, agentRunId: approval.agentRunId },
+          }),
+        ),
+      );
+    } catch {
+      // Never fail approval creation over a notification-delivery problem.
+    }
   }
 
   async getByIdOrThrow(id: string): Promise<AgentActionApprovalEntity> {
@@ -73,16 +108,21 @@ export class AgentApprovalService {
     return this.approvalRepository.findPendingByOrganization(tenant.organizationId, page, limit);
   }
 
+  /**
+   * Only one caller can ever win this: the pending→decided transition is
+   * an atomic compare-and-swap in AgentApprovalRepository.decide()
+   * (`UPDATE ... WHERE status = 'PENDING'`), so two concurrent decisions
+   * on the same approval (double-click, two approvers) can never both
+   * succeed. This existence check exists only to produce a proper 404 for
+   * a genuinely-unknown id — the actual race is closed at the repository.
+   */
   async markDecided(
     id: string,
     status: 'APPROVED' | 'REJECTED',
     approverUserId: string,
     comment?: string,
   ): Promise<AgentActionApprovalEntity> {
-    const approval = await this.getByIdOrThrow(id);
-    if (approval.status !== 'PENDING') {
-      throw new BadRequestException(`Approval "${id}" has already been decided`);
-    }
+    await this.getByIdOrThrow(id);
 
     const decided = await this.approvalRepository.decide(id, {
       status,
@@ -90,11 +130,15 @@ export class AgentApprovalService {
       comment,
     });
 
+    if (!decided) {
+      throw new BadRequestException(`Approval "${id}" has already been decided`);
+    }
+
     await this.auditService.record({
       action: status === 'APPROVED' ? 'ai.approval.approved' : 'ai.approval.rejected',
       resource: 'agent_action_approval',
       resourceId: id,
-      metadata: { agentRunId: approval.agentRunId, toolName: approval.toolName, comment },
+      metadata: { agentRunId: decided.agentRunId, toolName: decided.toolName, comment },
     });
 
     return decided;

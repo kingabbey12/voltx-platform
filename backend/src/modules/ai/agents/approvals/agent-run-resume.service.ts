@@ -89,6 +89,20 @@ export class AgentRunResumeService {
     approvalId: string,
     roleId: string,
   ): Promise<void> {
+    // Atomic claim FIRST, before any tool execution: this is what actually
+    // prevents two concurrent resume attempts (e.g. a redelivered
+    // background job) from both executing the approved tool call. Only the
+    // caller that flips WAITING_APPROVAL -> RUNNING proceeds; the loser
+    // returns immediately.
+    const claimed = await this.agentRepository.claimRunForResume(agentRunId);
+    if (!claimed) {
+      this.logger.warn(
+        { agentRunId, approvalId },
+        'Skipping resume: run was already claimed by another resume attempt or is no longer waiting for approval',
+      );
+      return;
+    }
+
     const approval = await this.agentApprovalService.getByIdOrThrowUnscoped(approvalId);
     const agentRun = await this.agentRepository.findRunById(agentRunId);
     if (!agentRun) return;
@@ -106,8 +120,6 @@ export class AgentRunResumeService {
       grantedPermissions,
       objective,
     );
-
-    await this.agentRepository.updateAgentRun(agentRun.id, { status: 'RUNNING' });
 
     const coordinationState = this.multiAgentOrchestratorService.createCoordinationStateForRoot(
       agentRun.rootRunId ?? agentRun.id,

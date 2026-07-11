@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { IntegrationProviderKey } from './provider/integration-provider.types';
@@ -79,6 +79,13 @@ export class IntegrationWebhookEndpointRepository {
   }
 
   async setEnabled(id: string, enabled: boolean): Promise<IntegrationWebhookEndpointEntity> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const existing = await this.client().findFirst({
+      where: { id, organizationId: tenant.organizationId },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Integration webhook endpoint with id "${id}" not found`);
+    }
     const record = await this.client().update({ where: { id }, data: { enabled } });
     return toEntity(record);
   }

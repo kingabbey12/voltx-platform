@@ -94,7 +94,10 @@ export class CommsPollService {
         message,
       );
       if (ingested) {
-        this.aiProcessQueueService.enqueueSummarize(ingested.conversationId);
+        this.aiProcessQueueService.enqueueSummarize(
+          ingested.conversationId,
+          connection.organizationId,
+        );
       }
     }
 

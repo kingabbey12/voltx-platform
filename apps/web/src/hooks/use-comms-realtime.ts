@@ -15,11 +15,14 @@ function wsOrigin(): string {
 }
 
 /**
- * Live push for the unified inbox — mount once near the shell root.
- * Mirrors the backend's CommsGateway contract exactly: JWT passed as
- * `auth.token` on connect, org-scoped room membership handled entirely
- * server-side, `message:new`/`message:status` events invalidate the
- * relevant TanStack Query caches so the UI updates without polling.
+ * Live push for the unified inbox AND in-app notifications — mount once
+ * near the shell root. Mirrors the backend's CommsGateway contract
+ * exactly: JWT passed as `auth.token` on connect, org-scoped room
+ * membership handled entirely server-side, `message:new`/`message:status`/
+ * `notification:new` events invalidate the relevant TanStack Query caches
+ * so the UI updates without polling. Notifications ride the same socket
+ * (CommsGateway is the one gateway/namespace for both — see its own doc
+ * comment) rather than opening a second connection to the same namespace.
  */
 export function useCommsRealtime(): void {
   const status = useAuthStore((state) => state.status);
@@ -45,6 +48,10 @@ export function useCommsRealtime(): void {
     socket.on("message:status", (payload: { id: string; status: string }) => {
       void payload;
       queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
+    });
+
+    socket.on("notification:new", () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     });
 
     return () => {

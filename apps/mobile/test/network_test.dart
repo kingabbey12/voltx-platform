@@ -17,6 +17,25 @@ void main() {
     });
   });
 
+  group('AppEnvironment.defaultApiBaseUrl', () {
+    test('development never resolves to the production API', () {
+      expect(
+        AppEnvironment.development.defaultApiBaseUrl,
+        isNot(contains('api.usevoltx.com')),
+      );
+    });
+
+    test('development resolves to a local host (localhost or the Android emulator alias)', () {
+      final url = AppEnvironment.development.defaultApiBaseUrl;
+      expect(url, anyOf(contains('localhost'), contains('10.0.2.2')));
+    });
+
+    test('staging and production keep their own remote hosts', () {
+      expect(AppEnvironment.staging.defaultApiBaseUrl, contains('staging-api.usevoltx.com'));
+      expect(AppEnvironment.production.defaultApiBaseUrl, contains('api.usevoltx.com'));
+    });
+  });
+
   group('DioClient', () {
     test('creates configured dio instance', () {
       const env = EnvConfig(

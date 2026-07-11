@@ -140,6 +140,10 @@ interface AgentRunClient {
     };
   }): Promise<AgentRunRecord>;
   update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<AgentRunRecord>;
+  updateMany(args: {
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }): Promise<{ count: number }>;
   findFirst(args: {
     where: Record<string, unknown>;
     orderBy?: Array<Record<string, 'asc' | 'desc'>>;
@@ -308,8 +312,9 @@ export class AgentRepository {
   }
 
   async listChildRuns(parentRunId: string): Promise<AgentRunEntity[]> {
+    const tenant = this.tenantContextService.getOrThrow();
     const records = await this.agentRuns().findMany({
-      where: { parentRunId },
+      where: { parentRunId, agent: { organizationId: tenant.organizationId } },
       orderBy: [{ createdAt: 'asc' }],
     });
 
@@ -366,12 +371,33 @@ export class AgentRepository {
   }
 
   async listRunsInTree(rootRunId: string): Promise<AgentRunEntity[]> {
+    const tenant = this.tenantContextService.getOrThrow();
     const records = await this.agentRuns().findMany({
-      where: { OR: [{ id: rootRunId }, { rootRunId }] },
+      where: {
+        OR: [{ id: rootRunId }, { rootRunId }],
+        agent: { organizationId: tenant.organizationId },
+      },
       orderBy: [{ depth: 'asc' }, { createdAt: 'asc' }],
     });
 
     return records.map(toAgentRunEntity);
+  }
+
+  /**
+   * Atomic compare-and-swap: only a run still in WAITING_APPROVAL can be
+   * claimed for resume, and the WHERE clause is what Postgres actually
+   * serializes on — of two concurrent resume attempts for the same run
+   * (e.g. a redelivered/duplicated background job), only one `updateMany`
+   * affects a row. The caller MUST check this before executing the
+   * approved tool call, not after, or the two attempts can both execute
+   * it during the window before either flips the run's status.
+   */
+  async claimRunForResume(id: string): Promise<boolean> {
+    const result = await this.agentRuns().updateMany({
+      where: { id, status: 'WAITING_APPROVAL' },
+      data: { status: 'RUNNING' },
+    });
+    return result.count === 1;
   }
 
   async updateAgentRun(id: string, data: UpdateAgentRunData): Promise<AgentRunEntity> {

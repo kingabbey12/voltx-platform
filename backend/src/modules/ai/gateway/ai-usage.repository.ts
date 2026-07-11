@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
+import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 
 export interface CreateAiUsageLogData {
   organizationId: string;
@@ -30,7 +31,10 @@ export interface AgentRunUsageSummary {
 
 @Injectable()
 export class AiUsageRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async create(data: CreateAiUsageLogData): Promise<void> {
     await this.prisma.system.aiUsageLog.create({
@@ -62,8 +66,9 @@ export class AiUsageRepository {
    * ledger rather than tracking cost a second time.
    */
   async summarizeForAgentRun(agentRunId: string): Promise<AgentRunUsageSummary> {
+    const tenant = this.tenantContextService.getOrThrow();
     const result = await this.prisma.system.aiUsageLog.aggregate({
-      where: { agentRunId },
+      where: { agentRunId, organizationId: tenant.organizationId },
       _count: { _all: true },
       _sum: { totalTokens: true, estimatedCostUsd: true, durationMs: true },
     });

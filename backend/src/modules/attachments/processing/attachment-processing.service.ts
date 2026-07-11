@@ -13,6 +13,7 @@ import {
 import { ImageProcessingService } from './image-processing.service';
 import { TextExtractorRegistry } from '../../knowledge/extraction/text-extractor.registry';
 import { AuditService } from '../../audit/audit.service';
+import { NotificationService } from '../../notifications/notification.service';
 import { streamToBuffer } from '../stream-to-buffer.util';
 
 /**
@@ -33,6 +34,7 @@ export class AttachmentProcessingService {
     private readonly imageProcessingService: ImageProcessingService,
     private readonly textExtractorRegistry: TextExtractorRegistry,
     private readonly auditService: AuditService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async process(attachmentId: string): Promise<void> {
@@ -63,6 +65,7 @@ export class AttachmentProcessingService {
         userId: attachment.uploadedBy,
         metadata: { threat: scanResult.threat },
       });
+      await this.notifyUploaderOfQuarantine(attachment, scanResult.threat ?? null);
       return;
     }
 
@@ -121,5 +124,29 @@ export class AttachmentProcessingService {
       scanResult: scanResultLabel,
       checksumSha256,
     });
+  }
+
+  /** Best-effort — must never fail the quarantine itself over a notification-delivery problem. */
+  private async notifyUploaderOfQuarantine(
+    attachment: { organizationId: string; uploadedBy: string; fileName: string; id: string },
+    threat: string | null,
+  ): Promise<void> {
+    try {
+      await this.notificationService.create({
+        organizationId: attachment.organizationId,
+        userId: attachment.uploadedBy,
+        category: 'SECURITY',
+        title: `File quarantined: ${attachment.fileName}`,
+        body: threat
+          ? `This file failed a virus scan (${threat}) and cannot be downloaded.`
+          : 'This file failed a virus scan and cannot be downloaded.',
+        metadata: { attachmentId: attachment.id, threat },
+      });
+    } catch (error) {
+      this.logger.warn(
+        { err: error, attachmentId: attachment.id },
+        'Failed to notify uploader of attachment quarantine',
+      );
+    }
   }
 }

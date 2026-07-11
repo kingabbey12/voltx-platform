@@ -6,6 +6,8 @@ import { AI_PROCESS_QUEUE } from './communications-jobs.constants';
 
 export interface AiProcessJobData {
   conversationId: string;
+  /** Best-effort — carried through so a job that exhausts its retries can be attributed to an org in BackgroundJobFailure without the dead-letter listener needing to look anything up. */
+  organizationId?: string | null;
 }
 
 /**
@@ -28,7 +30,7 @@ export class AiProcessQueueService {
     private readonly commsAiProcessingService: CommsAiProcessingService,
   ) {}
 
-  enqueueSummarize(conversationId: string): void {
+  enqueueSummarize(conversationId: string, organizationId?: string | null): void {
     if (!this.queue) {
       void this.commsAiProcessingService
         .summarize(conversationId)
@@ -44,7 +46,7 @@ export class AiProcessQueueService {
     void this.queue
       .add(
         'summarize',
-        { conversationId },
+        { conversationId, organizationId },
         { attempts: 3, backoff: { type: 'exponential', delay: 2000 } },
       )
       .catch((error: unknown) =>

@@ -23,7 +23,7 @@ enum AppEnvironment {
       // at the host's LAN IP regardless of platform; this default only
       // covers the common emulator/simulator dev loop.
       AppEnvironment.development =>
-        Platform.isAndroid ? 'https://api.usevoltx.com/api/v1' : 'https://api.usevoltx.com/api/v1',
+        Platform.isAndroid ? 'http://10.0.2.2:3000/api/v1' : 'http://localhost:3000/api/v1',
       AppEnvironment.staging => 'https://staging-api.usevoltx.com/api/v1',
       AppEnvironment.production => 'https://api.usevoltx.com/api/v1',
     };

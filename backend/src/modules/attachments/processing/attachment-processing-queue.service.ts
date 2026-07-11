@@ -6,6 +6,8 @@ import { AttachmentProcessingService } from './attachment-processing.service';
 
 export interface AttachmentProcessJobData {
   attachmentId: string;
+  /** Best-effort — carried through so a job that exhausts its retries can be attributed to an org in BackgroundJobFailure without the dead-letter listener needing to look anything up. */
+  organizationId?: string | null;
 }
 
 /**
@@ -27,7 +29,7 @@ export class AttachmentProcessingQueueService {
     private readonly attachmentProcessingService: AttachmentProcessingService,
   ) {}
 
-  enqueue(attachmentId: string): void {
+  enqueue(attachmentId: string, organizationId?: string | null): void {
     if (!this.queue) {
       this.logger.debug(
         { attachmentId },
@@ -47,7 +49,7 @@ export class AttachmentProcessingQueueService {
     void this.queue
       .add(
         'process',
-        { attachmentId },
+        { attachmentId, organizationId },
         { attempts: 3, backoff: { type: 'exponential', delay: 2000 } },
       )
       .catch((error: unknown) =>

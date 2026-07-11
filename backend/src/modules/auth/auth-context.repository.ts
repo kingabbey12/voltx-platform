@@ -84,4 +84,27 @@ export class AuthContextRepository {
 
     return user !== null;
   }
+
+  /**
+   * Every active member of `organizationId` whose role grants
+   * `permissionKey` — for notification fan-out (e.g. "notify everyone who
+   * can decide AI approvals"), where the caller needs the actual set of
+   * recipients rather than a single membership context.
+   */
+  async listActiveUserIdsWithPermission(
+    organizationId: string,
+    permissionKey: string,
+  ): Promise<string[]> {
+    const memberships = await this.prisma.system.membership.findMany({
+      where: {
+        organizationId,
+        status: MembershipStatus.ACTIVE,
+        user: { deletedAt: null },
+        role: { rolePermissions: { some: { permission: { key: permissionKey } } } },
+      },
+      select: { userId: true },
+    });
+
+    return memberships.map((membership) => membership.userId);
+  }
 }

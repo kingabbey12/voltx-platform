@@ -8,6 +8,8 @@ import {
   IsString,
   Max,
   Min,
+  MinLength,
+  ValidateIf,
   validateSync,
 } from 'class-validator';
 
@@ -63,6 +65,7 @@ class EnvironmentVariables {
   DATABASE_TRANSACTION_TIMEOUT_MS?: number;
 
   @IsString()
+  @MinLength(32)
   JWT_ACCESS_SECRET!: string;
 
   @IsOptional()
@@ -115,7 +118,10 @@ class EnvironmentVariables {
   @IsString()
   REDIS_ENABLED?: string;
 
-  @IsOptional()
+  // Redis boot connectivity is separately hard-enforced by
+  // assertRedisRequirement() (redis-requirement.check.ts); this just
+  // ensures the URL itself isn't silently blank when REDIS_ENABLED=true.
+  @ValidateIf((o: EnvironmentVariables) => o.REDIS_ENABLED === 'true')
   @IsString()
   REDIS_URL?: string;
 
@@ -174,6 +180,10 @@ class EnvironmentVariables {
   AI_AGENT_LOOP_TIMEOUT_MS?: number;
 
   @IsOptional()
+  @IsString()
+  AI_HTTP_TOOL_ALLOWED_HOSTS?: string;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   AI_MULTI_AGENT_MAX_AGENTS?: number;
@@ -197,7 +207,10 @@ class EnvironmentVariables {
   @IsString()
   OPENAI_ENABLED?: string;
 
-  @IsOptional()
+  // Required only when this provider is actually selected — an enabled
+  // provider with no key would otherwise fail opaquely at first request
+  // instead of at boot.
+  @ValidateIf((o: EnvironmentVariables) => o.OPENAI_ENABLED === 'true')
   @IsString()
   OPENAI_API_KEY?: string;
 
@@ -209,7 +222,7 @@ class EnvironmentVariables {
   @IsString()
   ANTHROPIC_ENABLED?: string;
 
-  @IsOptional()
+  @ValidateIf((o: EnvironmentVariables) => o.ANTHROPIC_ENABLED === 'true')
   @IsString()
   ANTHROPIC_API_KEY?: string;
 
@@ -221,7 +234,7 @@ class EnvironmentVariables {
   @IsString()
   GOOGLE_AI_ENABLED?: string;
 
-  @IsOptional()
+  @ValidateIf((o: EnvironmentVariables) => o.GOOGLE_AI_ENABLED === 'true')
   @IsString()
   GOOGLE_AI_API_KEY?: string;
 
@@ -304,9 +317,18 @@ class EnvironmentVariables {
   @IsString()
   INVITATIONS_ACCEPT_BASE_URL?: string;
 
+  // Required in every environment (including dev/test) — this key encrypts
+  // every stored OAuth token/API key/webhook secret at rest.
+  // EncryptionService.onModuleInit() enforces the same requirement again at
+  // boot with a clearer message; this class-validator check exists so a
+  // missing key is caught before the app even starts wiring modules.
+  @IsString()
+  @MinLength(16)
+  INTEGRATIONS_ENCRYPTION_KEY!: string;
+
   @IsOptional()
   @IsString()
-  INTEGRATIONS_ENCRYPTION_KEY?: string;
+  INTEGRATIONS_ENCRYPTION_KEY_PREVIOUS?: string;
 
   @IsOptional()
   @IsString()
@@ -332,19 +354,28 @@ class EnvironmentVariables {
   @Min(1)
   INTEGRATIONS_RATE_LIMIT_REQUESTS_PER_MINUTE?: number;
 
-  @IsOptional()
+  // Each OAuth integration is legitimately optional per-deployment (a
+  // platform may not offer every third-party connector), so these can't
+  // be unconditionally required. What they can't be is half-set: setting
+  // only one half of a client id/secret pair currently falls back to an
+  // empty string for the other and silently produces a broken
+  // authorization URL/token exchange at connect-time instead of failing
+  // at boot — OAuthService.assertConfigured (oauth.service.ts) is the
+  // matching runtime guard for the case where both are legitimately
+  // unset.
+  @ValidateIf((o: EnvironmentVariables) => !!o.GOOGLE_OAUTH_CLIENT_SECRET)
   @IsString()
   GOOGLE_OAUTH_CLIENT_ID?: string;
 
-  @IsOptional()
+  @ValidateIf((o: EnvironmentVariables) => !!o.GOOGLE_OAUTH_CLIENT_ID)
   @IsString()
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
 
-  @IsOptional()
+  @ValidateIf((o: EnvironmentVariables) => !!o.MICROSOFT_OAUTH_CLIENT_SECRET)
   @IsString()
   MICROSOFT_OAUTH_CLIENT_ID?: string;
 
-  @IsOptional()
+  @ValidateIf((o: EnvironmentVariables) => !!o.MICROSOFT_OAUTH_CLIENT_ID)
   @IsString()
   MICROSOFT_OAUTH_CLIENT_SECRET?: string;
 
@@ -352,15 +383,20 @@ class EnvironmentVariables {
   @IsString()
   MICROSOFT_OAUTH_TENANT_ID?: string;
 
-  @IsOptional()
+  @ValidateIf(
+    (o: EnvironmentVariables) => !!o.SLACK_OAUTH_CLIENT_SECRET || !!o.SLACK_SIGNING_SECRET,
+  )
   @IsString()
   SLACK_OAUTH_CLIENT_ID?: string;
 
-  @IsOptional()
+  @ValidateIf((o: EnvironmentVariables) => !!o.SLACK_OAUTH_CLIENT_ID)
   @IsString()
   SLACK_OAUTH_CLIENT_SECRET?: string;
 
-  @IsOptional()
+  // Required whenever the Slack app is connected at all — without it,
+  // every inbound Slack webhook is silently rejected (see
+  // slack-webhook.controller.ts's own `!signingSecret` guard).
+  @ValidateIf((o: EnvironmentVariables) => !!o.SLACK_OAUTH_CLIENT_ID)
   @IsString()
   SLACK_SIGNING_SECRET?: string;
 
@@ -372,11 +408,11 @@ class EnvironmentVariables {
   @IsString()
   WHATSAPP_WEBHOOK_VERIFY_TOKEN?: string;
 
-  @IsOptional()
+  @ValidateIf((o: EnvironmentVariables) => !!o.GITHUB_OAUTH_CLIENT_SECRET)
   @IsString()
   GITHUB_OAUTH_CLIENT_ID?: string;
 
-  @IsOptional()
+  @ValidateIf((o: EnvironmentVariables) => !!o.GITHUB_OAUTH_CLIENT_ID)
   @IsString()
   GITHUB_OAUTH_CLIENT_SECRET?: string;
 
@@ -406,11 +442,15 @@ class EnvironmentVariables {
   @Min(1)
   ATTACHMENTS_SIGNED_URL_TTL_SECONDS?: number;
 
-  @IsOptional()
+  // Required whenever S3 storage is selected; verifyProductionReadiness()
+  // (s3-storage.provider.ts) separately confirms the bucket is actually
+  // reachable at boot in production — this just ensures the fields
+  // aren't silently blank in any environment that opts into S3.
+  @ValidateIf((o: EnvironmentVariables) => o.ATTACHMENTS_STORAGE_PROVIDER === 's3')
   @IsString()
   ATTACHMENTS_S3_BUCKET?: string;
 
-  @IsOptional()
+  @ValidateIf((o: EnvironmentVariables) => o.ATTACHMENTS_STORAGE_PROVIDER === 's3')
   @IsString()
   ATTACHMENTS_S3_REGION?: string;
 
@@ -418,11 +458,11 @@ class EnvironmentVariables {
   @IsString()
   ATTACHMENTS_S3_ENDPOINT?: string;
 
-  @IsOptional()
+  @ValidateIf((o: EnvironmentVariables) => o.ATTACHMENTS_STORAGE_PROVIDER === 's3')
   @IsString()
   ATTACHMENTS_S3_ACCESS_KEY_ID?: string;
 
-  @IsOptional()
+  @ValidateIf((o: EnvironmentVariables) => o.ATTACHMENTS_STORAGE_PROVIDER === 's3')
   @IsString()
   ATTACHMENTS_S3_SECRET_ACCESS_KEY?: string;
 

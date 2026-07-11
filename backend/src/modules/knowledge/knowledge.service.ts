@@ -122,6 +122,12 @@ export class KnowledgeService {
   }
 
   async ingestDocument(request: IngestDocumentRequest): Promise<KnowledgeIngestionResult> {
+    // The source id is a client-supplied URL path param — without this,
+    // an authenticated user could ingest a document against another
+    // organization's knowledge source (findById is tenant-scoped, so a
+    // foreign id 404s here rather than silently succeeding).
+    await this.getSourceOrThrow(request.sourceId);
+
     const generator = this.knowledgeIngestionService.ingestDocument(this.toIngestionInput(request));
     let step = await generator.next();
     while (!step.done) {
@@ -143,11 +149,17 @@ export class KnowledgeService {
     return result;
   }
 
-  ingestDocumentStream(
+  async *ingestDocumentStream(
     request: IngestDocumentRequest,
     signal?: AbortSignal,
   ): AsyncGenerator<KnowledgeIngestionStreamEvent, KnowledgeIngestionResult> {
-    return this.knowledgeIngestionService.ingestDocument(this.toIngestionInput(request), signal);
+    // Same tenant-ownership check as ingestDocument, run before any
+    // streaming begins.
+    await this.getSourceOrThrow(request.sourceId);
+    return yield* this.knowledgeIngestionService.ingestDocument(
+      this.toIngestionInput(request),
+      signal,
+    );
   }
 
   async listDocuments(params: FindKnowledgeDocumentsParams): Promise<PaginatedKnowledgeDocuments> {

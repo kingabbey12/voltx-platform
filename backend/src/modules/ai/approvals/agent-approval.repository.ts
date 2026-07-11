@@ -107,20 +107,37 @@ export class AgentApprovalRepository {
     };
   }
 
+  /**
+   * Atomic compare-and-swap: the WHERE clause only matches a row still in
+   * PENDING status, so of two concurrent decide() calls for the same
+   * approval, Postgres's row-level locking on the UPDATE guarantees at
+   * most one affects a row — the loser's `updateMany` matches zero rows
+   * and this returns null rather than silently double-deciding (and, via
+   * the resume path, potentially double-executing the underlying tool
+   * call).
+   */
   async decide(
     id: string,
     data: DecideAgentActionApprovalData,
-  ): Promise<AgentActionApprovalEntity> {
-    const record = await this.prisma.system.agentActionApproval.update({
-      where: { id },
-      data: {
-        status: data.status,
-        approverUserId: data.approverUserId,
-        comment: data.comment,
-        decidedAt: new Date(),
-      },
+  ): Promise<AgentActionApprovalEntity | null> {
+    return this.prisma.system.$transaction(async (tx) => {
+      const result = await tx.agentActionApproval.updateMany({
+        where: { id, status: 'PENDING' },
+        data: {
+          status: data.status,
+          approverUserId: data.approverUserId,
+          comment: data.comment,
+          decidedAt: new Date(),
+        },
+      });
+
+      if (result.count === 0) {
+        return null;
+      }
+
+      const record = await tx.agentActionApproval.findUniqueOrThrow({ where: { id } });
+      return toEntity(record);
     });
-    return toEntity(record);
   }
 }
 

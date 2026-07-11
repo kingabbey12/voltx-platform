@@ -50,6 +50,8 @@ describe('Communications — Slack & Microsoft Teams (e2e)', () => {
 
   beforeAll(async () => {
     process.env.SLACK_SIGNING_SECRET = SLACK_SIGNING_SECRET;
+    process.env.SLACK_OAUTH_CLIENT_ID = 'test-slack-oauth-client-id';
+    process.env.SLACK_OAUTH_CLIENT_SECRET = 'test-slack-oauth-client-secret';
     app = await createTestApp();
     prisma = app.get(PrismaService);
     usersRepository = app.get(UsersRepository);
@@ -69,6 +71,8 @@ describe('Communications — Slack & Microsoft Teams (e2e)', () => {
     await resetAndSeedAuthTestData(prisma);
     await app.close();
     delete process.env.SLACK_SIGNING_SECRET;
+    delete process.env.SLACK_OAUTH_CLIENT_ID;
+    delete process.env.SLACK_OAUTH_CLIENT_SECRET;
   });
 
   async function connectSlack(accessToken: string): Promise<ConnectionBody> {

@@ -38,6 +38,10 @@ interface IntegrationEventClient {
     where: { id: string };
     data: Record<string, unknown>;
   }): Promise<IntegrationEventRecord>;
+  updateMany(args: {
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }): Promise<{ count: number }>;
 }
 
 @Injectable()
@@ -92,7 +96,11 @@ export class IntegrationEventRepository {
   }
 
   async markProcessed(id: string): Promise<void> {
-    await this.client().update({ where: { id }, data: { processedAt: new Date() } });
+    const tenant = this.tenantContextService.getOrThrow();
+    await this.client().updateMany({
+      where: { id, organizationId: tenant.organizationId },
+      data: { processedAt: new Date() },
+    });
   }
 
   async listByConnection(

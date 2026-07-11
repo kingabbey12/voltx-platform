@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { OAuthService } from '../src/modules/integrations/oauth/oauth.service';
 import { OAuthProviderConfig } from '../src/modules/integrations/provider/integration-provider.types';
 
@@ -153,6 +153,45 @@ describe('OAuthService', () => {
       const result = await service.refreshAccessToken(config, 'refresh-456');
       expect(result.refreshToken).toBeUndefined();
       expect(result.expiresAt).toBeUndefined();
+    });
+  });
+
+  describe('unconfigured provider guard', () => {
+    const unconfigured: OAuthProviderConfig = { ...config, clientId: '', clientSecret: '' };
+
+    it('buildAuthorizationUrl throws ServiceUnavailableException instead of emitting a client_id-less URL', () => {
+      expect(() =>
+        service.buildAuthorizationUrl(unconfigured, 'state', 'https://app.voltx.io/callback'),
+      ).toThrow(ServiceUnavailableException);
+    });
+
+    it('exchangeCodeForToken throws ServiceUnavailableException without calling the token endpoint', async () => {
+      const fetchMock = jest.fn();
+      global.fetch = fetchMock as never;
+
+      await expect(
+        service.exchangeCodeForToken(unconfigured, 'code', 'https://app.voltx.io/callback'),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('refreshAccessToken throws ServiceUnavailableException without calling the token endpoint', async () => {
+      const fetchMock = jest.fn();
+      global.fetch = fetchMock as never;
+
+      await expect(service.refreshAccessToken(unconfigured, 'refresh')).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('includes the provider hostname in the error message', () => {
+      try {
+        service.buildAuthorizationUrl(unconfigured, 'state', 'https://app.voltx.io/callback');
+        fail('expected buildAuthorizationUrl to throw');
+      } catch (error) {
+        expect((error as Error).message).toContain('provider.example.com');
+      }
     });
   });
 });

@@ -6,6 +6,7 @@ import {
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -51,6 +52,25 @@ export class S3StorageProvider implements StorageProvider {
     if (!this.bucket) {
       throw new InternalServerErrorException(
         'ATTACHMENTS_S3_BUCKET is not set — S3 storage provider is not configured',
+      );
+    }
+  }
+
+  /**
+   * Called only by StorageModule's production boot check — confirms the
+   * bucket actually exists and the configured credentials can reach it
+   * (HeadBucket fails on both a missing bucket and insufficient
+   * permissions), rather than deferring that discovery to the first real
+   * upload in production.
+   */
+  async verifyProductionReadiness(): Promise<void> {
+    this.assertConfigured();
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Cannot reach S3 bucket "${this.bucket}" — check ATTACHMENTS_S3_BUCKET/REGION/ENDPOINT and credentials. Underlying error: ${message}`,
       );
     }
   }

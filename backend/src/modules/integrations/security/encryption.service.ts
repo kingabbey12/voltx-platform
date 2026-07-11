@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   createCipheriv,
@@ -11,6 +11,7 @@ import {
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH_BYTES = 12;
 const AUTH_TAG_LENGTH_BYTES = 16;
+const MIN_KEY_LENGTH = 16;
 
 /**
  * AES-256-GCM at-rest encryption for OAuth tokens, API keys, and webhook
@@ -20,53 +21,54 @@ const AUTH_TAG_LENGTH_BYTES = 16;
  * passphrase length rather than needing an exact 32-byte hex/base64
  * value. Ciphertext is stored as `${ivHex}:${authTagHex}:${cipherHex}` —
  * self-describing so decrypt never needs a separate IV column.
+ *
+ * There is deliberately no insecure fallback key: a missing or too-short
+ * INTEGRATIONS_ENCRYPTION_KEY fails application boot rather than silently
+ * encrypting every OAuth credential with a value anyone reading this
+ * source file would know.
  */
 @Injectable()
 export class EncryptionService implements OnModuleInit {
-  private readonly logger = new Logger(EncryptionService.name);
   private key!: Buffer;
+  private previousKey: Buffer | undefined;
 
   constructor(private readonly configService: ConfigService) {}
 
   onModuleInit(): void {
     const secret = this.configService.get<string>('integrations.encryptionKey', '');
-    if (!secret) {
-      this.logger.warn(
-        'INTEGRATIONS_ENCRYPTION_KEY is not set — integration credentials cannot be encrypted. Set this before connecting any integration in production.',
+    if (!secret || secret.length < MIN_KEY_LENGTH) {
+      throw new Error(
+        `INTEGRATIONS_ENCRYPTION_KEY must be set to a value at least ${MIN_KEY_LENGTH} characters long — it encrypts every stored OAuth token, API key, and webhook secret at rest. Refusing to start without it.`,
       );
     }
-    this.key = createHash('sha256')
-      .update(secret || 'insecure-development-key')
-      .digest();
+    this.key = deriveKey(secret);
+
+    const previousSecret = this.configService.get<string>('integrations.encryptionKeyPrevious', '');
+    this.previousKey = previousSecret ? deriveKey(previousSecret) : undefined;
   }
 
   encrypt(plaintext: string): string {
-    const iv = randomBytes(IV_LENGTH_BYTES);
-    const cipher = createCipheriv(ALGORITHM, this.key, iv);
-    const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
-    const authTag = cipher.getAuthTag();
-    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
+    return encryptWithKey(this.key, plaintext);
   }
 
+  /**
+   * Tries the current key first; if decryption fails (e.g. the auth tag
+   * doesn't match) and INTEGRATIONS_ENCRYPTION_KEY_PREVIOUS is configured,
+   * retries with that key before giving up — lets already-encrypted rows
+   * keep working uninterrupted while a key rotation is in progress (see
+   * docs/operations/key-rotation.md and the reencrypt-secrets script,
+   * which re-encrypts everything under the new key so the previous key
+   * can eventually be removed).
+   */
   decrypt(ciphertext: string): string {
-    const parts = ciphertext.split(':');
-    if (parts.length !== 3) {
-      throw new InternalServerErrorException('Malformed encrypted payload');
+    try {
+      return decryptWithKey(this.key, ciphertext);
+    } catch (error) {
+      if (this.previousKey) {
+        return decryptWithKey(this.previousKey, ciphertext);
+      }
+      throw error;
     }
-    const [ivHex, authTagHex, dataHex] = parts;
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    if (iv.length !== IV_LENGTH_BYTES || authTag.length !== AUTH_TAG_LENGTH_BYTES) {
-      throw new InternalServerErrorException('Malformed encrypted payload');
-    }
-
-    const decipher = createDecipheriv(ALGORITHM, this.key, iv);
-    decipher.setAuthTag(authTag);
-    const decrypted = Buffer.concat([
-      decipher.update(Buffer.from(dataHex, 'hex')),
-      decipher.final(),
-    ]);
-    return decrypted.toString('utf8');
   }
 
   encryptJson(value: Record<string, unknown>): string {
@@ -86,4 +88,34 @@ export class EncryptionService implements OnModuleInit {
     }
     return timingSafeEqual(bufferA, bufferB);
   }
+}
+
+function deriveKey(secret: string): Buffer {
+  return createHash('sha256').update(secret).digest();
+}
+
+function encryptWithKey(key: Buffer, plaintext: string): string {
+  const iv = randomBytes(IV_LENGTH_BYTES);
+  const cipher = createCipheriv(ALGORITHM, key, iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
+}
+
+function decryptWithKey(key: Buffer, ciphertext: string): string {
+  const parts = ciphertext.split(':');
+  if (parts.length !== 3) {
+    throw new InternalServerErrorException('Malformed encrypted payload');
+  }
+  const [ivHex, authTagHex, dataHex] = parts;
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  if (iv.length !== IV_LENGTH_BYTES || authTag.length !== AUTH_TAG_LENGTH_BYTES) {
+    throw new InternalServerErrorException('Malformed encrypted payload');
+  }
+
+  const decipher = createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+  const decrypted = Buffer.concat([decipher.update(Buffer.from(dataHex, 'hex')), decipher.final()]);
+  return decrypted.toString('utf8');
 }

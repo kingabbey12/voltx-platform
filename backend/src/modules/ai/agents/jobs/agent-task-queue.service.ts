@@ -7,6 +7,8 @@ import { AGENT_TASK_QUEUE } from './agent-task-queue.constants';
 export interface ResumeAfterApprovalJobData {
   agentRunId: string;
   approvalId: string;
+  /** Best-effort — carried through so a job that exhausts its retries can be attributed to an org in BackgroundJobFailure without the dead-letter listener needing to look anything up. */
+  organizationId?: string | null;
 }
 
 /**
@@ -27,7 +29,11 @@ export class AgentTaskQueueService {
     private readonly agentRunResumeService: AgentRunResumeService,
   ) {}
 
-  enqueueResumeAfterApproval(agentRunId: string, approvalId: string): void {
+  enqueueResumeAfterApproval(
+    agentRunId: string,
+    approvalId: string,
+    organizationId?: string | null,
+  ): void {
     if (!this.queue) {
       void this.agentRunResumeService
         .resume(agentRunId, approvalId)
@@ -43,8 +49,17 @@ export class AgentTaskQueueService {
     void this.queue
       .add(
         'resume_after_approval',
-        { agentRunId, approvalId },
-        { attempts: 3, backoff: { type: 'exponential', delay: 2000 } },
+        { agentRunId, approvalId, organizationId },
+        {
+          // Deterministic per-approval id: a duplicate enqueue for the same
+          // approval (e.g. a retried decide() call) collides in BullMQ
+          // instead of creating a second job — the atomic claim in
+          // AgentRunResumeService is the actual double-execution guard,
+          // this just avoids doing unnecessary duplicate work.
+          jobId: `resume:${approvalId}`,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 2000 },
+        },
       )
       .catch((error: unknown) =>
         this.logger.error(
