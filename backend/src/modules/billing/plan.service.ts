@@ -45,4 +45,8 @@ export class PlanService {
     }
     return plan;
   }
+
+  async findByStripePriceId(stripePriceId: string): Promise<PlanEntity | null> {
+    return this.planRepository.findByStripePriceId(stripePriceId);
+  }
 }

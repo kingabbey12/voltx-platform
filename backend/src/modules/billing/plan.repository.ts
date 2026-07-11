@@ -88,6 +88,16 @@ export class PlanRepository {
     const record = await this.prisma.system.feature.findUnique({ where: { key } });
     return record ? toFeatureEntity(record) : null;
   }
+
+  /** Webhook-driven — resolves a Stripe subscription's price back to the local Plan it corresponds to. */
+  async findByStripePriceId(stripePriceId: string): Promise<PlanEntity | null> {
+    const record = await this.prisma.system.plan.findFirst({
+      where: {
+        OR: [{ stripePriceIdMonthly: stripePriceId }, { stripePriceIdYearly: stripePriceId }],
+      },
+    });
+    return record ? toPlanEntity(record) : null;
+  }
 }
 
 function toPlanEntity(record: PlanRecord): PlanEntity {

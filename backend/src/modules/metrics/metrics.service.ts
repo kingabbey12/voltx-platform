@@ -6,12 +6,14 @@ import { AGENT_TASK_QUEUE } from '../ai/agents/jobs/agent-task-queue.constants';
 import { ATTACHMENT_PROCESS_QUEUE } from '../attachments/processing/attachment-processing.constants';
 import { AI_PROCESS_QUEUE } from '../communications/jobs/communications-jobs.constants';
 import { WORKFLOW_RUN_QUEUE } from '../workflows/jobs/workflow-run-queue.constants';
+import { STRIPE_WEBHOOK_QUEUE } from '../billing/jobs/stripe-webhook-queue.constants';
 
 const MONITORED_QUEUES = [
   AGENT_TASK_QUEUE,
   ATTACHMENT_PROCESS_QUEUE,
   AI_PROCESS_QUEUE,
   WORKFLOW_RUN_QUEUE,
+  STRIPE_WEBHOOK_QUEUE,
 ];
 
 @Injectable()

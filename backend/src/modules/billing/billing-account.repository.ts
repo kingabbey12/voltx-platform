@@ -47,6 +47,14 @@ export class BillingAccountRepository {
     return record ? toEntity(record) : null;
   }
 
+  /** Webhook-driven — every Stripe object that reaches the dispatcher carries a `customer` id, this is how it resolves back to an organization. */
+  async findByStripeCustomerId(stripeCustomerId: string): Promise<BillingAccountEntity | null> {
+    const record = await this.prisma.system.billingAccount.findUnique({
+      where: { stripeCustomerId },
+    });
+    return record ? toEntity(record) : null;
+  }
+
   async findForCurrentOrganization(): Promise<BillingAccountEntity | null> {
     const tenant = this.tenantContextService.getOrThrow();
     return this.findByOrganizationId(tenant.organizationId);
