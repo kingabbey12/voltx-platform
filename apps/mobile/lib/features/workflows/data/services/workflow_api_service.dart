@@ -91,6 +91,29 @@ class WorkflowApiService {
   Future<WorkflowHealth> getHealth(String workflowId) {
     return _apiClient.get('/workflows/$workflowId/health', fromJson: WorkflowHealth.fromJson);
   }
+
+  Future<PaginatedWorkflowResult<WorkflowApproval>> listApprovals({
+    required int page,
+    required int limit,
+  }) {
+    return _apiClient.get(
+      '/workflows/approvals',
+      queryParameters: {'page': page, 'limit': limit},
+      fromJson: (json) => PaginatedWorkflowResult.fromJson(json, WorkflowApproval.fromJson),
+    );
+  }
+
+  Future<WorkflowApproval> decideApproval(
+    String approvalId, {
+    required String decision,
+    String? comment,
+  }) {
+    return _apiClient.post(
+      '/workflows/approvals/$approvalId/decide',
+      data: {'decision': decision, 'comment': ?comment},
+      fromJson: WorkflowApproval.fromJson,
+    );
+  }
 }
 
 WorkflowException mapToWorkflowException(Object error) {

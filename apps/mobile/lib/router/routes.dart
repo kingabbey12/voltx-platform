@@ -19,6 +19,7 @@ abstract final class AppRoutes {
   static const String aiAgents = '/ai/agents';
   static const String aiKnowledge = '/ai/knowledge';
   static const String aiAutomations = '/ai/automations';
+  static const String aiWorkflowApprovals = '/ai/automations/approvals';
   static const String aiIntegrations = '/ai/integrations';
   static const String aiHistory = '/ai/history';
   static const String aiOperator = '/ai/operator';
@@ -60,6 +61,7 @@ abstract final class AppRoutes {
     aiAgents,
     aiKnowledge,
     aiAutomations,
+    aiWorkflowApprovals,
     aiIntegrations,
     aiHistory,
     aiOperator,

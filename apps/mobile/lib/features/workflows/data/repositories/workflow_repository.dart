@@ -25,6 +25,15 @@ abstract class WorkflowRepository {
   });
   Future<WorkflowMetrics> getMetrics(String workflowId);
   Future<WorkflowHealth> getHealth(String workflowId);
+  Future<PaginatedWorkflowResult<WorkflowApproval>> listApprovals({
+    required int page,
+    required int limit,
+  });
+  Future<WorkflowApproval> decideApproval(
+    String approvalId, {
+    required String decision,
+    String? comment,
+  });
 }
 
 class ApiWorkflowRepository implements WorkflowRepository {
@@ -162,6 +171,31 @@ class ApiWorkflowRepository implements WorkflowRepository {
   Future<WorkflowHealth> getHealth(String workflowId) async {
     try {
       return await _api.getHealth(workflowId);
+    } catch (error) {
+      throw mapToWorkflowException(error);
+    }
+  }
+
+  @override
+  Future<PaginatedWorkflowResult<WorkflowApproval>> listApprovals({
+    required int page,
+    required int limit,
+  }) async {
+    try {
+      return await _api.listApprovals(page: page, limit: limit);
+    } catch (error) {
+      throw mapToWorkflowException(error);
+    }
+  }
+
+  @override
+  Future<WorkflowApproval> decideApproval(
+    String approvalId, {
+    required String decision,
+    String? comment,
+  }) async {
+    try {
+      return await _api.decideApproval(approvalId, decision: decision, comment: comment);
     } catch (error) {
       throw mapToWorkflowException(error);
     }

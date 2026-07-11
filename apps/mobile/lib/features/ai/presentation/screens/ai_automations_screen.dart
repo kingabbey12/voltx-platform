@@ -495,10 +495,23 @@ class _RunTile extends ConsumerWidget {
                   onPressed: isLoading ? null : () => controller.retry(run.id, workflowId: workflowId),
                   child: const Text('Retry'),
                 ),
+              OutlinedButton.icon(
+                onPressed: () => _showRunLogs(context, run.id),
+                icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                label: const Text('Logs'),
+              ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  void _showRunLogs(BuildContext context, String runId) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _RunLogsSheet(runId: runId),
     );
   }
 
@@ -511,5 +524,75 @@ class _RunTile extends ConsumerWidget {
       'CANCELLED' => Colors.grey,
       _ => Colors.blueGrey,
     };
+  }
+}
+
+class _RunLogsSheet extends ConsumerWidget {
+  const _RunLogsSheet({required this.runId});
+
+  final String runId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final logs = ref.watch(workflowRunLogsProvider(runId));
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      builder: (context, scrollController) => Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Run logs',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Expanded(
+              child: AsyncValueView<PaginatedWorkflowResult<WorkflowLog>>(
+                value: logs,
+                onRetry: () => ref.invalidate(workflowRunLogsProvider(runId)),
+                isEmpty: (result) => result.items.isEmpty,
+                empty: (context) => const AiEmptyState(
+                  title: 'No log entries yet',
+                  subtitle: 'Execution log entries for this run will appear here.',
+                  icon: Icons.receipt_long_outlined,
+                ),
+                data: (context, result) => ListView.separated(
+                  controller: scrollController,
+                  itemCount: result.items.length,
+                  separatorBuilder: (context, index) => const Divider(height: AppSpacing.md),
+                  itemBuilder: (context, index) {
+                    final log = result.items[index];
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            AiSuggestionChip(label: log.level),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: Text(
+                                log.event,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(log.message, style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

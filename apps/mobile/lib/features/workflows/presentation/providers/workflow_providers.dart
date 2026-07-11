@@ -58,7 +58,65 @@ final workflowHealthProvider = FutureProvider.family<WorkflowHealth, String>((re
   return ref.watch(workflowRepositoryProvider).getHealth(workflowId);
 });
 
+final workflowRunLogsProvider =
+    FutureProvider.family<PaginatedWorkflowResult<WorkflowLog>, String>((ref, runId) {
+  return ref.watch(workflowRepositoryProvider).listRunLogs(runId, page: 1, limit: 50);
+});
+
 final workflowStatusFilterProvider = StateProvider<String?>((ref) => null);
+
+final workflowApprovalsPageProvider = StateProvider<int>((ref) => 1);
+
+final workflowApprovalsProvider =
+    FutureProvider.family<PaginatedWorkflowResult<WorkflowApproval>, int>((ref, page) {
+  return ref.watch(workflowRepositoryProvider).listApprovals(page: page, limit: 20);
+});
+
+class WorkflowApprovalActionState {
+  const WorkflowApprovalActionState({this.isLoading = false, this.errorMessage, this.actionApprovalId});
+
+  final bool isLoading;
+  final String? errorMessage;
+  final String? actionApprovalId;
+
+  WorkflowApprovalActionState copyWith({
+    bool? isLoading,
+    String? errorMessage,
+    String? actionApprovalId,
+  }) {
+    return WorkflowApprovalActionState(
+      isLoading: isLoading ?? this.isLoading,
+      errorMessage: errorMessage,
+      actionApprovalId: actionApprovalId ?? this.actionApprovalId,
+    );
+  }
+}
+
+class WorkflowApprovalActionController extends StateNotifier<WorkflowApprovalActionState> {
+  WorkflowApprovalActionController(this._ref) : super(const WorkflowApprovalActionState());
+
+  final Ref _ref;
+
+  Future<void> decide(String approvalId, {required String decision, String? comment}) async {
+    state = state.copyWith(isLoading: true, actionApprovalId: approvalId, errorMessage: null);
+    try {
+      await _ref
+          .read(workflowRepositoryProvider)
+          .decideApproval(approvalId, decision: decision, comment: comment);
+      _ref.invalidate(workflowApprovalsProvider);
+      state = state.copyWith(isLoading: false);
+    } catch (error) {
+      state = state.copyWith(isLoading: false, errorMessage: error.toString());
+    }
+  }
+
+  void clearError() => state = state.copyWith(errorMessage: null);
+}
+
+final workflowApprovalActionControllerProvider =
+    StateNotifierProvider<WorkflowApprovalActionController, WorkflowApprovalActionState>((ref) {
+  return WorkflowApprovalActionController(ref);
+});
 
 /// Drives run/pause/resume/cancel/retry mutations with a loading flag and
 /// error surface, and invalidates the affected list/detail providers on

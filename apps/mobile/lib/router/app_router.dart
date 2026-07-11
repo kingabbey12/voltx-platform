@@ -13,6 +13,7 @@ import '../features/auth/presentation/screens/welcome_screen.dart';
 import '../features/auth/presentation/widgets/auth_page_transition.dart';
 import '../features/ai/presentation/screens/ai_agents_screen.dart';
 import '../features/ai/presentation/screens/ai_automations_screen.dart';
+import '../features/ai/presentation/screens/ai_workflow_approvals_screen.dart';
 import '../features/ai/presentation/screens/ai_chat_screen.dart';
 import '../features/ai/presentation/screens/ai_history_screen.dart';
 import '../features/ai/presentation/screens/ai_home_screen.dart';
@@ -259,6 +260,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'aiAutomations',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: AiAutomationsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.aiWorkflowApprovals,
+            name: 'aiWorkflowApprovals',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AiWorkflowApprovalsScreen(),
             ),
           ),
           GoRoute(

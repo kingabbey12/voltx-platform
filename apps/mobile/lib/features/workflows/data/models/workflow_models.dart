@@ -229,6 +229,49 @@ class WorkflowHealth {
   final List<String> reasons;
 }
 
+/// A pending (or decided) approval gate on a running workflow's APPROVAL
+/// step — surfaced org-wide so any user with `workflow.approve` can act on
+/// it, independent of which workflow/run it belongs to.
+class WorkflowApproval {
+  const WorkflowApproval({
+    required this.id,
+    required this.workflowRunId,
+    required this.stepRunId,
+    required this.status,
+    required this.createdAt,
+    this.approverUserId,
+    this.comment,
+    this.expiresAt,
+    this.decidedAt,
+  });
+
+  factory WorkflowApproval.fromJson(Map<String, dynamic> json) {
+    return WorkflowApproval(
+      id: json['id'] as String,
+      workflowRunId: json['workflowRunId'] as String,
+      stepRunId: json['stepRunId'] as String,
+      status: json['status'] as String,
+      approverUserId: json['approverUserId'] as String?,
+      comment: json['comment'] as String?,
+      expiresAt: json['expiresAt'] as String?,
+      decidedAt: json['decidedAt'] as String?,
+      createdAt: json['createdAt'] as String,
+    );
+  }
+
+  final String id;
+  final String workflowRunId;
+  final String stepRunId;
+  final String status;
+  final String? approverUserId;
+  final String? comment;
+  final String? expiresAt;
+  final String? decidedAt;
+  final String createdAt;
+
+  bool get isPending => status == 'PENDING';
+}
+
 class WorkflowLog {
   const WorkflowLog({
     required this.id,
