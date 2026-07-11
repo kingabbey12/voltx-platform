@@ -212,4 +212,132 @@ describe('Tenant isolation audit (e2e)', () => {
       expect(foreignMetrics.totalRetries).toBe(0);
     }, 20000);
   });
+
+  describe('v2.0 workflow automation — cross-tenant isolation for new resources', () => {
+    async function createPublishedWorkflow(accessToken: string, name: string) {
+      const createResponse = await request(app.getHttpServer())
+        .post('/api/v1/workflows')
+        .set(bearerAuthHeaders(accessToken))
+        .send({
+          name: `${name} ${Date.now()}-${Math.random()}`,
+          definition: {
+            steps: [{ id: 'step-1', name: 'step-1', type: 'DELAY', config: { delayMs: 1 } }],
+          },
+        })
+        .expect(201);
+      const workflow = (createResponse.body as ApiSuccessResponse<{ id: string }>).data;
+      await request(app.getHttpServer())
+        .post(`/api/v1/workflows/${workflow.id}/publish`)
+        .set(bearerAuthHeaders(accessToken))
+        .expect(201);
+      return workflow;
+    }
+
+    it('never lets one organization list, toggle, or delete another organization’s webhook', async () => {
+      const orgA = await authenticateContext(app, prisma, usersRepository, 'admin', {
+        email: 'tenant-audit-webhook-org-a@example.com',
+      });
+      const orgB = await authenticateContext(app, prisma, usersRepository, 'admin', {
+        email: 'tenant-audit-webhook-org-b@example.com',
+      });
+
+      const workflowA = await createPublishedWorkflow(orgA.accessToken, 'Org A Webhook Workflow');
+
+      const createWebhookResponse = await request(app.getHttpServer())
+        .post(`/api/v1/workflows/${workflowA.id}/webhooks`)
+        .set(bearerAuthHeaders(orgA.accessToken))
+        .expect(201);
+      const webhook = (createWebhookResponse.body as ApiSuccessResponse<{ id: string }>).data;
+
+      // Org B sees nothing for org A's workflow id — an empty list, never
+      // org A's webhook (the endpoint doesn't 404 on a foreign workflow id;
+      // it just has nothing org-scoped to return for it).
+      const listAsOrgB = await request(app.getHttpServer())
+        .get(`/api/v1/workflows/${workflowA.id}/webhooks`)
+        .set(bearerAuthHeaders(orgB.accessToken))
+        .expect(200);
+      expect((listAsOrgB.body as ApiSuccessResponse<unknown[]>).data).toEqual([]);
+
+      // … nor toggle it …
+      await request(app.getHttpServer())
+        .patch(`/api/v1/workflows/webhooks/${webhook.id}`)
+        .set(bearerAuthHeaders(orgB.accessToken))
+        .send({ enabled: false })
+        .expect(404);
+
+      // … nor delete it.
+      await request(app.getHttpServer())
+        .delete(`/api/v1/workflows/webhooks/${webhook.id}`)
+        .set(bearerAuthHeaders(orgB.accessToken))
+        .expect(404);
+
+      // It's still there, untouched, for org A.
+      const listAsOrgA = await request(app.getHttpServer())
+        .get(`/api/v1/workflows/${workflowA.id}/webhooks`)
+        .set(bearerAuthHeaders(orgA.accessToken))
+        .expect(200);
+      const stillListed = (
+        listAsOrgA.body as ApiSuccessResponse<Array<{ id: string; enabled: boolean }>>
+      ).data;
+      expect(stillListed.find((item) => item.id === webhook.id)?.enabled).toBe(true);
+    });
+
+    it('never lets one organization see or decide another organization’s pending approval', async () => {
+      const orgA = await authenticateContext(app, prisma, usersRepository, 'admin', {
+        email: 'tenant-audit-approval-org-a@example.com',
+      });
+      const orgB = await authenticateContext(app, prisma, usersRepository, 'admin', {
+        email: 'tenant-audit-approval-org-b@example.com',
+      });
+
+      const createResponse = await request(app.getHttpServer())
+        .post('/api/v1/workflows')
+        .set(bearerAuthHeaders(orgA.accessToken))
+        .send({
+          name: `Org A Approval Workflow ${Date.now()}-${Math.random()}`,
+          definition: {
+            steps: [
+              { id: 'approve', name: 'approve', type: 'APPROVAL', config: { message: 'Approve?' } },
+            ],
+          },
+        })
+        .expect(201);
+      const workflowA = (createResponse.body as ApiSuccessResponse<{ id: string }>).data;
+      await request(app.getHttpServer())
+        .post(`/api/v1/workflows/${workflowA.id}/publish`)
+        .set(bearerAuthHeaders(orgA.accessToken))
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/api/v1/workflows/${workflowA.id}/run`)
+        .set(bearerAuthHeaders(orgA.accessToken))
+        .send({})
+        .expect(201);
+
+      const approvalsAsOrgA = await request(app.getHttpServer())
+        .get('/api/v1/workflows/approvals')
+        .set(bearerAuthHeaders(orgA.accessToken))
+        .expect(200);
+      const pending = (approvalsAsOrgA.body as ApiSuccessResponse<{ items: Array<{ id: string }> }>)
+        .data.items;
+      expect(pending.length).toBeGreaterThan(0);
+      const approvalId = pending[0].id;
+
+      // Org B's own approvals inbox never contains org A's pending approval.
+      const approvalsAsOrgB = await request(app.getHttpServer())
+        .get('/api/v1/workflows/approvals')
+        .set(bearerAuthHeaders(orgB.accessToken))
+        .expect(200);
+      const orgBPending = (
+        approvalsAsOrgB.body as ApiSuccessResponse<{ items: Array<{ id: string }> }>
+      ).data.items;
+      expect(orgBPending.some((item) => item.id === approvalId)).toBe(false);
+
+      // Org B can't decide it either, given the id directly.
+      await request(app.getHttpServer())
+        .post(`/api/v1/workflows/approvals/${approvalId}/decide`)
+        .set(bearerAuthHeaders(orgB.accessToken))
+        .send({ decision: 'APPROVED' })
+        .expect(404);
+    });
+  });
 });
