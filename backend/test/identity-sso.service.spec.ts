@@ -7,6 +7,7 @@ import { JitProvisioningService } from '../src/modules/identity/jit/jit-provisio
 import { OidcEngineService } from '../src/modules/identity/oidc/oidc-engine.service';
 import { SamlEngineService } from '../src/modules/identity/saml/saml-engine.service';
 import { SsoService } from '../src/modules/identity/sso.service';
+import { MetricsService } from '../src/modules/metrics/metrics.service';
 
 function makeIdp(overrides: Partial<IdentityProviderEntity> = {}): IdentityProviderEntity {
   return {
@@ -88,6 +89,7 @@ describe('SsoService', () => {
             }),
           },
         },
+        { provide: MetricsService, useValue: { recordSsoLogin: jest.fn() } },
       ],
     }).compile();
 

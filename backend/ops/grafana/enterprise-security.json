@@ -1,0 +1,69 @@
+{
+  "title": "Voltx — Enterprise Security (v2.2)",
+  "uid": "voltx-enterprise-security",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "tags": ["voltx", "enterprise", "security"],
+  "time": { "from": "now-24h", "to": "now" },
+  "refresh": "1m",
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "SSO logins by protocol and outcome",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (protocol, outcome) (rate(voltx_sso_login_total[15m]))",
+          "legendFormat": "{{protocol}} — {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "SCIM provisioning operations by outcome",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (operation, status) (rate(voltx_scim_operations_total[15m]))",
+          "legendFormat": "{{operation}} — {{status}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "MFA challenge failure ratio",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(voltx_mfa_challenges_total{outcome=\"failure\"}[15m])) / sum(rate(voltx_mfa_challenges_total[15m]))",
+          "legendFormat": "failure ratio"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Session revocations",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(voltx_session_revocations_total[15m])",
+          "legendFormat": "revocations/sec"
+        }
+      ]
+    }
+  ]
+}

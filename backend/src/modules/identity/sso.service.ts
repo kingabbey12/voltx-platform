@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 import { IdentityProviderProtocol, IdentityProviderStatus } from '@prisma/client';
 import { LoginResponseDto } from '../auth/dto/auth-response.dto';
+import { MetricsService } from '../metrics/metrics.service';
 import { IdentityProviderEntity } from './entities/identity-provider.entity';
 import { IdentityProviderRepository } from './identity-provider.repository';
 import { JitProvisioningService } from './jit/jit-provisioning.service';
@@ -24,6 +25,7 @@ export class SsoService {
     private readonly oidcEngineService: OidcEngineService,
     private readonly jitProvisioningService: JitProvisioningService,
     private readonly jwtService: JwtService,
+    private readonly metricsService: MetricsService,
   ) {}
 
   async initiateSamlLogin(identityProviderId: string): Promise<string> {
@@ -50,23 +52,30 @@ export class SsoService {
       throw new BadRequestException('This identity provider is not configured for SAML');
     }
 
-    if (relayState) {
-      await this.verifyRelayStateBelongsToIdp(relayState, idp.id);
+    try {
+      if (relayState) {
+        await this.verifyRelayStateBelongsToIdp(relayState, idp.id);
+      }
+
+      const profile = await this.samlEngineService.validateAssertion(
+        idp.samlConfiguration,
+        idp.id,
+        samlResponse,
+        relayState,
+      );
+
+      const result = await this.jitProvisioningService.provisionAndIssueTokens(idp, {
+        email: profile.email,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        groups: profile.groups,
+      });
+      this.metricsService.recordSsoLogin('SAML', 'success');
+      return result;
+    } catch (error) {
+      this.metricsService.recordSsoLogin('SAML', 'failure');
+      throw error;
     }
-
-    const profile = await this.samlEngineService.validateAssertion(
-      idp.samlConfiguration,
-      idp.id,
-      samlResponse,
-      relayState,
-    );
-
-    return this.jitProvisioningService.provisionAndIssueTokens(idp, {
-      email: profile.email,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      groups: profile.groups,
-    });
   }
 
   async initiateOidcLogin(identityProviderId: string): Promise<string> {
@@ -95,25 +104,32 @@ export class SsoService {
       throw new BadRequestException('This identity provider is not configured for OIDC');
     }
 
-    const state = callbackParams.state;
-    if (!state) {
-      throw new UnauthorizedException('Missing state parameter');
+    try {
+      const state = callbackParams.state;
+      if (!state) {
+        throw new UnauthorizedException('Missing state parameter');
+      }
+      const statePayload = await this.verifyOidcState(state, idp.id);
+
+      const profile = await this.oidcEngineService.handleCallback(
+        idp.oidcConfiguration,
+        idp.id,
+        callbackParams,
+        { state, nonce: statePayload.nonce },
+      );
+
+      const result = await this.jitProvisioningService.provisionAndIssueTokens(idp, {
+        email: profile.email,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        groups: profile.groups,
+      });
+      this.metricsService.recordSsoLogin('OIDC', 'success');
+      return result;
+    } catch (error) {
+      this.metricsService.recordSsoLogin('OIDC', 'failure');
+      throw error;
     }
-    const statePayload = await this.verifyOidcState(state, idp.id);
-
-    const profile = await this.oidcEngineService.handleCallback(
-      idp.oidcConfiguration,
-      idp.id,
-      callbackParams,
-      { state, nonce: statePayload.nonce },
-    );
-
-    return this.jitProvisioningService.provisionAndIssueTokens(idp, {
-      email: profile.email,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      groups: profile.groups,
-    });
   }
 
   private async getActiveIdpOrThrow(

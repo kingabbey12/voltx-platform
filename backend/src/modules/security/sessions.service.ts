@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { SessionRecord, SessionRepository } from '../auth/session.repository';
+import { MetricsService } from '../metrics/metrics.service';
 import { LoginHistoryQueryDto, PaginatedSessionsDto, SessionResponseDto } from './dto/session.dto';
 
 function toSessionResponseDto(record: SessionRecord): SessionResponseDto {
@@ -20,6 +21,7 @@ export class SessionsService {
   constructor(
     private readonly sessionRepository: SessionRepository,
     private readonly auditService: AuditService,
+    private readonly metricsService: MetricsService,
   ) {}
 
   async listActive(userId: string, organizationId: string): Promise<SessionResponseDto[]> {
@@ -66,6 +68,7 @@ export class SessionsService {
     }
 
     await this.sessionRepository.revoke(sessionId);
+    this.metricsService.recordSessionRevocation();
     await this.auditService.record({
       action: 'session.revoked',
       resource: 'session',

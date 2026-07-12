@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ScimOperationType, ScimProvisionJobStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { MetricsService } from '../metrics/metrics.service';
 
 export interface RecordScimJobData {
   organizationId: string;
@@ -18,7 +19,10 @@ export interface RecordScimJobData {
 /** Every SCIM operation writes one row here — the audit trail the plan calls for, independent of AuditLog (which tracks authenticated-user actions, not IdP-driven provisioning). */
 @Injectable()
 export class ScimProvisionJobRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly metricsService: MetricsService,
+  ) {}
 
   async record(data: RecordScimJobData): Promise<void> {
     await this.prisma.scimProvisionJob.create({
@@ -35,6 +39,7 @@ export class ScimProvisionJobRepository {
         errorMessage: data.errorMessage,
       },
     });
+    this.metricsService.recordScimOperation(data.operation, data.status);
   }
 
   async listByOrganization(organizationId: string, limit = 50) {

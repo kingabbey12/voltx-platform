@@ -33,6 +33,33 @@ export class MetricsService implements OnModuleDestroy {
     buckets: [25, 50, 100, 250, 500, 1000, 2500, 5000],
     registers: [this.registry],
   });
+  /** v2.2 Enterprise Identity (Phase 1) — incremented in SsoService for both SAML ACS and OIDC callback completion. */
+  private readonly ssoLoginTotal = new Counter({
+    name: 'voltx_sso_login_total',
+    help: 'Total number of SSO login attempts via SAML or OIDC',
+    labelNames: ['protocol', 'outcome'] as const,
+    registers: [this.registry],
+  });
+  /** v2.2 SCIM 2.0 (Phase 2) — incremented in ScimProvisionJobRepository.record(), the single chokepoint every SCIM user/group operation writes through. */
+  private readonly scimOperationsTotal = new Counter({
+    name: 'voltx_scim_operations_total',
+    help: 'Total number of SCIM provisioning operations',
+    labelNames: ['operation', 'status'] as const,
+    registers: [this.registry],
+  });
+  /** v2.2 Security Center (Phase 4) — incremented in MfaService.verifyLogin() around its TOTP/backup-code check. */
+  private readonly mfaChallengesTotal = new Counter({
+    name: 'voltx_mfa_challenges_total',
+    help: 'Total number of MFA login challenges verified',
+    labelNames: ['outcome'] as const,
+    registers: [this.registry],
+  });
+  /** v2.2 Security Center (Phase 4) — incremented in SessionsService.revoke(). */
+  private readonly sessionRevocationsTotal = new Counter({
+    name: 'voltx_session_revocations_total',
+    help: 'Total number of user sessions revoked',
+    registers: [this.registry],
+  });
 
   constructor(private readonly configService: ConfigService) {
     collectDefaultMetrics({
@@ -101,6 +128,22 @@ export class MetricsService implements OnModuleDestroy {
 
     this.httpRequestsTotal.inc(labels);
     this.httpRequestDurationMs.observe(labels, durationMs);
+  }
+
+  recordSsoLogin(protocol: 'SAML' | 'OIDC', outcome: 'success' | 'failure'): void {
+    this.ssoLoginTotal.inc({ protocol, outcome });
+  }
+
+  recordScimOperation(operation: string, status: 'SUCCESS' | 'FAILED'): void {
+    this.scimOperationsTotal.inc({ operation, status });
+  }
+
+  recordMfaChallenge(outcome: 'success' | 'failure'): void {
+    this.mfaChallengesTotal.inc({ outcome });
+  }
+
+  recordSessionRevocation(): void {
+    this.sessionRevocationsTotal.inc();
   }
 
   getContentType(): string {

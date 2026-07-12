@@ -8,6 +8,7 @@ import { AuthService } from '../src/modules/auth/auth.service';
 import { SessionRepository } from '../src/modules/auth/session.repository';
 import { TrustedDeviceRepository } from '../src/modules/auth/trusted-device.repository';
 import { EncryptionService } from '../src/modules/integrations/security/encryption.service';
+import { MetricsService } from '../src/modules/metrics/metrics.service';
 import { MfaRepository } from '../src/modules/security/mfa.repository';
 import { MfaService } from '../src/modules/security/mfa.service';
 import { UsersRepository } from '../src/modules/users/users.repository';
@@ -73,6 +74,7 @@ describe('MfaService', () => {
           provide: AuditService,
           useValue: { record: jest.fn(), recordWithExplicitActor: jest.fn() },
         },
+        { provide: MetricsService, useValue: { recordMfaChallenge: jest.fn() } },
       ],
     }).compile();
 

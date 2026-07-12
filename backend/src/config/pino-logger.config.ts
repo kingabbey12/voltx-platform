@@ -1,9 +1,32 @@
 import { RequestMethod } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { context, trace } from '@opentelemetry/api';
 import { randomUUID } from 'node:crypto';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Params } from 'nestjs-pino';
 import { REQUEST_ID_HEADER } from '../common/constants/request-id.constants';
+
+/**
+ * Injects the active OTel span's trace/span id into every log line, so a
+ * log and a trace for the same request can be correlated in whatever
+ * backend ingests both — without this, the two observability surfaces
+ * (OTLP traces via src/tracing.ts, structured logs via pino) are
+ * unlinked. Returns `{}` (not `{traceId: undefined, ...}`) when there is
+ * no active span (OTEL_ENABLED=false, or a code path outside any span)
+ * so the fields are simply absent from the JSON line rather than
+ * present-but-null.
+ */
+export function traceContextMixin(): Record<string, string> {
+  const span = trace.getSpan(context.active());
+  if (!span) {
+    return {};
+  }
+  const spanContext = span.spanContext();
+  return {
+    traceId: spanContext.traceId,
+    spanId: spanContext.spanId,
+  };
+}
 
 export function createPinoConfig(configService: ConfigService): Params {
   const nodeEnv = configService.get<string>('nodeEnv', 'development');
@@ -24,6 +47,7 @@ export function createPinoConfig(configService: ConfigService): Params {
             },
           },
       autoLogging: true,
+      mixin: traceContextMixin,
       customProps: (req: IncomingMessage) => ({
         requestId: req.headers[REQUEST_ID_HEADER],
       }),

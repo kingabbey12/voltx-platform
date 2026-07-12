@@ -2,6 +2,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { SessionRepository } from '../src/modules/auth/session.repository';
+import { MetricsService } from '../src/modules/metrics/metrics.service';
 import { SessionsService } from '../src/modules/security/sessions.service';
 
 describe('SessionsService', () => {
@@ -23,6 +24,7 @@ describe('SessionsService', () => {
           },
         },
         { provide: AuditService, useValue: { record: jest.fn() } },
+        { provide: MetricsService, useValue: { recordSessionRevocation: jest.fn() } },
       ],
     }).compile();
 

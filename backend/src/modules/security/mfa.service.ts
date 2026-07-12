@@ -9,6 +9,7 @@ import { SessionRepository } from '../auth/session.repository';
 import { TrustedDeviceRepository } from '../auth/trusted-device.repository';
 import { UsersRepository } from '../users/users.repository';
 import { EncryptionService } from '../integrations/security/encryption.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { MfaVerifyLoginDto } from './dto/mfa.dto';
 import { MfaRepository } from './mfa.repository';
 import { generateBackupCodes, sha256Hex } from './utils/security-hash.util';
@@ -36,6 +37,7 @@ export class MfaService {
     private readonly sessionRepository: SessionRepository,
     private readonly trustedDeviceRepository: TrustedDeviceRepository,
     private readonly auditService: AuditService,
+    private readonly metricsService: MetricsService,
   ) {}
 
   async setup(userId: string): Promise<{ secret: string; otpauthUrl: string }> {
@@ -144,8 +146,10 @@ export class MfaService {
 
     const valid = await this.verifyFactor(payload.sub, state, dto.code);
     if (!valid) {
+      this.metricsService.recordMfaChallenge('failure');
       throw new UnauthorizedException('Invalid verification code');
     }
+    this.metricsService.recordMfaChallenge('success');
 
     if (dto.trustDevice && dto.deviceFingerprint) {
       const days =
