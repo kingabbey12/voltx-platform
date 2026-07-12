@@ -21,6 +21,7 @@ import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { BackgroundJobsModule } from './modules/background-jobs/background-jobs.module';
 import { CommunicationsModule } from './modules/communications/communications.module';
 import { HealthModule } from './modules/health/health.module';
+import { IdentityModule } from './modules/identity/identity.module';
 import { IntegrationModule } from './modules/integrations/integration.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
@@ -79,6 +80,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     AuthModule,
     CommunicationsModule,
     HealthModule,
+    IdentityModule,
     IntegrationModule,
     KnowledgeModule,
     NotificationModule,

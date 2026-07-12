@@ -85,6 +85,25 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.verificationToken;
   }
 
+  /**
+   * Enterprise Identity (v2.2) models — unscoped, like role/permission
+   * above: IdentityProvider is org-scoped in the domain sense, but that
+   * scoping isn't one the tenant extension enforces (it only wraps
+   * organization/user/membership), so every repository method querying
+   * these must filter by organizationId explicitly.
+   */
+  get identityProvider(): PrismaClient['identityProvider'] {
+    return this.baseClient.identityProvider;
+  }
+
+  get samlConfiguration(): PrismaClient['samlConfiguration'] {
+    return this.baseClient.samlConfiguration;
+  }
+
+  get oidcConfiguration(): PrismaClient['oidcConfiguration'] {
+    return this.baseClient.oidcConfiguration;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }

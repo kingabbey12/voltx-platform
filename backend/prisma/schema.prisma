@@ -194,6 +194,7 @@ model Organization {
   taxProfile              TaxProfile?
   checkoutSessions        CheckoutSession[]
   portalSessions          CustomerPortalSession[]
+  identityProviders       IdentityProvider[]
 
   @@index([status])
   @@map("organizations")
@@ -593,21 +594,27 @@ model RolePermission {
 }
 
 model Membership {
-  id              String           @id @default(uuid()) @db.Uuid
-  organizationId  String           @map("organization_id") @db.Uuid
-  userId          String           @map("user_id") @db.Uuid
-  roleId          String           @map("role_id") @db.Uuid
-  joinedAt        DateTime         @default(now()) @map("joined_at")
-  status          MembershipStatus @default(ACTIVE)
-  organization    Organization     @relation(fields: [organizationId], references: [id])
-  user            User             @relation(fields: [userId], references: [id])
-  role            Role             @relation(fields: [roleId], references: [id])
-  seatAssignments SeatAssignment[]
+  id                              String            @id @default(uuid()) @db.Uuid
+  organizationId                  String            @map("organization_id") @db.Uuid
+  userId                          String            @map("user_id") @db.Uuid
+  roleId                          String            @map("role_id") @db.Uuid
+  joinedAt                        DateTime          @default(now()) @map("joined_at")
+  status                          MembershipStatus  @default(ACTIVE)
+  /// Set when this membership was created by SSO Just-in-Time provisioning
+  /// (Phase 1) or a SCIM sync (Phase 2), rather than manual invitation —
+  /// purely informational, carries no access implication.
+  provisionedByIdentityProviderId String?           @map("provisioned_by_identity_provider_id") @db.Uuid
+  organization                    Organization      @relation(fields: [organizationId], references: [id])
+  user                            User              @relation(fields: [userId], references: [id])
+  role                            Role              @relation(fields: [roleId], references: [id])
+  provisionedByIdentityProvider   IdentityProvider? @relation("MembershipProvisionedBy", fields: [provisionedByIdentityProviderId], references: [id], onDelete: SetNull)
+  seatAssignments                 SeatAssignment[]
 
   @@unique([organizationId, userId])
   @@index([organizationId])
   @@index([userId])
   @@index([status])
+  @@index([provisionedByIdentityProviderId])
   @@map("memberships")
 }
 
@@ -2772,4 +2779,109 @@ model CheckoutSession {
 
   @@index([organizationId])
   @@map("billing_checkout_sessions")
+}
+
+/// v2.2 Enterprise Identity — SSO protocol and status.
+enum IdentityProviderProtocol {
+  SAML
+  OIDC
+}
+
+/// v2.2 Enterprise Identity — one preset per named IdP in the spec, plus a
+/// GENERIC fallback for any other SAML/OIDC-compliant provider. A preset is
+/// purely a set of sane defaults/attribute-mapping hints applied when an
+/// admin picks it in the setup wizard — it does not change the underlying
+/// protocol handling, which is identical for every preset sharing a protocol.
+enum IdentityProviderPreset {
+  GENERIC
+  ENTRA_ID
+  OKTA
+  GOOGLE_WORKSPACE
+  ONELOGIN
+  PING_IDENTITY
+}
+
+enum IdentityProviderStatus {
+  DRAFT
+  ACTIVE
+  DISABLED
+}
+
+/// v2.2 Enterprise Identity — one configured identity provider for an
+/// organization. An organization may have multiple (e.g. SAML for one
+/// subsidiary's Okta tenant, OIDC for another's Entra ID). Exactly one of
+/// `samlConfiguration`/`oidcConfiguration` is populated, matching `protocol`.
+model IdentityProvider {
+  id                     String                   @id @default(uuid()) @db.Uuid
+  organizationId         String                   @map("organization_id") @db.Uuid
+  name                   String
+  protocol               IdentityProviderProtocol
+  preset                 IdentityProviderPreset   @default(GENERIC)
+  status                 IdentityProviderStatus   @default(DRAFT)
+  isDefault              Boolean                  @default(false) @map("is_default")
+  jitProvisioningEnabled Boolean                  @default(true) @map("jit_provisioning_enabled")
+  /// Role key (e.g. "member") assigned to a JIT-provisioned membership when
+  /// no rule in roleMappingRules matches the assertion/claims.
+  defaultRoleKey         String                   @default("member") @map("default_role_key")
+  /// Array of { sourceValue: string, roleKey: string } — sourceValue is
+  /// matched against the IdP group/role attribute configured per-provider.
+  roleMappingRules       Json                     @default("[]") @map("role_mapping_rules")
+  createdAt              DateTime                 @default(now()) @map("created_at")
+  updatedAt              DateTime                 @updatedAt @map("updated_at")
+  deletedAt              DateTime?                @map("deleted_at")
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  samlConfiguration      SamlConfiguration?
+  oidcConfiguration      OidcConfiguration?
+  provisionedMemberships Membership[]             @relation("MembershipProvisionedBy")
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@map("identity_providers")
+}
+
+/// v2.2 Enterprise Identity — SAML 2.0 configuration for one IdentityProvider.
+/// idpCertificate/metadataXml hold the IdP's own public signing certificate
+/// (encrypted at rest via EncryptionService — this is the IdP's public key,
+/// encrypted anyway so a DB dump doesn't hand an attacker every configured
+/// IdP's trust material in plaintext for easy reconnaissance).
+model SamlConfiguration {
+  id                      String           @id @default(uuid()) @db.Uuid
+  identityProviderId      String           @unique @map("identity_provider_id") @db.Uuid
+  idpEntityId             String           @map("idp_entity_id")
+  idpSsoUrl               String           @map("idp_sso_url")
+  idpSloUrl               String?          @map("idp_slo_url")
+  idpCertificate          String           @map("idp_certificate")
+  idpCertificateExpiresAt DateTime?        @map("idp_certificate_expires_at")
+  spEntityId              String           @map("sp_entity_id")
+  signatureAlgorithm      String           @default("sha256") @map("signature_algorithm")
+  wantAssertionsSigned    Boolean          @default(true) @map("want_assertions_signed")
+  /// Raw imported metadata XML, kept for re-parsing/troubleshooting — not
+  /// itself parsed again at request time (idpEntityId/idpSsoUrl/idpCertificate
+  /// above are extracted once at import time and are what's actually used).
+  metadataXml             String?          @map("metadata_xml")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
+  identityProvider        IdentityProvider @relation(fields: [identityProviderId], references: [id], onDelete: Cascade)
+
+  @@map("saml_configurations")
+}
+
+/// v2.2 Enterprise Identity — OIDC configuration for one IdentityProvider.
+model OidcConfiguration {
+  id                    String           @id @default(uuid()) @db.Uuid
+  identityProviderId    String           @unique @map("identity_provider_id") @db.Uuid
+  issuer                String
+  clientId              String           @map("client_id")
+  clientSecret          String           @map("client_secret")
+  authorizationEndpoint String?          @map("authorization_endpoint")
+  tokenEndpoint         String?          @map("token_endpoint")
+  userinfoEndpoint      String?          @map("userinfo_endpoint")
+  jwksUri               String?          @map("jwks_uri")
+  scopes                String[]         @default(["openid", "email", "profile"])
+  claimsMapping         Json             @default("{}") @map("claims_mapping")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+  identityProvider      IdentityProvider @relation(fields: [identityProviderId], references: [id], onDelete: Cascade)
+
+  @@map("oidc_configurations")
 }
