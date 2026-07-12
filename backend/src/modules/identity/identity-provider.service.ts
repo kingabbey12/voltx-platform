@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityProviderProtocol } from '@prisma/client';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { EncryptionService } from '../integrations/security/encryption.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -20,12 +21,14 @@ export class IdentityProviderService {
     private readonly encryptionService: EncryptionService,
     private readonly samlEngineService: SamlEngineService,
     private readonly auditService: AuditService,
+    private readonly tenantContextService: TenantContextService,
   ) {}
 
   async create(
     organizationId: string,
     dto: CreateIdentityProviderDto,
   ): Promise<IdentityProviderEntity> {
+    this.tenantContextService.assertOrganizationAccess(organizationId);
     if (dto.protocol === IdentityProviderProtocol.SAML && !dto.samlConfiguration) {
       throw new BadRequestException('samlConfiguration is required when protocol is SAML');
     }
@@ -82,10 +85,12 @@ export class IdentityProviderService {
   }
 
   async list(organizationId: string): Promise<IdentityProviderEntity[]> {
+    this.tenantContextService.assertOrganizationAccess(organizationId);
     return this.repository.listByOrganization(organizationId);
   }
 
   async getOrThrow(organizationId: string, id: string): Promise<IdentityProviderEntity> {
+    this.tenantContextService.assertOrganizationAccess(organizationId);
     const entity = await this.repository.findByIdInOrg(organizationId, id);
     if (!entity) {
       throw new NotFoundException('Identity provider not found');

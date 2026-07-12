@@ -156,9 +156,21 @@ model Organization {
   status                  OrganizationStatus       @default(ACTIVE)
   settings                Json                     @default("{}")
   onboardingCompletedAt   DateTime?                @map("onboarding_completed_at")
+  /// v2.2 Enterprise Organization Hierarchy — metadata tag ONLY, read
+  /// exclusively by the platform-admin-gated cross-org reporting
+  /// endpoints (src/modules/platform/reporting/). Never consulted by
+  /// TenantContextService or the Prisma tenant-scoping extension — every
+  /// subsidiary remains a fully isolated tenant for all normal traffic.
+  parentOrganizationId    String?                  @map("parent_organization_id") @db.Uuid
   createdAt               DateTime                 @default(now()) @map("created_at")
   updatedAt               DateTime                 @updatedAt @map("updated_at")
   deletedAt               DateTime?                @map("deleted_at")
+  parentOrganization      Organization?            @relation("OrganizationHierarchy", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
+  subsidiaries            Organization[]           @relation("OrganizationHierarchy")
+  businessUnits           BusinessUnit[]
+  departments             Department[]
+  teams                   Team[]
+  costCenters             CostCenter[]
   memberships             Membership[]
   conversations           Conversation[]
   memories                Memory[]
@@ -199,6 +211,7 @@ model Organization {
   scimProvisionJobs       ScimProvisionJob[]
 
   @@index([status])
+  @@index([parentOrganizationId])
   @@map("organizations")
 }
 
@@ -606,10 +619,19 @@ model Membership {
   /// (Phase 1) or a SCIM sync (Phase 2), rather than manual invitation —
   /// purely informational, carries no access implication.
   provisionedByIdentityProviderId String?           @map("provisioned_by_identity_provider_id") @db.Uuid
+  /// v2.2 Enterprise Organization Hierarchy — intra-tenant tagging only,
+  /// all optional and all scoped to the same organization as the
+  /// membership itself (enforced in the service layer, not the DB).
+  businessUnitId                  String?           @map("business_unit_id") @db.Uuid
+  departmentId                    String?           @map("department_id") @db.Uuid
+  teamId                          String?           @map("team_id") @db.Uuid
   organization                    Organization      @relation(fields: [organizationId], references: [id])
   user                            User              @relation(fields: [userId], references: [id])
   role                            Role              @relation(fields: [roleId], references: [id])
   provisionedByIdentityProvider   IdentityProvider? @relation("MembershipProvisionedBy", fields: [provisionedByIdentityProviderId], references: [id], onDelete: SetNull)
+  businessUnit                    BusinessUnit?     @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  department                      Department?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  team                            Team?             @relation(fields: [teamId], references: [id], onDelete: SetNull)
   seatAssignments                 SeatAssignment[]
 
   @@unique([organizationId, userId])
@@ -617,6 +639,9 @@ model Membership {
   @@index([userId])
   @@index([status])
   @@index([provisionedByIdentityProviderId])
+  @@index([businessUnitId])
+  @@index([departmentId])
+  @@index([teamId])
   @@map("memberships")
 }
 
@@ -2955,4 +2980,78 @@ model ScimProvisionJob {
   @@index([organizationId])
   @@index([scimTokenId])
   @@map("scim_provision_jobs")
+}
+
+/// v2.2 Enterprise Organization Hierarchy — intra-tenant business unit,
+/// optionally self-nesting. Purely organizational metadata for tagging
+/// memberships; carries no access/permission implication of its own.
+model BusinessUnit {
+  id                   String         @id @default(uuid()) @db.Uuid
+  organizationId       String         @map("organization_id") @db.Uuid
+  name                 String
+  parentBusinessUnitId String?        @map("parent_business_unit_id") @db.Uuid
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+  organization         Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parentBusinessUnit   BusinessUnit?  @relation("BusinessUnitHierarchy", fields: [parentBusinessUnitId], references: [id], onDelete: SetNull)
+  childBusinessUnits   BusinessUnit[] @relation("BusinessUnitHierarchy")
+  memberships          Membership[]
+
+  @@index([organizationId])
+  @@index([parentBusinessUnitId])
+  @@map("business_units")
+}
+
+/// v2.2 Enterprise Organization Hierarchy — intra-tenant department, optionally self-nesting.
+model Department {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @map("organization_id") @db.Uuid
+  name               String
+  parentDepartmentId String?      @map("parent_department_id") @db.Uuid
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parentDepartment   Department?  @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id], onDelete: SetNull)
+  childDepartments   Department[] @relation("DepartmentHierarchy")
+  teams              Team[]
+  memberships        Membership[]
+
+  @@index([organizationId])
+  @@index([parentDepartmentId])
+  @@map("departments")
+}
+
+/// v2.2 Enterprise Organization Hierarchy — intra-tenant team, optionally scoped to a department.
+model Team {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  departmentId   String?      @map("department_id") @db.Uuid
+  name           String
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  department     Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  memberships    Membership[]
+
+  @@index([organizationId])
+  @@index([departmentId])
+  @@map("teams")
+}
+
+/// v2.2 Enterprise Organization Hierarchy — intra-tenant cost center, for
+/// financial/reporting tagging. Not linked to Membership directly (a
+/// cost center tags a BusinessUnit/Department, not an individual member,
+/// in the common accounting convention) — kept as an independent,
+/// org-scoped lookup table.
+model CostCenter {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  name           String
+  code           String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("cost_centers")
 }

@@ -28,7 +28,9 @@ import { MetricsModule } from './modules/metrics/metrics.module';
 import { NotificationModule } from './modules/notifications/notification.module';
 import { OperatorModule } from './modules/ai/operator/operator.module';
 import { OrganizationModule } from './modules/organization/organization.module';
+import { OrganizationStructureModule } from './modules/organization-structure/organization-structure.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { PlatformReportingModule } from './modules/platform/reporting/platform-reporting.module';
 import { ReferenceDataModule } from './modules/reference-data/reference-data.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ScimModule } from './modules/scim/scim.module';
@@ -87,7 +89,9 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     NotificationModule,
     OperatorModule,
     OrganizationModule,
+    OrganizationStructureModule,
     PermissionsModule,
+    PlatformReportingModule,
     ReferenceDataModule,
     RolesModule,
     ScimModule,

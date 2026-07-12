@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateScimTokenDto } from './dto/scim-token.dto';
 import { ScimTokenEntity } from './entities/scim-token.entity';
@@ -10,12 +11,14 @@ export class ScimTokenService {
   constructor(
     private readonly scimTokenRepository: ScimTokenRepository,
     private readonly auditService: AuditService,
+    private readonly tenantContextService: TenantContextService,
   ) {}
 
   async create(
     organizationId: string,
     dto: CreateScimTokenDto,
   ): Promise<{ entity: ScimTokenEntity; token: string }> {
+    this.tenantContextService.assertOrganizationAccess(organizationId);
     const token = generateScimToken();
     const entity = await this.scimTokenRepository.create({
       organizationId,
@@ -36,10 +39,12 @@ export class ScimTokenService {
   }
 
   async list(organizationId: string): Promise<ScimTokenEntity[]> {
+    this.tenantContextService.assertOrganizationAccess(organizationId);
     return this.scimTokenRepository.listByOrganization(organizationId);
   }
 
   async revoke(organizationId: string, id: string): Promise<void> {
+    this.tenantContextService.assertOrganizationAccess(organizationId);
     const token = await this.scimTokenRepository.findByIdInOrg(organizationId, id);
     if (!token) {
       throw new NotFoundException('SCIM token not found');

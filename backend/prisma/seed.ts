@@ -75,6 +75,8 @@ const PERMISSION_DEFINITIONS = [
   { key: 'billing.payment_method.manage', resource: 'billing_payment_method', action: 'manage', description: 'Add, remove, and set the default payment method' },
   { key: 'identity.provider.read', resource: 'identity_provider', action: 'read', description: 'View configured SSO identity providers' },
   { key: 'identity.provider.manage', resource: 'identity_provider', action: 'manage', description: 'Create, update, and delete SSO identity providers, import metadata, and rotate certificates' },
+  { key: 'organization.hierarchy.read', resource: 'organization_hierarchy', action: 'read', description: 'View business units, departments, teams, and cost centers' },
+  { key: 'organization.hierarchy.manage', resource: 'organization_hierarchy', action: 'manage', description: 'Create, update, and delete business units, departments, teams, and cost centers, and tag memberships' },
   { key: 'billing.seat.manage', resource: 'billing_seat', action: 'manage', description: 'Assign and release paid seats' },
   { key: 'billing.portal.access', resource: 'billing_portal', action: 'access', description: 'Open the Stripe Customer Portal' },
   { key: 'integration.create', resource: 'integration', action: 'create', description: 'Connect new integrations' },

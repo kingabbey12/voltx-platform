@@ -113,6 +113,29 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.scimProvisionJob;
   }
 
+  /**
+   * Enterprise Organization Hierarchy (v2.2 Phase 3) models — unscoped,
+   * same rationale as identityProvider above. `organization` itself stays
+   * tenant-scoped (see the `organization` getter earlier in this file) —
+   * `Organization.parentOrganizationId` is metadata read only by the
+   * platform-admin-gated reporting endpoints, never by normal traffic.
+   */
+  get businessUnit(): PrismaClient['businessUnit'] {
+    return this.baseClient.businessUnit;
+  }
+
+  get department(): PrismaClient['department'] {
+    return this.baseClient.department;
+  }
+
+  get team(): PrismaClient['team'] {
+    return this.baseClient.team;
+  }
+
+  get costCenter(): PrismaClient['costCenter'] {
+    return this.baseClient.costCenter;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }

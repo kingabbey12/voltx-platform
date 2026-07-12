@@ -1,5 +1,6 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { TenantContextService } from '../src/common/tenant/tenant-context.service';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { EncryptionService } from '../src/modules/integrations/security/encryption.service';
 import { CreateIdentityProviderDto } from '../src/modules/identity/dto/identity-provider.dto';
@@ -11,6 +12,7 @@ describe('IdentityProviderService', () => {
   let service: IdentityProviderService;
   let repository: jest.Mocked<IdentityProviderRepository>;
   let encryptionService: jest.Mocked<EncryptionService>;
+  let tenantContextService: jest.Mocked<TenantContextService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -18,7 +20,7 @@ describe('IdentityProviderService', () => {
         IdentityProviderService,
         {
           provide: IdentityProviderRepository,
-          useValue: { create: jest.fn(), findByIdInOrg: jest.fn() },
+          useValue: { create: jest.fn(), findByIdInOrg: jest.fn(), listByOrganization: jest.fn() },
         },
         { provide: EncryptionService, useValue: { encrypt: jest.fn((v: string) => `enc(${v})`) } },
         {
@@ -26,12 +28,28 @@ describe('IdentityProviderService', () => {
           useValue: { parseIdpMetadata: jest.fn(), generateSpMetadata: jest.fn() },
         },
         { provide: AuditService, useValue: { record: jest.fn() } },
+        { provide: TenantContextService, useValue: { assertOrganizationAccess: jest.fn() } },
       ],
     }).compile();
 
     service = module.get(IdentityProviderService);
     repository = module.get(IdentityProviderRepository);
     encryptionService = module.get(EncryptionService);
+    tenantContextService = module.get(TenantContextService);
+  });
+
+  it('never touches the repository when the caller is not a member of the requested organization', async () => {
+    tenantContextService.assertOrganizationAccess.mockImplementation(() => {
+      throw new ForbiddenException('Cross-tenant access is forbidden');
+    });
+
+    await expect(
+      service.create('org-not-mine', { name: 'Attempted cross-tenant IdP', protocol: 'SAML' }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(repository.create).not.toHaveBeenCalled();
+
+    await expect(service.list('org-not-mine')).rejects.toThrow(ForbiddenException);
+    expect(repository.listByOrganization).not.toHaveBeenCalled();
   });
 
   it('rejects creating a SAML provider without samlConfiguration', async () => {
