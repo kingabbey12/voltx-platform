@@ -5,12 +5,9 @@ import { AuthenticatedRequest } from '../interfaces/authenticated-request.interf
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard(JWT_ACCESS_STRATEGY) {
-  handleRequest<TUser extends { userId: string; organizationId?: string }>(
-    err: Error | null,
-    user: TUser | false,
-    _info: unknown,
-    context: ExecutionContext,
-  ): TUser {
+  handleRequest<
+    TUser extends { userId: string; organizationId?: string; supportSessionId?: string },
+  >(err: Error | null, user: TUser | false, _info: unknown, context: ExecutionContext): TUser {
     if (err || !user) {
       throw err ?? new UnauthorizedException('Invalid or missing access token');
     }
@@ -19,6 +16,7 @@ export class JwtAuthGuard extends AuthGuard(JWT_ACCESS_STRATEGY) {
     request.authPrincipal = {
       userId: user.userId,
       organizationId: user.organizationId,
+      supportSessionId: user.supportSessionId,
     };
 
     return user;

@@ -242,4 +242,15 @@ export default () => ({
       .map((email) => email.trim().toLowerCase())
       .filter((email) => email.length > 0),
   },
+  customerSuccess: {
+    // Lifetime of an impersonation access token (v2.2 SupportSession) —
+    // deliberately short since it grants full 'admin'-role access to
+    // whichever organization it targets; a platform admin who needs more
+    // time starts a fresh, separately-audited session rather than this
+    // being extended.
+    supportSessionDurationMinutes: parseInt(
+      process.env.SUPPORT_SESSION_DURATION_MINUTES ?? '45',
+      10,
+    ),
+  },
 });

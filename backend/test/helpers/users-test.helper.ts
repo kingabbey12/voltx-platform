@@ -47,6 +47,13 @@ export async function resetAuthTestData(prisma: PrismaService): Promise<void> {
   await ignoreMissingTable(() => prisma.session.deleteMany());
   await ignoreMissingTable(() => prisma.trustedDevice.deleteMany());
   await ignoreMissingTable(() => prisma.apiKey.deleteMany());
+  // v2.2 Customer Success — no declared FK relation to User/Organization
+  // (same unscoped convention as other v2.2 platform-admin models), so
+  // leftover rows can't cause a foreign-key violation here, but clearing
+  // them avoids a stale "already have an active support session" false
+  // positive bleeding across test runs.
+  await ignoreMissingTable(() => prisma.system.supportSession.deleteMany());
+  await ignoreMissingTable(() => prisma.system.supportNote.deleteMany());
   await ignoreMissingTable(() => prisma.system.membership.deleteMany());
   // Invitation.invitedByUserId/acceptedByUserId restrict user deletion (only
   // organizationId cascades), so this must run before user.deleteMany().

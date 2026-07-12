@@ -65,6 +65,7 @@ export class AuditRepository {
     data: CreateAuditLogData & { organizationId: string; userId: string },
   ): Promise<void> {
     const requestId = this.tenantContextService.get()?.requestId ?? 'unknown';
+    const supportSessionId = this.tenantContextService.get()?.supportSessionId ?? null;
     const resourceId = data.resourceId ?? null;
     const metadata = (data.metadata ?? {}) as Prisma.InputJsonValue;
 
@@ -89,6 +90,7 @@ export class AuditRepository {
         metadata,
         previousHash,
         createdAt,
+        supportSessionId,
       });
 
       await tx.auditLog.create({
@@ -103,6 +105,7 @@ export class AuditRepository {
           previousHash,
           hash,
           createdAt,
+          supportSessionId,
         },
       });
     });
@@ -152,6 +155,7 @@ export class AuditRepository {
         metadata: row.metadata,
         previousHash: row.previousHash,
         createdAt: row.createdAt,
+        supportSessionId: row.supportSessionId,
       });
 
       if (recomputedHash !== row.hash) {

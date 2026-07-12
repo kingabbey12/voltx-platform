@@ -41,6 +41,7 @@ export class TenantContextService {
       userId: context.userId,
       membershipId: context.membershipId,
       requestId: context.requestId,
+      supportSessionId: context.supportSessionId,
     };
   }
 

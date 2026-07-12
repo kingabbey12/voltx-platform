@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { LoadingScreen } from "@/components/loading-screen";
+import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 
 /** Guards every route under (app): unauthenticated -> /login; authenticated
  * but onboarding incomplete -> /onboarding (from anywhere except itself);
@@ -51,5 +52,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return <LoadingScreen />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <ImpersonationBanner />
+      {children}
+    </>
+  );
 }

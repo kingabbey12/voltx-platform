@@ -2,6 +2,15 @@ export interface JwtAccessPayload {
   sub: string;
   org?: string;
   type: 'access';
+  /**
+   * v2.2 Customer Success — present only on an impersonation access
+   * token (issued by AuthService.issueImpersonationAccessToken). Names
+   * the SupportSession this token was minted for; JwtAccessStrategy uses
+   * it to check the session's live status/expiry on every request, which
+   * is what makes "end session early" instantly revoke the token without
+   * any separate blocklist.
+   */
+  supportSessionId?: string;
 }
 
 /**

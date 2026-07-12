@@ -31,7 +31,8 @@ export class TenantGuard implements CanActivate {
       throw new ForbiddenException('Cross-tenant access is forbidden');
     }
 
-    const requestId = this.tenantContextService.get()?.requestId;
+    const existingContext = this.tenantContextService.get();
+    const requestId = existingContext?.requestId;
     if (!requestId) {
       throw new ForbiddenException('Request context is missing');
     }
@@ -41,6 +42,7 @@ export class TenantGuard implements CanActivate {
       userId: request.currentUser.id,
       membershipId: request.currentUser.membershipId,
       requestId,
+      supportSessionId: existingContext?.supportSessionId,
     };
 
     this.tenantContextService.set(request.tenantContext);

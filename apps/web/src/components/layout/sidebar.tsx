@@ -9,7 +9,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { mainNav, secondaryNav } from "@/config/nav";
+import { mainNav, platformNav, secondaryNav } from "@/config/nav";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { cn } from "@/lib/utils";
 
 function NavLink({ item, collapsed }: { item: (typeof mainNav)[number]; collapsed: boolean }) {
@@ -49,6 +50,8 @@ function NavLink({ item, collapsed }: { item: (typeof mainNav)[number]; collapse
 }
 
 export function Sidebar({ collapsed }: { collapsed: boolean }) {
+  const isPlatformAdmin = useAuthStore((state) => state.user?.isPlatformAdmin);
+
   return (
     <aside
       className={cn(
@@ -69,6 +72,14 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
         {secondaryNav.map((item) => (
           <NavLink key={item.href} item={item} collapsed={collapsed} />
         ))}
+        {isPlatformAdmin && (
+          <>
+            <div className="my-2 h-px bg-sidebar-border" />
+            {platformNav.map((item) => (
+              <NavLink key={item.href} item={item} collapsed={collapsed} />
+            ))}
+          </>
+        )}
       </nav>
     </aside>
   );

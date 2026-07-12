@@ -15,6 +15,7 @@ interface FakeAuditLogRow {
   metadata: unknown;
   previousHash: string | null;
   hash: string | null;
+  supportSessionId?: string | null;
   createdAt: Date;
 }
 
@@ -121,6 +122,42 @@ describe('AuditRepository — tamper-evident hash chain (v2.2 Compliance Center)
   it('acquires a per-organization advisory lock before reading the latest hash', async () => {
     await repository.create({ action: 'user.login', resource: 'user' });
     expect(fake.executedRawStatements).toHaveLength(1);
+  });
+
+  it('stamps supportSessionId from the tenant context onto rows written during an active support session', async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuditRepository,
+        { provide: PrismaService, useValue: fake.prisma },
+        {
+          provide: TenantContextService,
+          useValue: {
+            get: jest
+              .fn()
+              .mockReturnValue({ requestId: 'req-1', supportSessionId: 'support-session-1' }),
+            getOrThrow: jest.fn().mockReturnValue({
+              organizationId: 'org-1',
+              userId: 'admin-1',
+              membershipId: 'membership-1',
+              requestId: 'req-1',
+              supportSessionId: 'support-session-1',
+            }),
+          },
+        },
+      ],
+    }).compile();
+    const impersonatedRepository = module.get(AuditRepository);
+
+    await impersonatedRepository.create({ action: 'lead.update', resource: 'lead' });
+
+    expect(fake.rows).toHaveLength(1);
+    expect(fake.rows[0].supportSessionId).toBe('support-session-1');
+    expect(fake.rows[0].userId).toBe('admin-1');
+  });
+
+  it('leaves supportSessionId null for an ordinary (non-impersonated) action', async () => {
+    await repository.create({ action: 'user.login', resource: 'user' });
+    expect(fake.rows[0].supportSessionId ?? null).toBeNull();
   });
 
   it("keeps two organizations' chains independent", async () => {

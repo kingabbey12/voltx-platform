@@ -22,6 +22,16 @@ export function registerSessionExpiredHandler(handler: () => void): void {
   onSessionExpired = handler;
 }
 
+/** Invoked when a 401 arrives while impersonating (v2.2 Customer Success)
+ * — the SupportSession ended or expired server-side. The platform admin's
+ * own tokens are already restored by the time this fires (see the 401
+ * branch below); the auth layer registers this to refresh `me()` under
+ * the restored session and navigate back to the platform console. */
+let onImpersonationEnded: (() => void) | null = null;
+export function registerImpersonationEndedHandler(handler: () => void): void {
+  onImpersonationEnded = handler;
+}
+
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
   const url = new URL(`${API_BASE_URL}${path}`);
   if (query) {
@@ -119,6 +129,18 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   // 401 on an authenticated request that isn't already a retry: attempt
   // exactly one silent refresh-and-retry before giving up.
   if (response.status === 401 && authenticated && !_isRetry) {
+    // Impersonation access tokens have no refresh token (by design — see
+    // AuthService.issueImpersonationAccessToken) — a 401 here means the
+    // SupportSession was ended or expired server-side, not a normal
+    // expiry. Restore the admin's own session instead of attempting (and
+    // failing) a refresh with their real refresh token under a stale
+    // impersonated org context.
+    if (tokenStorage.getImpersonationStash()) {
+      tokenStorage.endImpersonation();
+      onImpersonationEnded?.();
+      throw new ApiError("Support session has ended", 401, "SUPPORT_SESSION_ENDED");
+    }
+
     try {
       await refreshAccessToken();
       return apiFetch<T>(path, { ...options, _isRetry: true });

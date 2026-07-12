@@ -35,6 +35,7 @@ export class TenantMiddleware implements NestMiddleware {
       requestId: string;
       userId?: string;
       organizationId?: string;
+      supportSessionId?: string;
     } = { requestId };
 
     const bearerToken = extractBearerToken(req.headers.authorization);
@@ -47,6 +48,7 @@ export class TenantMiddleware implements NestMiddleware {
         if (payload.type === 'access' && payload.sub && payload.org) {
           initialContext.userId = payload.sub;
           initialContext.organizationId = payload.org;
+          initialContext.supportSessionId = payload.supportSessionId;
           req.tenantJwtPrincipal = {
             userId: payload.sub,
             organizationId: payload.org,

@@ -34,9 +34,13 @@ import { OrganizationStructureModule } from './modules/organization-structure/or
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { PlatformAlertModule } from './modules/platform/alerts/platform-alert.module';
 import { FeatureFlagModule } from './modules/platform/feature-flags/feature-flag.module';
+import { PlatformMaintenanceModeModule } from './modules/platform/maintenance-mode/platform-maintenance-mode.module';
+import { PlatformOrgHealthModule } from './modules/platform/org-health/platform-org-health.module';
 import { PlatformOrganizationModule } from './modules/platform/organizations/platform-organization.module';
 import { PlatformReportingModule } from './modules/platform/reporting/platform-reporting.module';
 import { PlatformRevenueModule } from './modules/platform/revenue/platform-revenue.module';
+import { SupportNoteModule } from './modules/platform/support-notes/support-note.module';
+import { SupportSessionModule } from './modules/platform/support-sessions/support-session.module';
 import { PlatformSystemHealthModule } from './modules/platform/system-health/platform-system-health.module';
 import { PlatformUserModule } from './modules/platform/users/platform-user.module';
 import { ReferenceDataModule } from './modules/reference-data/reference-data.module';
@@ -104,9 +108,13 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     PermissionsModule,
     PlatformAlertModule,
     FeatureFlagModule,
+    PlatformMaintenanceModeModule,
+    PlatformOrgHealthModule,
     PlatformOrganizationModule,
     PlatformReportingModule,
     PlatformRevenueModule,
+    SupportNoteModule,
+    SupportSessionModule,
     PlatformSystemHealthModule,
     PlatformUserModule,
     ReferenceDataModule,

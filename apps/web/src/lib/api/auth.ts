@@ -9,6 +9,8 @@ export interface User {
   phoneNumber: string | null;
   jobTitle: string | null;
   status: string;
+  /** Cross-organization Platform Console access (v2.2) — already returned by GET /auth/me. */
+  isPlatformAdmin: boolean;
   lastLoginAt: string | null;
   emailVerifiedAt: string | null;
   createdAt: string;

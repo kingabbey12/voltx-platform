@@ -195,6 +195,15 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.featureFlag;
   }
 
+  /** Customer Success (v2.2 Phase 9) models — unscoped, same rationale as identityProvider above. */
+  get supportSession(): PrismaClient['supportSession'] {
+    return this.baseClient.supportSession;
+  }
+
+  get supportNote(): PrismaClient['supportNote'] {
+    return this.baseClient.supportNote;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }

@@ -487,6 +487,40 @@ export class AuthService {
     };
   }
 
+  /**
+   * v2.2 Customer Success — mints ONLY a short-lived access token for an
+   * active SupportSession (impersonation): no refresh token, no Session
+   * row, unlike issueTokens() above. A leaked long-lived refresh token
+   * would be a much worse footgun for a support session than simply
+   * requiring the platform admin to start a fresh, re-audited
+   * SupportSession once it expires. Reuses the exact same JwtService/
+   * JwtAccessPayload shape as issueTokens — just the `supportSessionId`
+   * claim and a caller-supplied expiry differ.
+   */
+  async issueImpersonationAccessToken(
+    userId: string,
+    organizationId: string,
+    supportSessionId: string,
+    expiresInSeconds: number,
+  ): Promise<{ accessToken: string; tokenType: 'Bearer'; expiresIn: number }> {
+    const payload: JwtAccessPayload = {
+      sub: userId,
+      org: organizationId,
+      type: 'access',
+      supportSessionId,
+    };
+
+    const accessToken = await this.jwtService.signAsync(payload, {
+      expiresIn: expiresInSeconds,
+    });
+
+    return {
+      accessToken,
+      tokenType: 'Bearer',
+      expiresIn: expiresInSeconds,
+    };
+  }
+
   private getAccessTokenExpiresInSeconds(): number {
     const configured = this.configService.get<string>(
       'jwt.accessExpiresIn',

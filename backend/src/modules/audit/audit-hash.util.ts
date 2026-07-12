@@ -10,6 +10,8 @@ export interface AuditLogHashInput {
   metadata: unknown;
   previousHash: string | null;
   createdAt: Date;
+  /** v2.2 Customer Success — optional so existing callers/fixtures that predate this field don't need updating; treated as null when omitted. */
+  supportSessionId?: string | null;
 }
 
 /**
@@ -52,6 +54,7 @@ export function computeAuditLogHash(input: AuditLogHashInput): string {
     resource: input.resource,
     resourceId: input.resourceId,
     metadata: input.metadata,
+    supportSessionId: input.supportSessionId ?? null,
     createdAt: input.createdAt.toISOString(),
   });
 

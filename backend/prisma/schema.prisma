@@ -559,14 +559,14 @@ model VerificationToken {
 }
 
 model AuditLog {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
-  requestId      String   @map("request_id")
-  action         String
-  resource       String
-  resourceId     String?  @map("resource_id") @db.Uuid
-  metadata       Json     @default("{}")
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  requestId        String   @map("request_id")
+  action           String
+  resource         String
+  resourceId       String?  @map("resource_id") @db.Uuid
+  metadata         Json     @default("{}")
   /// v2.2 Compliance Center — tamper-evident hash chain, computed at write
   /// time inside the same transaction as the insert (see AuditRepository.write).
   /// previousHash is the `hash` of the immediately preceding row for the same
@@ -575,14 +575,23 @@ model AuditLog {
   /// rows written before this feature existed simply have no chain entry —
   /// GET /compliance/audit/verify treats a null hash as "unchained" and skips
   /// it rather than reporting a false tamper break.
-  previousHash   String?  @map("previous_hash")
-  hash           String?  @map("hash")
-  createdAt      DateTime @default(now()) @map("created_at")
+  previousHash     String?  @map("previous_hash")
+  hash             String?  @map("hash")
+  /// v2.2 Customer Success (Phase 9) — set only when this row was written
+  /// while a SupportSession (impersonation) was active for the current
+  /// request; null for every ordinary action. `userId` above is always
+  /// the platform admin's own real user id in that case (impersonation
+  /// never fabricates another user's identity), so this column exists
+  /// purely to make "was this actually support, and under what reason"
+  /// independently queryable via a join to SupportSession.
+  supportSessionId String?  @map("support_session_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
 
   @@index([organizationId])
   @@index([userId])
   @@index([requestId])
   @@index([organizationId, createdAt])
+  @@index([supportSessionId])
   @@map("audit_logs")
 }
 
@@ -3443,4 +3452,59 @@ model FeatureFlag {
   updatedAt             DateTime        @updatedAt @map("updated_at")
 
   @@map("feature_flags")
+}
+
+/// v2.2 Customer Success (Phase 9) — a platform admin's time-boxed,
+/// mandatory-reason-logged impersonation of one organization. Unlike a
+/// normal login, this issues ONLY a short-lived access token (no
+/// refresh token, no Session row) — reusing the same JwtService/payload
+/// shape as AuthService.issueTokens but deliberately not the refresh-
+/// token/session side effects, since a leaked long-lived refresh token
+/// would be a much worse footgun for a support session than simply
+/// requiring a fresh, re-audited start once 45 minutes pass.
+/// `supportMembershipId` is set only when start() had to JIT-create a
+/// Membership for the admin in the target org (role 'admin', so support
+/// sees exactly what the org's own admin sees) — end()/expire() deletes
+/// exactly that row, never a genuine pre-existing membership the admin
+/// might coincidentally already hold. Revocation is instant and requires
+/// no token blocklist: JwtAccessStrategy checks this row's status/expiry
+/// live whenever a token carries a `supportSessionId` claim.
+enum SupportSessionStatus {
+  ACTIVE
+  ENDED
+  EXPIRED
+}
+
+model SupportSession {
+  id                   String               @id @default(uuid()) @db.Uuid
+  platformAdminUserId  String               @map("platform_admin_user_id") @db.Uuid
+  targetOrganizationId String               @map("target_organization_id") @db.Uuid
+  reason               String               @db.Text
+  status               SupportSessionStatus @default(ACTIVE)
+  supportMembershipId  String?              @map("support_membership_id") @db.Uuid
+  expiresAt            DateTime             @map("expires_at")
+  endedAt              DateTime?            @map("ended_at")
+  endedById            String?              @map("ended_by_id") @db.Uuid
+  createdAt            DateTime             @default(now()) @map("created_at")
+
+  @@index([platformAdminUserId])
+  @@index([targetOrganizationId])
+  @@index([status])
+  @@map("support_sessions")
+}
+
+/// v2.2 Customer Success (Phase 9) — a platform admin's freeform note on
+/// an organization, e.g. context left for the next support agent. Not
+/// tied to any single SupportSession since a note is often useful across
+/// several separate support interactions with the same organization.
+model SupportNote {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  authorId       String   @map("author_id") @db.Uuid
+  note           String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@map("support_notes")
 }

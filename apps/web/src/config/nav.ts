@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Plug,
   Settings,
+  ShieldCheck,
   Sparkles,
   Users,
   Workflow,
@@ -33,4 +34,9 @@ export const secondaryNav: NavItem[] = [
   { label: "Team", href: "/settings/team", icon: Users },
   { label: "Billing", href: "/billing", icon: CreditCard, shortcut: "G B" },
   { label: "Settings", href: "/settings", icon: Settings, shortcut: "G S" },
+];
+
+/** Only rendered for users with isPlatformAdmin (v2.2 Platform Console) — see Sidebar. */
+export const platformNav: NavItem[] = [
+  { label: "Platform Console", href: "/platform", icon: ShieldCheck },
 ];
