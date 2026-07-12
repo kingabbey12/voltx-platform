@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AttachmentsModule } from '../attachments/attachments.module';
+import { BillingModule } from '../billing/billing.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { AIController } from './ai.controller';
 import { AgentApprovalRepository } from './approvals/agent-approval.repository';
@@ -31,6 +32,7 @@ import { ToolModule } from './tools/tool.module';
     forwardRef(() => MemoryModule),
     forwardRef(() => KnowledgeModule),
     AttachmentsModule,
+    BillingModule,
   ],
   controllers: [AIController, ConversationController],
   providers: [

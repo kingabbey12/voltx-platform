@@ -7,6 +7,7 @@ import { AiRateLimiterService } from '../src/modules/ai/gateway/ai-rate-limiter.
 import { AiToolPermissionService } from '../src/modules/ai/gateway/ai-tool-permission.service';
 import { AiUsageService } from '../src/modules/ai/gateway/ai-usage.service';
 import { KnowledgeRetrieverService } from '../src/modules/ai/gateway/knowledge-retriever.service';
+import { UsageMeteringService } from '../src/modules/billing/usage-metering.service';
 import { AIStreamEvent } from '../src/modules/ai/models/ai-model.types';
 import { AIRuntimeService } from '../src/modules/ai/runtime/ai-runtime.service';
 import { ToolRegistry } from '../src/modules/ai/tools/tool.registry';
@@ -17,6 +18,7 @@ describe('AIGatewayService', () => {
   let tenantContextService: jest.Mocked<TenantContextService>;
   let auditService: jest.Mocked<AuditService>;
   let usageService: jest.Mocked<AiUsageService>;
+  let usageMeteringService: jest.Mocked<UsageMeteringService>;
   let rateLimiterService: jest.Mocked<AiRateLimiterService>;
   let toolPermissionService: jest.Mocked<AiToolPermissionService>;
   let knowledgeRetrieverService: jest.Mocked<KnowledgeRetrieverService>;
@@ -67,6 +69,12 @@ describe('AIGatewayService', () => {
           },
         },
         {
+          provide: UsageMeteringService,
+          useValue: {
+            record: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
           provide: AiRateLimiterService,
           useValue: {
             assertWithinLimit: jest.fn(),
@@ -109,6 +117,7 @@ describe('AIGatewayService', () => {
     tenantContextService = module.get(TenantContextService);
     auditService = module.get(AuditService);
     usageService = module.get(AiUsageService);
+    usageMeteringService = module.get(UsageMeteringService);
     rateLimiterService = module.get(AiRateLimiterService);
     toolPermissionService = module.get(AiToolPermissionService);
     knowledgeRetrieverService = module.get(KnowledgeRetrieverService);
@@ -144,6 +153,12 @@ describe('AIGatewayService', () => {
           workspaceContext: ['Existing context'],
         }),
       );
+      // streamChat's telemetry (usage + usage-metering + audit) fires from
+      // an un-awaited `finally` block by design, so it can never add
+      // latency to the stream's own completion — flush the event loop
+      // once so those fire-and-forget calls have actually landed before
+      // asserting on them below.
+      await new Promise((resolve) => setImmediate(resolve));
 
       expect(tenantContextService.getOrThrow).toHaveBeenCalled();
       expect(rateLimiterService.assertWithinLimit).toHaveBeenCalledWith('org-1');
@@ -173,6 +188,8 @@ describe('AIGatewayService', () => {
       expect(auditService.record).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'chat', resource: 'ai_gateway_request' }),
       );
+      expect(usageMeteringService.record).toHaveBeenCalledWith('org-1', 'ai_requests', 1);
+      expect(usageMeteringService.record).toHaveBeenCalledWith('org-1', 'ai_tokens', 15);
     });
 
     it('propagates rate limit failures without calling the runtime', async () => {
@@ -206,6 +223,7 @@ describe('AIGatewayService', () => {
       expect(usageService.record).toHaveBeenCalledWith(
         expect.objectContaining({ succeeded: false, errorMessage: 'provider unavailable' }),
       );
+      expect(usageMeteringService.record).not.toHaveBeenCalled();
     });
 
     it('defaults maxOutputTokens to 2048 for CHAT/CONVERSATION_MESSAGE when the caller passes none', async () => {

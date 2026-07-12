@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { drainToReturnValue } from '../../ai/streaming/drain-generator';
 import { WorkflowEngineService } from '../engine/workflow-engine.service';
+import { UsageMeteringService } from '../../billing/usage-metering.service';
 import { WORKFLOW_RUN_QUEUE } from './workflow-run-queue.constants';
 
 export interface WorkflowRunJobData {
@@ -41,6 +42,7 @@ export class WorkflowRunQueueService {
     @InjectQueue(WORKFLOW_RUN_QUEUE)
     private readonly queue: Queue<WorkflowRunJobData> | null,
     private readonly workflowEngineService: WorkflowEngineService,
+    private readonly usageMeteringService: UsageMeteringService,
   ) {}
 
   /**
@@ -63,6 +65,10 @@ export class WorkflowRunQueueService {
     grantedPermissions: string[] = [],
     organizationId?: string | null,
   ): Promise<void> {
+    if (organizationId) {
+      void this.usageMeteringService.record(organizationId, 'workflow_executions', 1);
+    }
+
     if (!this.queue) {
       await drainToReturnValue(
         this.workflowEngineService.executeRun(workflowRunId, grantedPermissions),

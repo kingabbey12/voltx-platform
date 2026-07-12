@@ -11,6 +11,7 @@ import { ExecuteToolRequest, ExecuteToolResponse } from '../tools/tool.service';
 import { AiRateLimiterService } from './ai-rate-limiter.service';
 import { AiToolPermissionService } from './ai-tool-permission.service';
 import { AiUsageService } from './ai-usage.service';
+import { UsageMeteringService } from '../../billing/usage-metering.service';
 import {
   AiGatewayChatInput,
   AiGatewayEmbeddingInput,
@@ -38,6 +39,7 @@ export class AIGatewayService {
     private readonly tenantContextService: TenantContextService,
     private readonly auditService: AuditService,
     private readonly usageService: AiUsageService,
+    private readonly usageMeteringService: UsageMeteringService,
     private readonly rateLimiterService: AiRateLimiterService,
     private readonly toolPermissionService: AiToolPermissionService,
     private readonly agentApprovalService: AgentApprovalService,
@@ -121,6 +123,17 @@ export class AIGatewayService {
           succeeded,
           errorMessage,
         });
+
+        if (succeeded) {
+          await this.usageMeteringService.record(tenant.organizationId, 'ai_requests', 1);
+          if (usage?.totalTokens) {
+            await this.usageMeteringService.record(
+              tenant.organizationId,
+              'ai_tokens',
+              usage.totalTokens,
+            );
+          }
+        }
 
         await this.auditService.record({
           action: 'chat',

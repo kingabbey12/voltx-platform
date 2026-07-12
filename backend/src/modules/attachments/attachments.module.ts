@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { AuditModule } from '../audit/audit.module';
+import { BillingModule } from '../billing/billing.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { ToolModule } from '../ai/tools/tool.module';
 import { AttachmentContentBuilderService } from './attachment-content-builder.service';
@@ -40,6 +41,7 @@ const queueProcessors = redisEnabled ? [AttachmentProcessingProcessor] : [];
 @Module({
   imports: [
     AuditModule,
+    BillingModule,
     KnowledgeModule,
     StorageModule,
     VirusScanModule,

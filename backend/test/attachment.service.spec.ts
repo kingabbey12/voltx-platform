@@ -11,6 +11,7 @@ import {
 } from '../src/modules/attachments/storage/storage-provider.interface';
 import { TenantContextService } from '../src/common/tenant/tenant-context.service';
 import { AuditService } from '../src/modules/audit/audit.service';
+import { UsageMeteringService } from '../src/modules/billing/usage-metering.service';
 
 describe('AttachmentService', () => {
   let service: AttachmentService;
@@ -85,6 +86,10 @@ describe('AttachmentService', () => {
         {
           provide: AuditService,
           useValue: { record: jest.fn(), recordWithExplicitActor: jest.fn() },
+        },
+        {
+          provide: UsageMeteringService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
         {
           provide: ConfigService,
@@ -170,6 +175,10 @@ describe('AttachmentService', () => {
           {
             provide: AuditService,
             useValue: { record: jest.fn(), recordWithExplicitActor: jest.fn() },
+          },
+          {
+            provide: UsageMeteringService,
+            useValue: { record: jest.fn().mockResolvedValue(undefined) },
           },
           { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(10) } },
         ],

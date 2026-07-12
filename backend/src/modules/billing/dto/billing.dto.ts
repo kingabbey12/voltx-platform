@@ -16,6 +16,7 @@ import { SubscriptionEntity } from '../entities/subscription.entity';
 import { InvoiceEntity } from '../entities/invoice.entity';
 import { PaymentMethodEntity } from '../entities/payment.entity';
 import { CheckoutSessionEntity, CustomerPortalSessionEntity } from '../entities/session.entity';
+import { UsageSnapshotEntity } from '../entities/usage.entity';
 
 export class CreateCheckoutSessionDto {
   @ApiProperty({ example: 'professional' })
@@ -122,7 +123,12 @@ export class PlanResponseDto {
     description:
       'Present only on GET /billing/plans/:key — per-feature usage limits (null = unlimited).',
   })
-  limits?: Array<{ featureKey: string; limit: number | null; softLimitPercent: number | null }>;
+  limits?: Array<{
+    featureKey: string;
+    unit: string;
+    limit: number | null;
+    softLimitPercent: number | null;
+  }>;
 
   static fromEntity(entity: PlanEntity | PlanWithLimits): PlanResponseDto {
     const dto = new PlanResponseDto();
@@ -267,8 +273,58 @@ export class PortalSessionResponseDto {
   }
 }
 
+export class ListUsageHistoryQueryDto {
+  @ApiPropertyOptional({ example: 'ai_requests' })
+  @IsOptional()
+  @IsString()
+  featureKey?: string;
+
+  @ApiPropertyOptional({ example: 90, minimum: 1, maximum: 365 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  limit?: number = 90;
+}
+
+export class FeatureUsageResponseDto {
+  @ApiProperty() featureKey!: string;
+  @ApiProperty() currentUsage!: number;
+  @ApiPropertyOptional({ description: 'null = unlimited on this plan' })
+  limit!: number | null;
+  @ApiPropertyOptional() remaining!: number | null;
+  @ApiProperty() unit!: string;
+}
+
+export class UsageSnapshotResponseDto {
+  @ApiProperty() featureKey!: string;
+  @ApiProperty() periodStart!: string;
+  @ApiProperty() periodEnd!: string;
+  @ApiProperty() totalQuantity!: number;
+
+  static fromEntity(entity: UsageSnapshotEntity): UsageSnapshotResponseDto {
+    const dto = new UsageSnapshotResponseDto();
+    dto.featureKey = entity.featureKey;
+    dto.periodStart = entity.periodStart.toISOString();
+    dto.periodEnd = entity.periodEnd.toISOString();
+    dto.totalQuantity = entity.totalQuantity;
+    return dto;
+  }
+}
+
 export class PlanSuccessResponseDto extends ApiSuccessResponseDto<PlanResponseDto> {
   @ApiProperty({ type: PlanResponseDto }) declare data: PlanResponseDto;
+}
+
+export class UsageSuccessResponseDto extends ApiSuccessResponseDto<FeatureUsageResponseDto[]> {
+  @ApiProperty({ type: [FeatureUsageResponseDto] }) declare data: FeatureUsageResponseDto[];
+}
+
+export class UsageHistorySuccessResponseDto extends ApiSuccessResponseDto<
+  UsageSnapshotResponseDto[]
+> {
+  @ApiProperty({ type: [UsageSnapshotResponseDto] }) declare data: UsageSnapshotResponseDto[];
 }
 
 export class PlansSuccessResponseDto extends ApiSuccessResponseDto<PlanResponseDto[]> {

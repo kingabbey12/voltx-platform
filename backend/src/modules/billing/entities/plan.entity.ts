@@ -40,5 +40,10 @@ export interface FeatureLimitEntity {
 
 /** A plan with its feature limits joined in, keyed by feature key — the shape PlanService/QuotaService actually consume. */
 export interface PlanWithLimits extends PlanEntity {
-  limits: Array<{ featureKey: string; limit: number | null; softLimitPercent: number | null }>;
+  limits: Array<{
+    featureKey: string;
+    unit: FeatureUnit;
+    limit: number | null;
+    softLimitPercent: number | null;
+  }>;
 }

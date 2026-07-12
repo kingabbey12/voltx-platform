@@ -94,6 +94,48 @@ describe('Billing on registration (e2e)', () => {
     expect(plan?.key).toBe('professional');
   });
 
+  it('reports zeroed current-period usage against the Professional plan limits right after registration', async () => {
+    const email = `billing-usage-${Date.now()}@example.com`;
+
+    const registerResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        email,
+        password: 'Password123!',
+        firstName: 'Usage',
+        lastName: 'Tester',
+        organizationName: 'Usage Test Org',
+      })
+      .expect(201);
+    const accessToken = (registerResponse.body as ApiSuccessResponse<LoginResponseDto>).data
+      .accessToken;
+
+    const usageResponse = await request(app.getHttpServer())
+      .get('/api/v1/billing/usage')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+    const usage = (
+      usageResponse.body as ApiSuccessResponse<
+        Array<{ featureKey: string; currentUsage: number; limit: number | null }>
+      >
+    ).data;
+
+    expect(usage.length).toBeGreaterThan(0);
+    const aiRequestsUsage = usage.find((entry) => entry.featureKey === 'ai_requests');
+    expect(aiRequestsUsage).toBeDefined();
+    expect(aiRequestsUsage?.currentUsage).toBe(0);
+    expect(typeof aiRequestsUsage?.limit === 'number' || aiRequestsUsage?.limit === null).toBe(
+      true,
+    );
+
+    const historyResponse = await request(app.getHttpServer())
+      .get('/api/v1/billing/usage/history')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+    const history = (historyResponse.body as ApiSuccessResponse<unknown[]>).data;
+    expect(history).toEqual([]);
+  });
+
   it('assigns and releases seats against the org’s subscription, respecting availability', async () => {
     const email = `billing-seats-${Date.now()}@example.com`;
     const registerResponse = await request(app.getHttpServer())

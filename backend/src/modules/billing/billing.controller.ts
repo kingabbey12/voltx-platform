@@ -11,8 +11,10 @@ import {
   ChangeSubscriptionPlanDto,
   CreateCheckoutSessionDto,
   CreatePortalSessionDto,
+  FeatureUsageResponseDto,
   InvoiceResponseDto,
   ListInvoicesQueryDto,
+  ListUsageHistoryQueryDto,
   PaymentMethodResponseDto,
   PlanResponseDto,
   RedeemPromotionCodeDto,
@@ -21,11 +23,13 @@ import {
   PortalSessionResponseDto,
   CreateSetupIntentResponseDto,
   PaginatedInvoicesResponseDto,
+  UsageSnapshotResponseDto,
 } from './dto/billing.dto';
 import { PlanService } from './plan.service';
 import { SubscriptionService } from './subscription.service';
 import { InvoiceRepository } from './invoice.repository';
 import { PaymentMethodRepository } from './payment-method.repository';
+import { UsageMeteringService } from './usage-metering.service';
 import { StripeCheckoutService } from './stripe/stripe-checkout.service';
 import { StripeSubscriptionService } from './stripe/stripe-subscription.service';
 import { StripePaymentMethodService } from './stripe/stripe-payment-method.service';
@@ -40,6 +44,7 @@ export class BillingController {
     private readonly subscriptionService: SubscriptionService,
     private readonly invoiceRepository: InvoiceRepository,
     private readonly paymentMethodRepository: PaymentMethodRepository,
+    private readonly usageMeteringService: UsageMeteringService,
     private readonly stripeCheckoutService: StripeCheckoutService,
     private readonly stripeSubscriptionService: StripeSubscriptionService,
     private readonly stripePaymentMethodService: StripePaymentMethodService,
@@ -73,6 +78,52 @@ export class BillingController {
       user.organizationId,
     );
     return SubscriptionResponseDto.fromEntity(subscription);
+  }
+
+  @Get('usage')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('billing.subscription.read')
+  @ApiOperation({ summary: "Current-period usage per feature vs. the organization's plan limits" })
+  async getCurrentUsage(
+    @CurrentUser() user: CurrentUserInterface,
+  ): Promise<FeatureUsageResponseDto[]> {
+    const subscription = await this.subscriptionService.getCurrentForOrganizationOrThrow(
+      user.organizationId,
+    );
+    const plan = await this.planService.getPlanWithLimitsOrThrow(subscription.planId);
+
+    return Promise.all(
+      plan.limits.map(async (planLimit) => {
+        const currentUsage = await this.usageMeteringService.getCurrentPeriodUsage(
+          user.organizationId,
+          planLimit.featureKey,
+        );
+        const dto = new FeatureUsageResponseDto();
+        dto.featureKey = planLimit.featureKey;
+        dto.currentUsage = currentUsage;
+        dto.limit = planLimit.limit;
+        dto.remaining =
+          planLimit.limit === null ? null : Math.max(0, planLimit.limit - currentUsage);
+        dto.unit = planLimit.unit;
+        return dto;
+      }),
+    );
+  }
+
+  @Get('usage/history')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('billing.subscription.read')
+  @ApiOperation({ summary: 'Historical usage snapshots for usage charts' })
+  async getUsageHistory(
+    @CurrentUser() user: CurrentUserInterface,
+    @Query() query: ListUsageHistoryQueryDto,
+  ): Promise<UsageSnapshotResponseDto[]> {
+    const snapshots = await this.usageMeteringService.getUsageHistory(
+      user.organizationId,
+      query.featureKey,
+      query.limit,
+    );
+    return snapshots.map((snapshot) => UsageSnapshotResponseDto.fromEntity(snapshot));
   }
 
   @Post('checkout')

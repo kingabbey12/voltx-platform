@@ -138,6 +138,7 @@ function toPlanWithLimits(
     ...toPlanEntity(record),
     limits: record.featureLimits.map((limit) => ({
       featureKey: limit.feature.key,
+      unit: limit.feature.unit,
       limit: limit.limit === null ? null : Number(limit.limit),
       softLimitPercent: limit.softLimitPercent,
     })),

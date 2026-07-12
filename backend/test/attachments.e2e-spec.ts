@@ -98,6 +98,37 @@ describe('Attachments (e2e)', () => {
     expect(downloadResponse.headers['content-disposition']).toContain('notes.txt');
   });
 
+  it('records a storage usage event sized to the uploaded file (Phase 3 usage metering)', async () => {
+    const { accessToken, organization } = await authenticateContext(app, prisma, usersRepository);
+    const fileContents = 'Usage metering should see exactly this many bytes.';
+
+    const uploadResponse = await request(app.getHttpServer())
+      .post('/api/v1/attachments/upload')
+      .set(bearerAuthHeaders(accessToken))
+      .attach('file', Buffer.from(fileContents), {
+        filename: 'metered.txt',
+        contentType: 'text/plain',
+      })
+      .expect(201);
+    const uploaded = (uploadResponse.body as ApiSuccessResponse<AttachmentBody>).data;
+    expect(uploaded.sizeBytes).toBe(Buffer.byteLength(fileContents));
+
+    // Usage metering is deliberately fire-and-forget (must never add
+    // latency to the upload response itself) — poll briefly rather than
+    // asserting immediately after the 201 response.
+    const deadline = Date.now() + 5_000;
+    let usageRecord = null;
+    while (Date.now() < deadline) {
+      usageRecord = await prisma.system.usageRecord.findFirst({
+        where: { organizationId: organization.id, featureKey: 'storage' },
+      });
+      if (usageRecord) break;
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+    }
+    expect(usageRecord).not.toBeNull();
+    expect(Number(usageRecord?.quantity)).toBe(Buffer.byteLength(fileContents));
+  });
+
   it('rejects an unsupported file type before any bytes are persisted', async () => {
     const { accessToken } = await authenticateContext(app, prisma, usersRepository);
 

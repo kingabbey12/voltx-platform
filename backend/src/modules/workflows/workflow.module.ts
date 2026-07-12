@@ -4,6 +4,7 @@ import { AIModule } from '../ai/ai.module';
 import { AgentModule } from '../ai/agents/agent.module';
 import { ToolModule } from '../ai/tools/tool.module';
 import { AuthModule } from '../auth/auth.module';
+import { BillingModule } from '../billing/billing.module';
 import { WorkflowDefinitionValidatorService } from './definition/workflow-definition-validator.service';
 import { WorkflowEngineService } from './engine/workflow-engine.service';
 import { AgentStepExecutor } from './executors/agent-step-executor';
@@ -69,7 +70,7 @@ const queueImports = redisEnabled
 const queueProcessors = redisEnabled ? [WorkflowRunProcessor] : [];
 
 @Module({
-  imports: [AIModule, AgentModule, AuthModule, ToolModule, ...queueImports],
+  imports: [AIModule, AgentModule, AuthModule, BillingModule, ToolModule, ...queueImports],
   // WorkflowTemplateController/WorkflowSecretController/WorkflowVariableController
   // MUST be registered before WorkflowController — their bare 'templates'/
   // 'secrets'/'variables' list routes are two path segments, exactly like

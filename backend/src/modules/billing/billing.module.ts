@@ -26,6 +26,9 @@ import { StripeWebhookDispatcherService } from './stripe/stripe-webhook-dispatch
 import { STRIPE_WEBHOOK_QUEUE } from './jobs/stripe-webhook-queue.constants';
 import { StripeWebhookQueueService } from './jobs/stripe-webhook-queue.service';
 import { StripeWebhookProcessor } from './jobs/stripe-webhook.processor';
+import { UsageRecordRepository } from './usage-record.repository';
+import { UsageMeteringService } from './usage-metering.service';
+import { BillingCronService } from './billing-cron.service';
 import { BillingController } from './billing.controller';
 import { StripeWebhookController } from './stripe-webhook.controller';
 
@@ -75,9 +78,18 @@ const queueProcessors = redisEnabled ? [StripeWebhookProcessor] : [];
     StripeCouponService,
     StripeWebhookDispatcherService,
     StripeWebhookQueueService,
+    UsageRecordRepository,
+    UsageMeteringService,
+    BillingCronService,
     PlatformAdminGuard,
     ...queueProcessors,
   ],
-  exports: [PlanService, BillingAccountService, SubscriptionService, SeatAssignmentService],
+  exports: [
+    PlanService,
+    BillingAccountService,
+    SubscriptionService,
+    SeatAssignmentService,
+    UsageMeteringService,
+  ],
 })
 export class BillingModule {}

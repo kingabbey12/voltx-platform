@@ -80,6 +80,12 @@ export class PaymentMethodRepository {
     return records.map(toEntity);
   }
 
+  /** Unscoped — used by the trial-expiry cron sweep, which runs with no HTTP-request tenant context. */
+  async existsForOrganization(organizationId: string): Promise<boolean> {
+    const count = await this.prisma.system.paymentMethod.count({ where: { organizationId } });
+    return count > 0;
+  }
+
   async setDefault(billingAccountId: string, id: string): Promise<PaymentMethodEntity> {
     await this.prisma.system.paymentMethod.updateMany({
       where: { billingAccountId },

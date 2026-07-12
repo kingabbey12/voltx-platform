@@ -18,6 +18,7 @@ import { STORAGE_PROVIDER, StorageProvider } from './storage/storage-provider.in
 import { isSupportedMimeType } from './supported-mime-types';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { AuditService } from '../audit/audit.service';
+import { UsageMeteringService } from '../billing/usage-metering.service';
 
 export const MULTIPART_PART_SIZE_BYTES = 8 * 1024 * 1024; // 8MB — safely above S3's 5MB minimum part size
 
@@ -37,6 +38,7 @@ export class AttachmentService {
     private readonly processingQueue: AttachmentProcessingQueueService,
     private readonly tenantContextService: TenantContextService,
     private readonly auditService: AuditService,
+    private readonly usageMeteringService: UsageMeteringService,
     configService: ConfigService,
   ) {
     this.maxFileSizeBytes = configService.get<number>(
@@ -114,6 +116,8 @@ export class AttachmentService {
         sizeBytes: input.buffer.length,
       },
     });
+
+    void this.usageMeteringService.record(organizationId, 'storage', input.buffer.length);
 
     this.processingQueue.enqueue(attachment.id, organizationId);
     return attachment;

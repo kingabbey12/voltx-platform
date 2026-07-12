@@ -1,10 +1,13 @@
 import { WorkflowRunQueueService } from '../src/modules/workflows/jobs/workflow-run-queue.service';
+import { UsageMeteringService } from '../src/modules/billing/usage-metering.service';
 
 describe('WorkflowRunQueueService', () => {
   let workflowEngineService: { executeRun: jest.Mock };
+  let usageMeteringService: jest.Mocked<UsageMeteringService>;
 
   beforeEach(() => {
     workflowEngineService = { executeRun: jest.fn() };
+    usageMeteringService = { record: jest.fn().mockResolvedValue(undefined) } as never;
   });
 
   describe('when Redis is disabled (queue is null)', () => {
@@ -15,7 +18,11 @@ describe('WorkflowRunQueueService', () => {
           return undefined;
         })(),
       );
-      const service = new WorkflowRunQueueService(null, workflowEngineService as never);
+      const service = new WorkflowRunQueueService(
+        null,
+        workflowEngineService as never,
+        usageMeteringService,
+      );
 
       await service.enqueueRun('run-1', 0, ['workflow.run'], 'org-1');
 
@@ -26,7 +33,11 @@ describe('WorkflowRunQueueService', () => {
   describe('when Redis is enabled (queue is present)', () => {
     it('enqueues with a deterministic run+version jobId instead of calling the engine directly', async () => {
       const queue = { add: jest.fn().mockResolvedValue(undefined) };
-      const service = new WorkflowRunQueueService(queue as never, workflowEngineService as never);
+      const service = new WorkflowRunQueueService(
+        queue as never,
+        workflowEngineService as never,
+        usageMeteringService,
+      );
 
       await service.enqueueRun('run-1', 3, ['workflow.run'], 'org-1');
 
@@ -40,7 +51,11 @@ describe('WorkflowRunQueueService', () => {
 
     it('uses a different jobId for a later re-entry into the same run (a different version)', async () => {
       const queue = { add: jest.fn().mockResolvedValue(undefined) };
-      const service = new WorkflowRunQueueService(queue as never, workflowEngineService as never);
+      const service = new WorkflowRunQueueService(
+        queue as never,
+        workflowEngineService as never,
+        usageMeteringService,
+      );
 
       await service.enqueueRun('run-1', 0);
       await service.enqueueRun('run-1', 1);
@@ -49,6 +64,34 @@ describe('WorkflowRunQueueService', () => {
         (call: unknown[]) => (call[2] as { jobId: string }).jobId,
       );
       expect(jobIds).toEqual(['run:run-1:0', 'run:run-1:1']);
+    });
+  });
+
+  describe('usage metering', () => {
+    it('records a workflow_executions usage event when an organizationId is provided', async () => {
+      const queue = { add: jest.fn().mockResolvedValue(undefined) };
+      const service = new WorkflowRunQueueService(
+        queue as never,
+        workflowEngineService as never,
+        usageMeteringService,
+      );
+
+      await service.enqueueRun('run-1', 0, [], 'org-1');
+
+      expect(usageMeteringService.record).toHaveBeenCalledWith('org-1', 'workflow_executions', 1);
+    });
+
+    it('does not record usage when no organizationId is provided', async () => {
+      const queue = { add: jest.fn().mockResolvedValue(undefined) };
+      const service = new WorkflowRunQueueService(
+        queue as never,
+        workflowEngineService as never,
+        usageMeteringService,
+      );
+
+      await service.enqueueRun('run-1', 0);
+
+      expect(usageMeteringService.record).not.toHaveBeenCalled();
     });
   });
 });
