@@ -153,7 +153,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const providedCode = exceptionResponse.code;
     const message = this.extractMessage(exceptionResponse.message) ?? 'Request failed';
-    const details = this.extractDetails(exceptionResponse.message);
+    const details = this.extractDetails(exceptionResponse);
 
     return {
       code:
@@ -185,9 +185,21 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     return undefined;
   }
 
-  private extractDetails(message: unknown): unknown {
-    if (Array.isArray(message)) {
-      return message;
+  /**
+   * Validation errors (class-validator's array-of-strings `message`) are
+   * the original, longest-standing shape here; an explicit `details`
+   * property on the thrown exception's response object (e.g.
+   * FeatureGateGuard's `{code, message, details: {featureKey, limit,
+   * currentUsage}}`) is a newer, equally-valid way for a handler to
+   * surface structured data the client needs to act on the error.
+   */
+  private extractDetails(exceptionResponse: Record<string, unknown>): unknown {
+    if (Array.isArray(exceptionResponse.message)) {
+      return exceptionResponse.message;
+    }
+
+    if ('details' in exceptionResponse) {
+      return exceptionResponse.details;
     }
 
     return undefined;

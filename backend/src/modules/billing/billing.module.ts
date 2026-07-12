@@ -29,6 +29,8 @@ import { StripeWebhookProcessor } from './jobs/stripe-webhook.processor';
 import { UsageRecordRepository } from './usage-record.repository';
 import { UsageMeteringService } from './usage-metering.service';
 import { BillingCronService } from './billing-cron.service';
+import { QuotaService } from './quota.service';
+import { FeatureGateGuard } from './guards/feature-gate.guard';
 import { BillingController } from './billing.controller';
 import { StripeWebhookController } from './stripe-webhook.controller';
 
@@ -81,6 +83,8 @@ const queueProcessors = redisEnabled ? [StripeWebhookProcessor] : [];
     UsageRecordRepository,
     UsageMeteringService,
     BillingCronService,
+    QuotaService,
+    FeatureGateGuard,
     PlatformAdminGuard,
     ...queueProcessors,
   ],
@@ -90,6 +94,8 @@ const queueProcessors = redisEnabled ? [StripeWebhookProcessor] : [];
     SubscriptionService,
     SeatAssignmentService,
     UsageMeteringService,
+    QuotaService,
+    FeatureGateGuard,
   ],
 })
 export class BillingModule {}

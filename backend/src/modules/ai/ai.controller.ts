@@ -2,6 +2,8 @@ import { Body, Controller, HttpCode, HttpStatus, Post, Res, UseGuards } from '@n
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { AUTH_GUARDS } from '../../common/guards/protected.guards';
+import { RequireFeature } from '../billing/decorators/require-feature.decorator';
+import { FeatureGateGuard } from '../billing/guards/feature-gate.guard';
 import { AIChatRequestDto } from './dto/ai-chat.dto';
 import { AIGatewayService } from './gateway/ai-gateway.service';
 import { formatSseEvent } from './streaming/sse-event.formatter';
@@ -15,6 +17,8 @@ export class AIController {
 
   @Post('chat')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(FeatureGateGuard)
+  @RequireFeature('ai_requests')
   @ApiOperation({ summary: 'Stream a chat completion over Server-Sent Events' })
   @ApiConsumes('application/json')
   @ApiProduces('text/event-stream')

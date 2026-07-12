@@ -12,6 +12,7 @@ import {
 import { TenantContextService } from '../src/common/tenant/tenant-context.service';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { UsageMeteringService } from '../src/modules/billing/usage-metering.service';
+import { QuotaService } from '../src/modules/billing/quota.service';
 
 describe('AttachmentService', () => {
   let service: AttachmentService;
@@ -20,6 +21,7 @@ describe('AttachmentService', () => {
   let processingQueue: jest.Mocked<AttachmentProcessingQueueService>;
   let tenantContextService: jest.Mocked<TenantContextService>;
   let auditService: jest.Mocked<AuditService>;
+  let quotaService: jest.Mocked<QuotaService>;
 
   const attachmentEntity: AttachmentEntity = {
     id: 'attachment-1',
@@ -92,6 +94,18 @@ describe('AttachmentService', () => {
           useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
         {
+          provide: QuotaService,
+          useValue: {
+            checkQuota: jest.fn().mockResolvedValue({
+              allowed: true,
+              featureKey: 'storage',
+              limit: null,
+              currentUsage: 0,
+              remaining: null,
+            }),
+          },
+        },
+        {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue(25 * 1024 * 1024) },
         },
@@ -104,6 +118,7 @@ describe('AttachmentService', () => {
     processingQueue = module.get(AttachmentProcessingQueueService);
     tenantContextService = module.get(TenantContextService);
     auditService = module.get(AuditService);
+    quotaService = module.get(QuotaService);
 
     tenantContextService.getOrThrow.mockReturnValue({
       organizationId: 'org-1',
@@ -151,6 +166,28 @@ describe('AttachmentService', () => {
       expect(processingQueue.enqueue).not.toHaveBeenCalled();
     });
 
+    it('rejects an upload that would exceed the org storage quota, before touching storage', async () => {
+      quotaService.checkQuota.mockResolvedValue({
+        allowed: false,
+        featureKey: 'storage',
+        limit: 1000,
+        currentUsage: 995,
+        remaining: 5,
+        reason: 'QUOTA_EXCEEDED',
+      });
+
+      await expect(
+        service.uploadSingle({
+          fileName: 'report.pdf',
+          mimeType: 'application/pdf',
+          buffer: Buffer.from('pdf-bytes'),
+        }),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(storageProvider.upload).not.toHaveBeenCalled();
+      expect(repository.createUnscoped).not.toHaveBeenCalled();
+    });
+
     it('rejects an unsupported MIME type before touching storage', async () => {
       await expect(
         service.uploadSingle({
@@ -179,6 +216,18 @@ describe('AttachmentService', () => {
           {
             provide: UsageMeteringService,
             useValue: { record: jest.fn().mockResolvedValue(undefined) },
+          },
+          {
+            provide: QuotaService,
+            useValue: {
+              checkQuota: jest.fn().mockResolvedValue({
+                allowed: true,
+                featureKey: 'storage',
+                limit: null,
+                currentUsage: 0,
+                remaining: null,
+              }),
+            },
           },
           { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(10) } },
         ],

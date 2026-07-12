@@ -1,4 +1,4 @@
-import { ArgumentsHost, BadRequestException, HttpStatus } from '@nestjs/common';
+import { ArgumentsHost, BadRequestException, ForbiddenException, HttpStatus } from '@nestjs/common';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
 import { AIProviderError } from '../src/modules/ai/providers/ai-provider.interface';
 
@@ -88,5 +88,26 @@ describe('GlobalExceptionFilter', () => {
     expect(body.error.code).toBe('VALIDATION_FAILED');
     expect(body.error.message).toBe('email must be an email, password is too short');
     expect(body.error.details).toEqual(['email must be an email', 'password is too short']);
+  });
+
+  it('passes through an explicit `details` object on the exception response (e.g. FeatureGateGuard)', () => {
+    const { host, response } = buildHost();
+
+    filter.catch(
+      new ForbiddenException({
+        code: 'QUOTA_EXCEEDED',
+        message: 'You have reached your plan\'s limit for "ai_requests".',
+        details: { featureKey: 'ai_requests', limit: 100, currentUsage: 100 },
+      }),
+      host,
+    );
+
+    const body = firstResponseBody(response);
+    expect(body.error.code).toBe('QUOTA_EXCEEDED');
+    expect(body.error.details).toEqual({
+      featureKey: 'ai_requests',
+      limit: 100,
+      currentUsage: 100,
+    });
   });
 });

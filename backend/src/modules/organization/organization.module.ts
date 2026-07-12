@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BillingModule } from '../billing/billing.module';
 import {
   InvitationController,
   InvitationPublicController,
@@ -10,6 +11,7 @@ import { OrganizationRepository } from './organization.repository';
 import { OrganizationService } from './organization.service';
 
 @Module({
+  imports: [BillingModule],
   controllers: [OrganizationController, InvitationController, InvitationPublicController],
   providers: [OrganizationService, OrganizationRepository, InvitationService, InvitationRepository],
   exports: [OrganizationService, OrganizationRepository],

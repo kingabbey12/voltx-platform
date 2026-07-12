@@ -19,6 +19,7 @@ import { isSupportedMimeType } from './supported-mime-types';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { AuditService } from '../audit/audit.service';
 import { UsageMeteringService } from '../billing/usage-metering.service';
+import { QuotaService } from '../billing/quota.service';
 
 export const MULTIPART_PART_SIZE_BYTES = 8 * 1024 * 1024; // 8MB — safely above S3's 5MB minimum part size
 
@@ -39,6 +40,7 @@ export class AttachmentService {
     private readonly tenantContextService: TenantContextService,
     private readonly auditService: AuditService,
     private readonly usageMeteringService: UsageMeteringService,
+    private readonly quotaService: QuotaService,
     configService: ConfigService,
   ) {
     this.maxFileSizeBytes = configService.get<number>(
@@ -79,6 +81,30 @@ export class AttachmentService {
     input: UploadFileInput,
   ): Promise<AttachmentEntity> {
     this.assertValid(input.mimeType, input.buffer.length);
+
+    // Storage quota is checked here (against the real byte count) rather
+    // than via FeatureGateGuard/@RequireFeature — a guard runs before
+    // multer parses the multipart body, so it can never see the actual
+    // file size the way this method already can.
+    const quota = await this.quotaService.checkQuota(
+      organizationId,
+      'storage',
+      input.buffer.length,
+    );
+    if (!quota.allowed) {
+      throw new ForbiddenException({
+        code: quota.reason ?? 'QUOTA_EXCEEDED',
+        message:
+          quota.reason === 'SUBSCRIPTION_INACTIVE'
+            ? 'Your subscription is not active — update your billing to continue.'
+            : "You have reached your plan's storage limit.",
+        details: {
+          featureKey: quota.featureKey,
+          limit: quota.limit,
+          currentUsage: quota.currentUsage,
+        },
+      });
+    }
 
     const storageKey = buildStorageKey(organizationId, input.fileName);
     await this.storageProvider.upload(storageKey, input.buffer, input.mimeType);

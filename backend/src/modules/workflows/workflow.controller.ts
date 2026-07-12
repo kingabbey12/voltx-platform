@@ -29,6 +29,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserInterface } from '../auth/interfaces/current-user.interface';
 import { Permissions } from '../permissions/decorators/permissions.decorator';
 import { PermissionGuard } from '../permissions/guards/permission.guard';
+import { RequireFeature } from '../billing/decorators/require-feature.decorator';
+import { FeatureGateGuard } from '../billing/guards/feature-gate.guard';
 import {
   DecideApprovalDto,
   PaginatedWorkflowApprovalsResponseDto,
@@ -263,8 +265,9 @@ export class WorkflowController {
   }
 
   @Post(':id/run')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(...AUTH_GUARDS, PermissionGuard, FeatureGateGuard)
   @Permissions('workflow.run')
+  @RequireFeature('workflow_executions')
   @ApiOperation({ summary: 'Run a workflow to completion (or until paused/waiting-approval)' })
   @ApiCreatedResponse({ type: WorkflowRunResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })

@@ -26,6 +26,8 @@ import { ApiSuccessResponseDto } from '../../../common/dto/api-response.dto';
 import { LoginResponseDto, MessageResponseDto } from '../../auth/dto/auth-response.dto';
 import { Permissions } from '../../permissions/decorators/permissions.decorator';
 import { PermissionGuard } from '../../permissions/guards/permission.guard';
+import { RequireFeature } from '../../billing/decorators/require-feature.decorator';
+import { FeatureGateGuard } from '../../billing/guards/feature-gate.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserInterface } from '../../auth/interfaces/current-user.interface';
 import {
@@ -58,8 +60,9 @@ export class InvitationController {
   ) {}
 
   @Post()
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(...AUTH_GUARDS, PermissionGuard, FeatureGateGuard)
   @Permissions('organization.invite')
+  @RequireFeature('seats')
   @ApiOperation({ summary: 'Invite a teammate to this organization by email' })
   @ApiOkResponse({ description: 'Invitation created', type: CreateInvitationSuccessResponseDto })
   @ApiConflictResponse({ description: 'Already a member, or a pending invitation already exists' })
