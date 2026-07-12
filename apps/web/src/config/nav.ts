@@ -1,6 +1,7 @@
 import {
   Bot,
   Building2,
+  CreditCard,
   Inbox,
   LayoutDashboard,
   Plug,
@@ -30,5 +31,6 @@ export const mainNav: NavItem[] = [
 
 export const secondaryNav: NavItem[] = [
   { label: "Team", href: "/settings/team", icon: Users },
+  { label: "Billing", href: "/billing", icon: CreditCard, shortcut: "G B" },
   { label: "Settings", href: "/settings", icon: Settings, shortcut: "G S" },
 ];
