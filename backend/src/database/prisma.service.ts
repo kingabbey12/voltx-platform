@@ -159,6 +159,24 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.consentRecord;
   }
 
+  /**
+   * v2.2 Security Center models — same convention as identityProvider above:
+   * org/user-scoped in the domain sense, but not scoped by the tenant
+   * extension, so every repository method filters by organizationId/userId
+   * explicitly.
+   */
+  get session(): PrismaClient['session'] {
+    return this.baseClient.session;
+  }
+
+  get trustedDevice(): PrismaClient['trustedDevice'] {
+    return this.baseClient.trustedDevice;
+  }
+
+  get apiKey(): PrismaClient['apiKey'] {
+    return this.baseClient.apiKey;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }

@@ -20,6 +20,25 @@ export class LoginResponseDto extends AuthTokensDto {
   user!: UserResponseDto;
 }
 
+/**
+ * v2.2 Security Center — returned by POST /auth/login instead of
+ * LoginResponseDto when the account (or its organization's security policy)
+ * requires a second factor. No access/refresh token is issued at this
+ * point — `mfaChallengeToken` is only redeemable at
+ * POST /security/mfa/verify-login, which is the sole path that ever calls
+ * AuthService.issueTokens() for this login attempt.
+ */
+export class MfaChallengeResponseDto {
+  @ApiProperty({ example: true })
+  mfaRequired!: true;
+
+  @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
+  mfaChallengeToken!: string;
+
+  @ApiProperty({ example: 300, description: 'Challenge token lifetime in seconds' })
+  expiresIn!: number;
+}
+
 export class AuthMeResponseDto extends UserResponseDto {
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
   organizationId!: string;

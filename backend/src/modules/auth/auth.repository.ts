@@ -7,6 +7,7 @@ export interface AuthUserRecord {
   email: string;
   passwordHash: string | null;
   status: UserStatus;
+  mfaEnabled: boolean;
 }
 
 @Injectable()
@@ -21,6 +22,7 @@ export class AuthRepository {
         email: true,
         passwordHash: true,
         status: true,
+        mfaEnabled: true,
       },
     });
 

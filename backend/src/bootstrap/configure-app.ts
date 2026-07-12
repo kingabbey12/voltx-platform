@@ -2,7 +2,7 @@ import { INestApplication, RequestMethod, ValidationPipe, VersioningType } from 
 import { ConfigService } from '@nestjs/config';
 import compression from 'compression';
 import helmet from 'helmet';
-import { json, urlencoded } from 'express';
+import { Express, json, urlencoded } from 'express';
 import { Logger } from 'nestjs-pino';
 import { GlobalExceptionFilter } from '../common/filters/global-exception.filter';
 import { LoggingInterceptor } from '../common/interceptors/logging.interceptor';
@@ -15,6 +15,16 @@ export function configureApp(app: INestApplication): void {
   const configService = app.get(ConfigService);
   const requestBodyLimit = configService.get<string>('security.requestBodyLimit', '1mb');
   const corsAllowedOrigins = configService.get<string[]>('security.corsAllowedOrigins', []);
+  const trustedProxyCount = configService.get<number>('security.trustedProxyCount', 0);
+
+  // Governs how Express resolves `request.ip` (used by IpAllowlistGuard,
+  // Security Center login-history, and rate limiting). 0 means "trust
+  // nothing" — the raw socket address is used and X-Forwarded-For is
+  // ignored, so a client can never spoof its IP by sending that header
+  // unless an operator explicitly configures the real number of trusted
+  // reverse-proxy hops in front of this API via TRUSTED_PROXY_COUNT.
+  const httpAdapterInstance = app.getHttpAdapter().getInstance() as Express;
+  httpAdapterInstance.set('trust proxy', trustedProxyCount);
 
   app.use(requestIdMiddleware);
   app.useLogger(app.get(Logger));

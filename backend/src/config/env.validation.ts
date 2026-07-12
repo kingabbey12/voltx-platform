@@ -101,6 +101,33 @@ class EnvironmentVariables {
   CORS_ALLOWED_ORIGINS?: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  TRUSTED_PROXY_COUNT?: number;
+
+  @IsOptional()
+  @IsString()
+  MFA_TOTP_ISSUER?: string;
+
+  @IsOptional()
+  @IsString()
+  MFA_CHALLENGE_EXPIRES_IN?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  MFA_BACKUP_CODE_COUNT?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  MFA_TRUSTED_DEVICE_DEFAULT_DAYS?: number;
+
+  @IsOptional()
+  @IsString()
+  API_KEY_PREFIX?: string;
+
+  @IsOptional()
   @IsString()
   SENTRY_DSN?: string;
 

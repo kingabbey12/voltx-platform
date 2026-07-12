@@ -19,6 +19,16 @@ export function createSwaggerDocument(app: INestApplication): OpenAPIObject {
       },
       'JWT',
     )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'X-Api-Key',
+        in: 'header',
+        description:
+          'v2.2 Security Center API key — a JWT-alternative for machine-to-machine callers (see ApiKeyGuard)',
+      },
+      'ApiKey',
+    )
     .addGlobalParameters({
       name: REQUEST_ID_HEADER,
       in: 'header',

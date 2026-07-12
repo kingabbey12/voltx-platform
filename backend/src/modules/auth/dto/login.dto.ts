@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class LoginDto {
   @ApiProperty({ example: 'jane.doe@example.com' })
@@ -18,4 +18,14 @@ export class LoginDto {
   @IsOptional()
   @IsUUID()
   organizationId?: string;
+
+  @ApiPropertyOptional({
+    example: 'f3a1c9e0b2d4...',
+    description:
+      'Opaque, client-generated device fingerprint. When this device has an active TrustedDevice record for the authenticating user, a required MFA challenge is skipped.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  deviceFingerprint?: string;
 }

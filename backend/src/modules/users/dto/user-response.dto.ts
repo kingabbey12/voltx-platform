@@ -62,6 +62,12 @@ export class UserResponseDto {
   })
   isPlatformAdmin!: boolean;
 
+  @ApiProperty({
+    example: false,
+    description: 'Whether TOTP multi-factor authentication is enrolled',
+  })
+  mfaEnabled!: boolean;
+
   @ApiPropertyOptional({ example: '2026-07-03T00:00:00.000Z', nullable: true })
   lastLoginAt!: string | null;
 
@@ -85,6 +91,7 @@ export class UserResponseDto {
     dto.jobTitle = entity.jobTitle;
     dto.status = entity.status;
     dto.isPlatformAdmin = entity.isPlatformAdmin;
+    dto.mfaEnabled = entity.mfaEnabled;
     dto.lastLoginAt = entity.lastLoginAt?.toISOString() ?? null;
     dto.emailVerifiedAt = entity.emailVerifiedAt?.toISOString() ?? null;
     dto.createdAt = entity.createdAt.toISOString();

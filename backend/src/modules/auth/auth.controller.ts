@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -7,6 +7,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { Request } from 'express';
 import { ApiSuccessResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentUser } from './decorators/current-user.decorator';
 import {
@@ -14,6 +15,7 @@ import {
   AuthTokensDto,
   LoginResponseDto,
   MessageResponseDto,
+  MfaChallengeResponseDto,
   MyOrganizationResponseDto,
   VerifyEmailResponseDto,
 } from './dto/auth-response.dto';
@@ -60,11 +62,25 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle(AUTH_THROTTLE)
-  @ApiOperation({ summary: 'Authenticate with email and password' })
-  @ApiOkResponse({ description: 'Access and refresh tokens issued', type: LoginSuccessResponseDto })
+  @ApiOperation({
+    summary: 'Authenticate with email and password',
+    description:
+      'Returns access/refresh tokens directly, unless the account or its organization requires MFA — in that case an mfaRequired/mfaChallengeToken payload is returned instead, redeemable at POST /security/mfa/verify-login.',
+  })
+  @ApiOkResponse({
+    description:
+      'Access and refresh tokens issued, or an MFA challenge if a second factor is required',
+    type: LoginSuccessResponseDto,
+  })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials or inactive account' })
-  login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
-    return this.authService.login(dto);
+  login(
+    @Body() dto: LoginDto,
+    @Req() request: Request,
+  ): Promise<LoginResponseDto | MfaChallengeResponseDto> {
+    return this.authService.login(dto, {
+      ipAddress: request.ip,
+      userAgent: request.headers['user-agent'],
+    });
   }
 
   @Post('register')

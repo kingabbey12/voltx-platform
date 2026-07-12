@@ -25,6 +25,30 @@ export default () => ({
       .split(',')
       .map((origin) => origin.trim())
       .filter((origin) => origin.length > 0),
+    // Number of trusted reverse-proxy hops in front of this API (e.g. 1 for
+    // a single load balancer). Express only honors X-Forwarded-For up to
+    // this many hops when resolving `request.ip` — defaults to 0 (trust
+    // nothing, use the raw socket address) so IpAllowlistGuard can never be
+    // spoofed via a forged header unless an operator explicitly opts in.
+    trustedProxyCount: parseInt(process.env.TRUSTED_PROXY_COUNT ?? '0', 10),
+  },
+  mfa: {
+    // TOTP issuer label shown in authenticator apps (Google Authenticator,
+    // 1Password, Authy, etc.) next to the account name.
+    totpIssuer: process.env.MFA_TOTP_ISSUER ?? 'Voltx',
+    // Lifetime of the short-lived MFA challenge token returned by
+    // AuthService.login() in place of full JWTs when a second factor is
+    // required — long enough for a human to open their authenticator app,
+    // short enough to bound the exposure window if intercepted.
+    challengeExpiresIn: process.env.MFA_CHALLENGE_EXPIRES_IN ?? '5m',
+    backupCodeCount: parseInt(process.env.MFA_BACKUP_CODE_COUNT ?? '10', 10),
+    trustedDeviceDefaultDays: parseInt(process.env.MFA_TRUSTED_DEVICE_DEFAULT_DAYS ?? '30', 10),
+  },
+  apiKeys: {
+    // Non-secret prefix embedded in every issued key (e.g. "vk_live_ab12...")
+    // so admins can visually tell keys apart in the UI without the secret
+    // ever being re-displayed after creation.
+    prefix: process.env.API_KEY_PREFIX ?? 'vk',
   },
   sentry: {
     dsn: process.env.SENTRY_DSN ?? '',

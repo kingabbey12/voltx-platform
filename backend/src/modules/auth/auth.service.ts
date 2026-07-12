@@ -5,11 +5,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { MembershipStatus, OrganizationStatus, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { OrganizationRepository } from '../organization/organization.repository';
 import { generateUniqueOrganizationSlug } from '../organization/utils/organization-slug.util';
+import { parseOrganizationSecurityPolicy } from '../organization/utils/organization-security-policy.util';
 import { UsersRepository } from '../users/users.repository';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { UserEntity } from '../users/entities/user.entity';
@@ -17,13 +18,14 @@ import { BillingAccountService } from '../billing/billing-account.service';
 import { PlanService } from '../billing/plan.service';
 import { SubscriptionService } from '../billing/subscription.service';
 import { AuthContextRepository, MembershipSummary } from './auth-context.repository';
-import { AuthRepository } from './auth.repository';
+import { AuthRepository, AuthUserRecord } from './auth.repository';
 import { ACCESS_TOKEN_EXPIRES_IN } from './constants/auth.constants';
 import {
   AuthMeResponseDto,
   AuthTokensDto,
   LoginResponseDto,
   MessageResponseDto,
+  MfaChallengeResponseDto,
   VerifyEmailResponseDto,
 } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
@@ -31,15 +33,21 @@ import { RegisterDto } from './dto/register.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CurrentUser } from './interfaces/current-user.interface';
-import { JwtAccessPayload } from './interfaces/jwt-payload.interface';
+import { JwtAccessPayload, MfaChallengePayload } from './interfaces/jwt-payload.interface';
+import { LoginRequestMeta } from './interfaces/login-request-meta.interface';
 import { RefreshTokenRepository } from './refresh-token.repository';
+import { SessionRepository } from './session.repository';
+import { TrustedDeviceRepository } from './trusted-device.repository';
 import { VerificationTokenService } from './verification-token.service';
+import { parseDurationToSeconds } from './utils/duration.util';
 import { hashPassword, verifyPassword } from './utils/password.util';
 import {
   generateRefreshToken,
   getRefreshTokenExpiresAt,
   hashRefreshToken,
 } from './utils/refresh-token.util';
+
+type MfaRequirement = 'none' | 'challenge' | 'enrollment_required';
 
 @Injectable()
 export class AuthService {
@@ -56,9 +64,14 @@ export class AuthService {
     private readonly billingAccountService: BillingAccountService,
     private readonly subscriptionService: SubscriptionService,
     private readonly planService: PlanService,
+    private readonly sessionRepository: SessionRepository,
+    private readonly trustedDeviceRepository: TrustedDeviceRepository,
   ) {}
 
-  async login(dto: LoginDto): Promise<LoginResponseDto> {
+  async login(
+    dto: LoginDto,
+    requestMeta?: LoginRequestMeta,
+  ): Promise<LoginResponseDto | MfaChallengeResponseDto> {
     const user = await this.authRepository.findUserByEmail(dto.email);
 
     if (!user?.passwordHash) {
@@ -83,10 +96,57 @@ export class AuthService {
       throw new UnauthorizedException('Active organization membership not found');
     }
 
-    const tokens = await this.issueTokens(user.id, membership.organizationId);
-    await this.authRepository.updateLastLoginAt(user.id);
+    // v2.2 Security Center MFA gate — must run strictly before any token is
+    // issued below. `enrollment_required` hard-blocks the login rather than
+    // silently letting it through, since a policy the affected user can
+    // route around by simply never enrolling would be no policy at all.
+    const mfaRequirement = await this.evaluateMfaRequirement(user, membership.organizationId);
+    if (mfaRequirement === 'enrollment_required') {
+      throw new ForbiddenException(
+        'Multi-factor authentication setup is required by your organization before you can sign in',
+      );
+    }
+    if (mfaRequirement === 'challenge') {
+      const deviceIsTrusted = dto.deviceFingerprint
+        ? await this.trustedDeviceRepository.isTrusted(
+            user.id,
+            membership.organizationId,
+            dto.deviceFingerprint,
+          )
+        : false;
+      if (!deviceIsTrusted) {
+        return this.issueMfaChallenge(user.id, membership.organizationId);
+      }
+    }
 
-    let profile = await this.usersRepository.findById(user.id);
+    const session = await this.sessionRepository.create({
+      userId: user.id,
+      organizationId: membership.organizationId,
+      deviceFingerprint: dto.deviceFingerprint,
+      ipAddress: requestMeta?.ipAddress,
+      userAgent: requestMeta?.userAgent,
+    });
+
+    return this.buildLoginResponse(user.id, membership.organizationId, session.id);
+  }
+
+  /**
+   * Shared tail of a successful login — issues tokens under the given
+   * Session, records lastLoginAt, and loads the profile. Public so
+   * POST /security/mfa/verify-login (security module) can call the exact
+   * same completion logic after it independently verifies a TOTP/backup
+   * code against a still-valid MFA challenge token, instead of duplicating
+   * this sequence.
+   */
+  async buildLoginResponse(
+    userId: string,
+    organizationId: string,
+    sessionId: string,
+  ): Promise<LoginResponseDto> {
+    const tokens = await this.issueTokens(userId, organizationId, sessionId);
+    await this.authRepository.updateLastLoginAt(userId);
+
+    let profile = await this.usersRepository.findById(userId);
     if (!profile) {
       throw new UnauthorizedException('Authenticated user not found');
     }
@@ -96,6 +156,57 @@ export class AuthService {
     return {
       ...tokens,
       user: UserResponseDto.fromEntity(profile),
+    };
+  }
+
+  /** Whether this login attempt must be challenged for a second factor
+   * before any JWT is issued. Consulted only by login() above — the
+   * equivalent decision never re-runs for the MFA-verify-login call itself,
+   * which instead trusts a previously-issued, still-valid challenge token. */
+  private async evaluateMfaRequirement(
+    user: Pick<AuthUserRecord, 'mfaEnabled'>,
+    organizationId: string,
+  ): Promise<MfaRequirement> {
+    if (user.mfaEnabled) {
+      return 'challenge';
+    }
+
+    const organization = await this.prisma.system.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    });
+    const policy = parseOrganizationSecurityPolicy(organization?.settings);
+
+    return policy.mfaRequired ? 'enrollment_required' : 'none';
+  }
+
+  /**
+   * Issues a short-lived (default 5m) MFA challenge token instead of full
+   * JWTs. `type: 'mfa_challenge'` makes it structurally impossible for
+   * JwtAuthGuard/JwtAccessStrategy to accept this as a bearer access token
+   * (see MfaChallengePayload). Only POST /security/mfa/verify-login (in the
+   * new security module) ever decodes and redeems one, after verifying a
+   * TOTP or backup code — that is the only other call site in the codebase
+   * that reaches issueTokens() for a password-login attempt.
+   */
+  async issueMfaChallenge(
+    userId: string,
+    organizationId: string,
+  ): Promise<MfaChallengeResponseDto> {
+    const payload: MfaChallengePayload = {
+      sub: userId,
+      org: organizationId,
+      type: 'mfa_challenge',
+    };
+    const expiresInConfig = this.configService.get<string>('mfa.challengeExpiresIn', '5m');
+    const mfaChallengeToken = await this.jwtService.signAsync(payload, {
+      expiresIn: expiresInConfig as JwtSignOptions['expiresIn'],
+    });
+
+    return {
+      mfaRequired: true,
+      mfaChallengeToken,
+      expiresIn: parseDurationToSeconds(expiresInConfig, 300),
     };
   }
 
@@ -222,7 +333,21 @@ export class AuthService {
       throw new UnauthorizedException('Active organization membership not found');
     }
 
-    return this.issueTokens(storedToken.userId, membership.organizationId);
+    // v2.2 Security Center — rotation carries the same Session forward
+    // rather than creating a new one, so a session revoke still cascades to
+    // every RefreshToken descended from it, however many times it's rotated.
+    // `sessionId` is null for tokens issued before this column existed (or
+    // via a path that never created a Session), in which case this is a
+    // no-op exactly like before.
+    if (storedToken.sessionId) {
+      await this.sessionRepository.touchLastActiveAt(storedToken.sessionId);
+    }
+
+    return this.issueTokens(
+      storedToken.userId,
+      membership.organizationId,
+      storedToken.sessionId ?? undefined,
+    );
   }
 
   async logout(userId: string, refreshToken: string): Promise<void> {
@@ -318,11 +443,25 @@ export class AuthService {
     };
   }
 
-  /** Public so InvitationService can log a user in immediately after they
+  /**
+   * Public so InvitationService can log a user in immediately after they
    * accept an invitation by creating a brand-new account (the invitation
    * token itself is the proof of email ownership in that case, exactly
-   * like register() creating a session on account creation). */
-  async issueTokens(userId: string, organizationId: string): Promise<AuthTokensDto> {
+   * like register() creating a session on account creation), and so the
+   * SSO module's JIT-provisioning login path and the v2.2 Security Center's
+   * MFA-verify-login endpoint can terminate into the exact same
+   * token-issuance logic rather than a parallel copy of it.
+   *
+   * `sessionId` is new in v2.2 and purely additive: every pre-existing call
+   * site (register, switchOrganization, SSO JIT, invitation-accept) calls
+   * this with two arguments and is completely unaffected — it simply
+   * creates a RefreshToken with no Session attached, exactly as before.
+   */
+  async issueTokens(
+    userId: string,
+    organizationId: string,
+    sessionId?: string,
+  ): Promise<AuthTokensDto> {
     const payload: JwtAccessPayload = {
       sub: userId,
       org: organizationId,
@@ -333,7 +472,12 @@ export class AuthService {
     const refreshToken = generateRefreshToken();
     const refreshTokenHash = hashRefreshToken(refreshToken);
 
-    await this.refreshTokenRepository.create(userId, refreshTokenHash, getRefreshTokenExpiresAt());
+    await this.refreshTokenRepository.create(
+      userId,
+      refreshTokenHash,
+      getRefreshTokenExpiresAt(),
+      sessionId,
+    );
 
     return {
       accessToken,
@@ -348,26 +492,6 @@ export class AuthService {
       'jwt.accessExpiresIn',
       ACCESS_TOKEN_EXPIRES_IN,
     );
-    const match = /^(\d+)([smhd])$/.exec(configured);
-
-    if (!match) {
-      return 900;
-    }
-
-    const value = Number.parseInt(match[1], 10);
-    const unit = match[2];
-
-    switch (unit) {
-      case 's':
-        return value;
-      case 'm':
-        return value * 60;
-      case 'h':
-        return value * 60 * 60;
-      case 'd':
-        return value * 60 * 60 * 24;
-      default:
-        return 900;
-    }
+    return parseDurationToSeconds(configured, 900);
   }
 }

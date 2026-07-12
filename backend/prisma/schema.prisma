@@ -213,6 +213,9 @@ model Organization {
   legalHolds              LegalHold[]
   retentionPolicies       RetentionPolicy[]
   consentRecords          ConsentRecord[]
+  sessions                Session[]
+  trustedDevices          TrustedDevice[]
+  apiKeys                 ApiKey[]
 
   @@index([status])
   @@index([parentOrganizationId])
@@ -233,6 +236,16 @@ model User {
   lastLoginAt             DateTime?           @map("last_login_at")
   emailVerifiedAt         DateTime?           @map("email_verified_at")
   notificationPreferences Json                @default("{}") @map("notification_preferences")
+  /// v2.2 Security Center — TOTP MFA enrollment. `mfaSecret` is encrypted at
+  /// rest via EncryptionService (never stored/returned in plaintext);
+  /// `mfaEnabled` only flips true after a successful verify-setup, so a
+  /// pending, unconfirmed enrollment never gates login.
+  mfaEnabled              Boolean             @default(false) @map("mfa_enabled")
+  mfaSecret               String?             @map("mfa_secret")
+  /// sha256 hashes of one-time backup codes (same hash-and-compare
+  /// convention as RefreshToken/ApiKey) — each is cleared from the array the
+  /// moment it's consumed, enforcing single use.
+  mfaBackupCodesHash      String[]            @default([]) @map("mfa_backup_codes_hash")
   createdAt               DateTime            @default(now()) @map("created_at")
   updatedAt               DateTime            @updatedAt @map("updated_at")
   deletedAt               DateTime?           @map("deleted_at")
@@ -247,6 +260,8 @@ model User {
   notifications           Notification[]
   attachments             Attachment[]
   consentRecords          ConsentRecord[]
+  sessions                Session[]
+  trustedDevices          TrustedDevice[]
 
   @@index([status])
   @@map("users")
@@ -576,10 +591,20 @@ model RefreshToken {
   expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
   createdAt DateTime  @default(now()) @map("created_at")
+  /// v2.2 Security Center — additive link to the stable Session this token
+  /// belongs to. Nullable so pre-existing rows (issued before this column
+  /// existed) and token issuance paths that don't pass a sessionId
+  /// (register/switchOrganization/SSO JIT/invitation-accept — unchanged by
+  /// this phase) keep working exactly as before. Rotation (POST /auth/refresh)
+  /// carries the same sessionId forward onto the new row so a revoked
+  /// Session immediately invalidates every refresh token under it.
+  sessionId String?   @map("session_id") @db.Uuid
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session   Session?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([tokenHash])
+  @@index([sessionId])
   @@map("refresh_tokens")
 }
 
@@ -3206,4 +3231,79 @@ model ConsentRecord {
   @@index([userId])
   @@index([userId, consentType])
   @@map("consent_records")
+}
+
+/// v2.2 Security Center — one stable "device/browser" login instance. Created
+/// once at login (or after a successful MFA challenge verify); refresh-token
+/// rotation reuses the same Session rather than creating a new one, so
+/// revoking a Session here immediately rejects every RefreshToken under it
+/// (see RefreshToken.sessionId). Org-scoped in the domain sense only — like
+/// IdentityProvider, not auto-scoped by the tenant Prisma extension, so every
+/// repository method filters by organizationId explicitly.
+model Session {
+  id                String         @id @default(uuid()) @db.Uuid
+  userId            String         @map("user_id") @db.Uuid
+  organizationId    String         @map("organization_id") @db.Uuid
+  deviceFingerprint String?        @map("device_fingerprint")
+  ipAddress         String?        @map("ip_address")
+  userAgent         String?        @map("user_agent")
+  lastActiveAt      DateTime       @default(now()) @map("last_active_at")
+  revokedAt         DateTime?      @map("revoked_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  refreshTokens     RefreshToken[]
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([userId, revokedAt])
+  @@map("sessions")
+}
+
+/// v2.2 Security Center — a device a user has explicitly chosen to "remember"
+/// past MFA for, until `trustedUntil`. Consulted by AuthService.login() to
+/// skip an otherwise-required MFA challenge for that one (userId,
+/// deviceFingerprint) pair while the window is still open.
+model TrustedDevice {
+  id                String       @id @default(uuid()) @db.Uuid
+  userId            String       @map("user_id") @db.Uuid
+  organizationId    String       @map("organization_id") @db.Uuid
+  deviceFingerprint String       @map("device_fingerprint")
+  label             String?
+  lastSeenAt        DateTime     @default(now()) @map("last_seen_at")
+  trustedUntil      DateTime     @map("trusted_until")
+  revokedAt         DateTime?    @map("revoked_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceFingerprint])
+  @@index([organizationId])
+  @@map("trusted_devices")
+}
+
+/// v2.2 Security Center — a long-lived, org-scoped credential usable as a JWT
+/// alternative for machine-to-machine callers (see ApiKeyGuard). Only
+/// `keyHash` (sha256, same hash-and-compare convention as RefreshToken) is
+/// ever stored — the raw key is shown to the caller exactly once, at
+/// creation. `scopedPermissions` must be a subset of the org's real
+/// permission keys, validated at creation time.
+model ApiKey {
+  id                String       @id @default(uuid()) @db.Uuid
+  organizationId    String       @map("organization_id") @db.Uuid
+  createdByUserId   String?      @map("created_by_user_id") @db.Uuid
+  name              String
+  keyHash           String       @unique @map("key_hash")
+  /// Non-secret hint shown in the UI so an admin can tell keys apart
+  /// without ever re-displaying the secret (e.g. "vk_live_ab12...").
+  keyPrefix         String       @map("key_prefix")
+  scopedPermissions String[]     @default([]) @map("scoped_permissions")
+  expiresAt         DateTime?    @map("expires_at")
+  lastUsedAt        DateTime?    @map("last_used_at")
+  revokedAt         DateTime?    @map("revoked_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("api_keys")
 }

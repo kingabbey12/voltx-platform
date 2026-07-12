@@ -10,6 +10,7 @@ export class UserEntity {
   jobTitle!: string | null;
   status!: UserStatus;
   isPlatformAdmin!: boolean;
+  mfaEnabled!: boolean;
   lastLoginAt!: Date | null;
   emailVerifiedAt!: Date | null;
   createdAt!: Date;

@@ -109,6 +109,10 @@ const PERMISSION_DEFINITIONS = [
   { key: 'compliance.consent.manage', resource: 'compliance_consent_record', action: 'manage', description: 'Record a consent grant or revocation on behalf of a user' },
   { key: 'compliance.audit.export', resource: 'compliance_audit_export', action: 'export', description: 'Export the organization\'s audit log to a downloadable file' },
   { key: 'compliance.audit.verify', resource: 'compliance_audit_export', action: 'verify', description: 'Verify the tamper-evident integrity of the organization\'s audit log hash chain' },
+  { key: 'security.session.manage', resource: 'security_session', action: 'manage', description: 'View and revoke your own active sessions and login history' },
+  { key: 'security.trusted_device.manage', resource: 'security_trusted_device', action: 'manage', description: 'View, trust, and revoke your own trusted devices' },
+  { key: 'security.apikey.manage', resource: 'security_api_key', action: 'manage', description: 'Create, list, and revoke organization API keys' },
+  { key: 'security.policy.manage', resource: 'security_policy', action: 'manage', description: 'View and update the organization security policy (MFA requirement, password policy, IP allowlist)' },
 ] as const;
 
 const ROLE_DEFINITIONS = [
@@ -201,6 +205,9 @@ const ROLE_DEFINITIONS = [
       'compliance.legalhold.read',
       'compliance.retention.read',
       'compliance.consent.read',
+      'security.session.manage',
+      'security.trusted_device.manage',
+      'security.apikey.manage',
     ],
   },
   {
@@ -238,6 +245,8 @@ const ROLE_DEFINITIONS = [
       'notification.update',
       'attachment.create',
       'attachment.read',
+      'security.session.manage',
+      'security.trusted_device.manage',
     ],
   },
   {
@@ -263,6 +272,8 @@ const ROLE_DEFINITIONS = [
       'notification.read',
       'notification.update',
       'attachment.read',
+      'security.session.manage',
+      'security.trusted_device.manage',
     ],
   },
 ] as const;

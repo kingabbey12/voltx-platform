@@ -15,6 +15,8 @@ import { DevelopmentAuthGuard } from './guards/development-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UserContextGuard } from './guards/user-context.guard';
 import { RefreshTokenRepository } from './refresh-token.repository';
+import { SessionRepository } from './session.repository';
+import { TrustedDeviceRepository } from './trusted-device.repository';
 import { VerificationTokenRepository } from './verification-token.repository';
 import { VerificationTokenService } from './verification-token.service';
 import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
@@ -46,6 +48,8 @@ import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
     AuthContextService,
     AuthRepository,
     RefreshTokenRepository,
+    SessionRepository,
+    TrustedDeviceRepository,
     VerificationTokenRepository,
     VerificationTokenService,
     AuthService,
@@ -59,6 +63,8 @@ import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
     AuthContextService,
     AuthRepository,
     RefreshTokenRepository,
+    SessionRepository,
+    TrustedDeviceRepository,
     VerificationTokenRepository,
     VerificationTokenService,
     AuthService,

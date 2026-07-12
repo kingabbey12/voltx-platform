@@ -8,18 +8,28 @@ export interface RefreshTokenRecord {
   expiresAt: Date;
   revokedAt: Date | null;
   createdAt: Date;
+  sessionId: string | null;
 }
 
 @Injectable()
 export class RefreshTokenRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, tokenHash: string, expiresAt: Date): Promise<RefreshTokenRecord> {
+  /** `sessionId` is optional and purely additive — callers that don't pass
+   * one (register/switchOrganization/SSO JIT/invitation-accept) get exactly
+   * the pre-v2.2 behavior: a refresh token with no session attached. */
+  async create(
+    userId: string,
+    tokenHash: string,
+    expiresAt: Date,
+    sessionId?: string,
+  ): Promise<RefreshTokenRecord> {
     return this.prisma.refreshToken.create({
       data: {
         userId,
         tokenHash,
         expiresAt,
+        sessionId,
       },
     });
   }

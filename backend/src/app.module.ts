@@ -36,6 +36,7 @@ import { ReferenceDataModule } from './modules/reference-data/reference-data.mod
 import { RolesModule } from './modules/roles/roles.module';
 import { ScimModule } from './modules/scim/scim.module';
 import { SalesModule } from './modules/sales/sales.module';
+import { SecurityModule } from './modules/security/security.module';
 import { UsersModule } from './modules/users/users.module';
 import { WorkflowModule } from './modules/workflows/workflow.module';
 import { WorkflowEventsModule } from './modules/workflows/scheduling/workflow-events.module';
@@ -98,6 +99,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     RolesModule,
     ScimModule,
     SalesModule,
+    SecurityModule,
     UsersModule,
     WorkflowModule,
   ],

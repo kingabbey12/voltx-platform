@@ -41,6 +41,7 @@ function makeUser(overrides: Partial<UserEntity> = {}): UserEntity {
     jobTitle: null,
     status: 'ACTIVE',
     isPlatformAdmin: false,
+    mfaEnabled: false,
     lastLoginAt: null,
     emailVerifiedAt: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
