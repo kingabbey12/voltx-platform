@@ -186,6 +186,15 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.customDomain;
   }
 
+  /** Platform Console (v2.2 Phase 7) models — unscoped, same rationale as identityProvider above. */
+  get platformAlert(): PrismaClient['platformAlert'] {
+    return this.baseClient.platformAlert;
+  }
+
+  get featureFlag(): PrismaClient['featureFlag'] {
+    return this.baseClient.featureFlag;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }

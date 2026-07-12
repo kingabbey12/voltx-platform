@@ -20,6 +20,7 @@ export class OrganizationEntity {
   status!: OrganizationStatus;
   settings!: Record<string, unknown>;
   onboardingCompletedAt!: Date | null;
+  parentOrganizationId!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
   deletedAt!: Date | null;

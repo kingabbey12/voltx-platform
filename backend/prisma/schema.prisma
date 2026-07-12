@@ -3370,3 +3370,77 @@ model CustomDomain {
   @@index([organizationId])
   @@map("custom_domains")
 }
+
+/// v2.2 Platform Console — a system- or organization-level incident
+/// raised by (or on behalf of) a monitoring signal (queue backlog,
+/// job-failure spike, delivery-failure rate, ...). `organizationId` is
+/// nullable because some alerts are platform-wide (e.g. Redis
+/// unreachable) rather than about any one tenant. No relation to
+/// Organization/User (same unscoped-FK convention as
+/// BackgroundJobFailure.organizationId / SubscriptionChange.initiatedBy)
+/// since this is read cross-tenant by platform admins only.
+enum PlatformAlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum PlatformAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model PlatformAlert {
+  id               String                @id @default(uuid()) @db.Uuid
+  severity         PlatformAlertSeverity
+  category         String
+  status           PlatformAlertStatus   @default(OPEN)
+  title            String
+  description      String?               @db.Text
+  sourceMetadata   Json                  @default("{}") @map("source_metadata")
+  organizationId   String?               @map("organization_id") @db.Uuid
+  acknowledgedById String?               @map("acknowledged_by_id") @db.Uuid
+  acknowledgedAt   DateTime?             @map("acknowledged_at")
+  resolvedById     String?               @map("resolved_by_id") @db.Uuid
+  resolvedAt       DateTime?             @map("resolved_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([severity])
+  @@index([category])
+  @@index([organizationId])
+  @@index([createdAt])
+  @@map("platform_alerts")
+}
+
+/// v2.2 Platform Console — a platform-wide feature flag with an optional
+/// per-organization override. `organizationOverrides` is a Json map of
+/// `{ [organizationId]: value }` rather than a join table: flag
+/// resolution always loads the single flag row and does a JS object
+/// lookup, and the platform-wide flag count is expected to stay small
+/// (tens, not thousands), so there's no query-planning benefit to a
+/// relational join table here. Deliberately distinct from v2.1's billing
+/// Feature/FeatureLimit entitlement models (those gate metered plan
+/// limits; this gates code paths/rollout, unrelated to billing).
+enum FeatureFlagType {
+  BOOLEAN
+  STRING
+  NUMBER
+  JSON
+}
+
+model FeatureFlag {
+  id                    String          @id @default(uuid()) @db.Uuid
+  key                   String          @unique
+  name                  String
+  description           String?
+  type                  FeatureFlagType @default(BOOLEAN)
+  defaultValue          Json            @map("default_value")
+  organizationOverrides Json            @default("{}") @map("organization_overrides")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+
+  @@map("feature_flags")
+}

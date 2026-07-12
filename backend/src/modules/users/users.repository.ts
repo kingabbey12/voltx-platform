@@ -43,6 +43,22 @@ export interface PaginatedUsers {
   totalPages: number;
 }
 
+function buildUserSearchWhere(status?: UserStatus, search?: string) {
+  return {
+    deletedAt: null,
+    ...(status ? { status } : {}),
+    ...(search
+      ? {
+          OR: [
+            { email: { contains: search, mode: 'insensitive' as const } },
+            { firstName: { contains: search, mode: 'insensitive' as const } },
+            { lastName: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : {}),
+  };
+}
+
 @Injectable()
 export class UsersRepository {
   constructor(
@@ -114,20 +130,7 @@ export class UsersRepository {
   async findAll(params: FindAllUsersParams): Promise<PaginatedUsers> {
     const { page, limit, status, search } = params;
     const skip = (page - 1) * limit;
-
-    const where = {
-      deletedAt: null,
-      ...(status ? { status } : {}),
-      ...(search
-        ? {
-            OR: [
-              { email: { contains: search, mode: 'insensitive' as const } },
-              { firstName: { contains: search, mode: 'insensitive' as const } },
-              { lastName: { contains: search, mode: 'insensitive' as const } },
-            ],
-          }
-        : {}),
-    };
+    const where = buildUserSearchWhere(status, search);
 
     const [records, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -137,6 +140,39 @@ export class UsersRepository {
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      items: records.map(toUserEntity),
+      total,
+      page,
+      limit,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    };
+  }
+
+  /**
+   * Platform-admin cross-organization user search — queries
+   * `this.prisma.system.user` (unscoped), not `this.prisma.user` (which
+   * findAll above uses): the tenant-scoping Prisma extension otherwise
+   * narrows user queries to members of the calling admin's own
+   * organization only, which is wrong for "search every user on the
+   * platform." Used only behind PLATFORM_ADMIN_GUARDS
+   * (src/modules/platform/users/).
+   */
+  async searchUnscoped(params: FindAllUsersParams): Promise<PaginatedUsers> {
+    const { page, limit, status, search } = params;
+    const skip = (page - 1) * limit;
+    const where = buildUserSearchWhere(status, search);
+
+    const [records, total] = await Promise.all([
+      this.prisma.system.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.system.user.count({ where }),
     ]);
 
     return {

@@ -48,8 +48,8 @@ export class MetricsService implements OnModuleDestroy {
         this.queues.set(queueName, new Queue(queueName, { connection }));
       }
 
-      const queues = this.queues;
-      const queueDepthGauge = new Gauge({
+      const getQueueDepths = () => this.getQueueDepths();
+      new Gauge({
         name: 'voltx_queue_depth',
         help: 'Current BullMQ job counts per queue and state',
         labelNames: ['queue', 'state'] as const,
@@ -59,21 +59,37 @@ export class MetricsService implements OnModuleDestroy {
         // /metrics, so there's no reason to hit Redis on a schedule
         // nobody's consuming.
         async collect() {
-          for (const [queueName, queue] of queues) {
-            try {
-              const counts = await queue.getJobCounts('waiting', 'active', 'failed', 'delayed');
-              for (const [state, count] of Object.entries(counts)) {
-                queueDepthGauge.set({ queue: queueName, state }, count);
-              }
-            } catch {
-              // Redis being briefly unreachable shouldn't break the whole
-              // /metrics scrape — the health endpoint is the source of
-              // truth for Redis reachability, this gauge just goes stale.
+          const depths = await getQueueDepths();
+          for (const [queueName, counts] of Object.entries(depths)) {
+            for (const [state, count] of Object.entries(counts)) {
+              this.set({ queue: queueName, state }, count);
             }
           }
         },
       });
     }
+  }
+
+  /**
+   * Per-queue BullMQ job counts, shared by the /metrics Gauge above and
+   * the Platform Console's system-health endpoint
+   * (src/modules/platform/system-health/) so neither has its own copy of
+   * this Redis-reading logic. Returns `{}` when Redis is disabled — the
+   * health endpoint's source of truth for Redis reachability is
+   * HealthService, not this method.
+   */
+  async getQueueDepths(): Promise<Record<string, Record<string, number>>> {
+    const depths: Record<string, Record<string, number>> = {};
+    for (const [queueName, queue] of this.queues) {
+      try {
+        depths[queueName] = await queue.getJobCounts('waiting', 'active', 'failed', 'delayed');
+      } catch {
+        // Redis being briefly unreachable shouldn't break the whole
+        // /metrics scrape or system-health read — the health endpoint is
+        // the source of truth for Redis reachability, this just goes stale.
+      }
+    }
+    return depths;
   }
 
   recordHttpRequest(method: string, route: string, statusCode: number, durationMs: number): void {

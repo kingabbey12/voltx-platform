@@ -22,6 +22,7 @@ export function toOrganizationEntity(record: Organization): OrganizationEntity {
   entity.status = record.status;
   entity.settings = record.settings as Record<string, unknown>;
   entity.onboardingCompletedAt = record.onboardingCompletedAt;
+  entity.parentOrganizationId = record.parentOrganizationId;
   entity.createdAt = record.createdAt;
   entity.updatedAt = record.updatedAt;
   entity.deletedAt = record.deletedAt;

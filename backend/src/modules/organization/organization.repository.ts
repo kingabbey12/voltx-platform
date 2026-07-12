@@ -51,6 +51,24 @@ export interface FindAllOrganizationsParams {
   search?: string;
 }
 
+function buildOrganizationSearchWhere(
+  status?: OrganizationStatus,
+  search?: string,
+): Prisma.OrganizationWhereInput {
+  return {
+    deletedAt: null,
+    ...(status ? { status } : {}),
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { slug: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  };
+}
+
 export interface PaginatedOrganizations {
   items: OrganizationEntity[];
   total: number;
@@ -121,19 +139,7 @@ export class OrganizationRepository {
   async findAll(params: FindAllOrganizationsParams): Promise<PaginatedOrganizations> {
     const { page, limit, status, search } = params;
     const skip = (page - 1) * limit;
-
-    const where: Prisma.OrganizationWhereInput = {
-      deletedAt: null,
-      ...(status ? { status } : {}),
-      ...(search
-        ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { slug: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    };
+    const where = buildOrganizationSearchWhere(status, search);
 
     const [records, total] = await Promise.all([
       this.prisma.organization.findMany({
@@ -143,6 +149,38 @@ export class OrganizationRepository {
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.organization.count({ where }),
+    ]);
+
+    return {
+      items: records.map(toOrganizationEntity),
+      total,
+      page,
+      limit,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    };
+  }
+
+  /**
+   * Platform-admin cross-organization search — deliberately queries
+   * `this.prisma.system.organization` (unscoped), not `this.prisma.organization`
+   * (which findAll above uses): the tenant-scoping Prisma extension would
+   * otherwise silently narrow this to just the calling admin's own
+   * organization, which is exactly wrong for "search every organization."
+   * Used only behind PLATFORM_ADMIN_GUARDS (src/modules/platform/organizations/).
+   */
+  async searchUnscoped(params: FindAllOrganizationsParams): Promise<PaginatedOrganizations> {
+    const { page, limit, status, search } = params;
+    const skip = (page - 1) * limit;
+    const where = buildOrganizationSearchWhere(status, search);
+
+    const [records, total] = await Promise.all([
+      this.prisma.system.organization.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.system.organization.count({ where }),
     ]);
 
     return {

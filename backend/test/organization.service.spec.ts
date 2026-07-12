@@ -33,6 +33,7 @@ describe('OrganizationService', () => {
     status: OrganizationStatus.ACTIVE,
     settings: { theme: 'dark' },
     onboardingCompletedAt: null,
+    parentOrganizationId: null,
     createdAt: new Date('2026-07-03T00:00:00.000Z'),
     updatedAt: new Date('2026-07-03T00:00:00.000Z'),
     deletedAt: null,

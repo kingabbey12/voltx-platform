@@ -32,7 +32,13 @@ import { OperatorModule } from './modules/ai/operator/operator.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { OrganizationStructureModule } from './modules/organization-structure/organization-structure.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { PlatformAlertModule } from './modules/platform/alerts/platform-alert.module';
+import { FeatureFlagModule } from './modules/platform/feature-flags/feature-flag.module';
+import { PlatformOrganizationModule } from './modules/platform/organizations/platform-organization.module';
 import { PlatformReportingModule } from './modules/platform/reporting/platform-reporting.module';
+import { PlatformRevenueModule } from './modules/platform/revenue/platform-revenue.module';
+import { PlatformSystemHealthModule } from './modules/platform/system-health/platform-system-health.module';
+import { PlatformUserModule } from './modules/platform/users/platform-user.module';
 import { ReferenceDataModule } from './modules/reference-data/reference-data.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ScimModule } from './modules/scim/scim.module';
@@ -96,7 +102,13 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     OrganizationModule,
     OrganizationStructureModule,
     PermissionsModule,
+    PlatformAlertModule,
+    FeatureFlagModule,
+    PlatformOrganizationModule,
     PlatformReportingModule,
+    PlatformRevenueModule,
+    PlatformSystemHealthModule,
+    PlatformUserModule,
     ReferenceDataModule,
     RolesModule,
     ScimModule,
