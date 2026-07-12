@@ -102,3 +102,91 @@ describe('Feature gating — seat quota on invitations (e2e)', () => {
       .expect(201);
   });
 });
+
+describe('Feature gating — RBAC on billing endpoints (e2e)', () => {
+  let app: INestApplication<App>;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    prisma = app.get(PrismaService);
+  });
+
+  beforeEach(async () => {
+    await resetAndSeedAuthTestData(prisma);
+  });
+
+  afterAll(async () => {
+    await resetAndSeedAuthTestData(prisma);
+    await app.close();
+  });
+
+  function extractInvitationToken(link: string): string {
+    return new URL(link.replace('voltx://', 'https://placeholder/')).searchParams.get('token')!;
+  }
+
+  it('lets a member read billing.subscription.read but blocks billing.subscription.manage actions', async () => {
+    const ownerEmail = `billing-rbac-owner-${Date.now()}@example.com`;
+    const registerResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        email: ownerEmail,
+        password: 'Password123!',
+        firstName: 'Owner',
+        lastName: 'Tester',
+        organizationName: 'Billing RBAC Org',
+      })
+      .expect(201);
+    const ownerAccessToken = (registerResponse.body as ApiSuccessResponse<LoginResponseDto>).data
+      .accessToken;
+    const meResponse = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${ownerAccessToken}`)
+      .expect(200);
+    const organizationId = (meResponse.body as ApiSuccessResponse<AuthMeResponseDto>).data
+      .organizationId;
+    const memberRole = await prisma.system.role.findUniqueOrThrow({ where: { key: 'member' } });
+
+    const memberEmail = `billing-rbac-member-${Date.now()}@example.com`;
+    const inviteResponse = await request(app.getHttpServer())
+      .post(`/api/v1/organizations/${organizationId}/invitations`)
+      .set('Authorization', `Bearer ${ownerAccessToken}`)
+      .send({ email: memberEmail, roleId: memberRole.id })
+      .expect(201);
+    const invitation = (inviteResponse.body as ApiSuccessResponse<{ invitationLink: string }>).data;
+    const token = extractInvitationToken(invitation.invitationLink);
+
+    const acceptResponse = await request(app.getHttpServer())
+      .post(`/api/v1/invitations/${token}/accept`)
+      .send({ password: 'Password123!', firstName: 'Member', lastName: 'Tester' })
+      .expect(201);
+    const memberAccessToken = (
+      acceptResponse.body as ApiSuccessResponse<{ session: { accessToken: string } }>
+    ).data.session.accessToken;
+
+    // member role was seeded with billing.subscription.read only.
+    await request(app.getHttpServer())
+      .get('/api/v1/billing/subscription')
+      .set('Authorization', `Bearer ${memberAccessToken}`)
+      .expect(200);
+
+    // ...but not billing.subscription.manage — every mutating subscription
+    // endpoint stays behind PermissionGuard regardless of quota/feature-gate status.
+    await request(app.getHttpServer())
+      .post('/api/v1/billing/checkout')
+      .set('Authorization', `Bearer ${memberAccessToken}`)
+      .send({
+        planKey: 'business',
+        seats: 1,
+        successUrl: 'https://app.voltx.io/billing?checkout=success',
+        cancelUrl: 'https://app.voltx.io/billing/upgrade?checkout=cancelled',
+      })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/billing/subscription/cancel')
+      .set('Authorization', `Bearer ${memberAccessToken}`)
+      .send({ atPeriodEnd: true })
+      .expect(403);
+  });
+});
