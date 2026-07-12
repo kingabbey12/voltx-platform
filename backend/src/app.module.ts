@@ -31,6 +31,7 @@ import { OrganizationModule } from './modules/organization/organization.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { ReferenceDataModule } from './modules/reference-data/reference-data.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { ScimModule } from './modules/scim/scim.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { UsersModule } from './modules/users/users.module';
 import { WorkflowModule } from './modules/workflows/workflow.module';
@@ -89,6 +90,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     PermissionsModule,
     ReferenceDataModule,
     RolesModule,
+    ScimModule,
     SalesModule,
     UsersModule,
     WorkflowModule,

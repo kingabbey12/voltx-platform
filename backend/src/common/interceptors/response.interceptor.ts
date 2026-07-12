@@ -16,13 +16,24 @@ export interface ApiSuccessResponse<T> {
 
 const VERSIONED_API_PATH_PATTERN = /^\/api\/v\d+(\/|$)/;
 
+/**
+ * SCIM 2.0 (RFC 7644) is a wire protocol every IdP's own connector parses
+ * directly — `response.body.id`/`userName`/`Resources`, never a wrapped
+ * envelope. Wrapping these in `{ success, data, meta }` like every other
+ * endpoint would silently break every real SCIM client integration, so
+ * SCIM routes are the one exception to the envelope, matched by path
+ * rather than by opting every SCIM controller out of both the global
+ * `api` prefix and URI versioning individually.
+ */
+const SCIM_PATH_PATTERN = /^\/api\/v\d+\/scim\//;
+
 @Injectable()
 export class ResponseInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request>();
     const path = request.path;
 
-    if (!VERSIONED_API_PATH_PATTERN.test(path)) {
+    if (!VERSIONED_API_PATH_PATTERN.test(path) || SCIM_PATH_PATTERN.test(path)) {
       return next.handle();
     }
 

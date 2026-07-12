@@ -24,11 +24,32 @@ interface ErrorResponseBody {
   error: { code: string; message: string; details?: unknown };
 }
 
+interface DecodedOidcState {
+  idp: string;
+  nonce: string;
+}
+
+function decodeOidcState(jwtService: JwtService, state: string): DecodedOidcState {
+  const decoded: unknown = jwtService.decode(state);
+  if (!isRecord(decoded) || typeof decoded.idp !== 'string' || typeof decoded.nonce !== 'string') {
+    throw new Error('Expected the OIDC state token to decode to { idp, nonce }');
+  }
+  return { idp: decoded.idp, nonce: decoded.nonce };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 function base64url(input: Buffer | string): string {
   return Buffer.from(input).toString('base64url');
 }
 
-function signRs256Jwt(payload: Record<string, unknown>, privateKey: crypto.KeyObject, kid: string): string {
+function signRs256Jwt(
+  payload: Record<string, unknown>,
+  privateKey: crypto.KeyObject,
+  kid: string,
+): string {
   const header = { alg: 'RS256', typ: 'JWT', kid };
   const signingInput = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
   const signature = crypto.sign('RSA-SHA256', Buffer.from(signingInput), privateKey);
@@ -46,7 +67,12 @@ class FakeOidcProvider {
   constructor() {
     const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
     this.privateKey = privateKey;
-    this.publicJwk = { ...publicKey.export({ format: 'jwk' }), kid: this.kid, use: 'sig', alg: 'RS256' };
+    this.publicJwk = {
+      ...publicKey.export({ format: 'jwk' }),
+      kid: this.kid,
+      use: 'sig',
+      alg: 'RS256',
+    };
   }
 
   setNextIdTokenClaims(claims: Record<string, unknown>): void {
@@ -68,7 +94,13 @@ class FakeOidcProvider {
         }
         const idToken = signRs256Jwt(this.nextIdTokenClaims, this.privateKey, this.kid);
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ access_token: 'fake-access-token', token_type: 'Bearer', id_token: idToken }));
+        res.end(
+          JSON.stringify({
+            access_token: 'fake-access-token',
+            token_type: 'Bearer',
+            id_token: idToken,
+          }),
+        );
         return;
       }
       res.statusCode = 404;
@@ -160,16 +192,20 @@ describe('Enterprise Identity — SSO (e2e)', () => {
     const fakeIdp = new FakeOidcProvider();
     const fakeIdpBaseUrl = await fakeIdp.start();
     try {
-      const idp = await createOidcProvider(owner.accessToken, owner.organization.id, fakeIdpBaseUrl);
+      const idp = await createOidcProvider(
+        owner.accessToken,
+        owner.organization.id,
+        fakeIdpBaseUrl,
+      );
 
       const loginResponse = await request(app.getHttpServer())
         .get(`/api/v1/auth/sso/oidc/${idp.id}/login`)
         .expect(302);
-      const redirectUrl = new URL(loginResponse.headers.location as string);
+      const redirectUrl = new URL(loginResponse.headers.location);
       const state = redirectUrl.searchParams.get('state')!;
       expect(state).toBeTruthy();
 
-      const decodedState = jwtService.decode(state) as { idp: string; nonce: string };
+      const decodedState = decodeOidcState(jwtService, state);
       expect(decodedState.idp).toBe(idp.id);
 
       const ssoEmail = `new-sso-user-${Date.now()}@example.com`;
@@ -197,9 +233,9 @@ describe('Enterprise Identity — SSO (e2e)', () => {
         .get('/api/v1/auth/me')
         .set('Authorization', `Bearer ${session.accessToken}`)
         .expect(200);
-      expect((meResponse.body as ApiSuccessResponse<{ organizationId: string }>).data.organizationId).toBe(
-        owner.organization.id,
-      );
+      expect(
+        (meResponse.body as ApiSuccessResponse<{ organizationId: string }>).data.organizationId,
+      ).toBe(owner.organization.id);
 
       const membership = await prisma.system.membership.findFirst({
         where: { organizationId: owner.organization.id, userId: session.user.id },
@@ -231,8 +267,8 @@ describe('Enterprise Identity — SSO (e2e)', () => {
       const loginResponse = await request(app.getHttpServer())
         .get(`/api/v1/auth/sso/oidc/${idpForOrgA.id}/login`)
         .expect(302);
-      const state = new URL(loginResponse.headers.location as string).searchParams.get('state')!;
-      const decodedState = jwtService.decode(state) as { idp: string; nonce: string };
+      const state = new URL(loginResponse.headers.location).searchParams.get('state')!;
+      const decodedState = decodeOidcState(jwtService, state);
 
       const sharedEmail = `cross-tenant-target-${Date.now()}@example.com`;
       fakeIdp.setNextIdTokenClaims({
@@ -268,9 +304,9 @@ describe('Enterprise Identity — SSO (e2e)', () => {
         .get('/api/v1/auth/me')
         .set('Authorization', `Bearer ${session.accessToken}`)
         .expect(200);
-      expect((meResponse.body as ApiSuccessResponse<{ organizationId: string }>).data.organizationId).toBe(
-        ownerA.organization.id,
-      );
+      expect(
+        (meResponse.body as ApiSuccessResponse<{ organizationId: string }>).data.organizationId,
+      ).toBe(ownerA.organization.id);
     } finally {
       await fakeIdp.stop();
     }
@@ -284,13 +320,21 @@ describe('Enterprise Identity — SSO (e2e)', () => {
     const fakeIdp = new FakeOidcProvider();
     const fakeIdpBaseUrl = await fakeIdp.start();
     try {
-      const idpOne = await createOidcProvider(owner.accessToken, owner.organization.id, fakeIdpBaseUrl);
-      const idpTwo = await createOidcProvider(owner.accessToken, owner.organization.id, fakeIdpBaseUrl);
+      const idpOne = await createOidcProvider(
+        owner.accessToken,
+        owner.organization.id,
+        fakeIdpBaseUrl,
+      );
+      const idpTwo = await createOidcProvider(
+        owner.accessToken,
+        owner.organization.id,
+        fakeIdpBaseUrl,
+      );
 
       const loginResponse = await request(app.getHttpServer())
         .get(`/api/v1/auth/sso/oidc/${idpOne.id}/login`)
         .expect(302);
-      const state = new URL(loginResponse.headers.location as string).searchParams.get('state')!;
+      const state = new URL(loginResponse.headers.location).searchParams.get('state')!;
 
       const response = await request(app.getHttpServer())
         .get(`/api/v1/auth/sso/oidc/${idpTwo.id}/callback`)

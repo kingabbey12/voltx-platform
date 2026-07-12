@@ -195,6 +195,8 @@ model Organization {
   checkoutSessions        CheckoutSession[]
   portalSessions          CustomerPortalSession[]
   identityProviders       IdentityProvider[]
+  scimTokens              ScimToken[]
+  scimProvisionJobs       ScimProvisionJob[]
 
   @@index([status])
   @@map("organizations")
@@ -2833,6 +2835,7 @@ model IdentityProvider {
   samlConfiguration      SamlConfiguration?
   oidcConfiguration      OidcConfiguration?
   provisionedMemberships Membership[]             @relation("MembershipProvisionedBy")
+  scimTokens             ScimToken[]
 
   @@index([organizationId])
   @@index([organizationId, status])
@@ -2884,4 +2887,72 @@ model OidcConfiguration {
   identityProvider      IdentityProvider @relation(fields: [identityProviderId], references: [id], onDelete: Cascade)
 
   @@map("oidc_configurations")
+}
+
+/// v2.2 SCIM 2.0 — bearer-token status for inbound provisioning.
+enum ScimTokenStatus {
+  ACTIVE
+  REVOKED
+}
+
+/// v2.2 SCIM 2.0 — a bearer token an organization's IdP uses to call
+/// `/scim/v2/*`. Optionally linked to the IdentityProvider it belongs to
+/// (purely informational — auth is by tokenHash, exactly like
+/// RefreshTokenRepository's hash-and-compare convention, not by the link).
+model ScimToken {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @map("organization_id") @db.Uuid
+  identityProviderId String?            @map("identity_provider_id") @db.Uuid
+  name               String
+  tokenHash          String             @unique @map("token_hash")
+  status             ScimTokenStatus    @default(ACTIVE)
+  expiresAt          DateTime?          @map("expires_at")
+  lastUsedAt         DateTime?          @map("last_used_at")
+  revokedAt          DateTime?          @map("revoked_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  identityProvider   IdentityProvider?  @relation(fields: [identityProviderId], references: [id], onDelete: SetNull)
+  provisionJobs      ScimProvisionJob[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@map("scim_tokens")
+}
+
+/// v2.2 SCIM 2.0 — one provisioning operation, for audit/troubleshooting.
+enum ScimOperationType {
+  CREATE_USER
+  UPDATE_USER
+  DEACTIVATE_USER
+  GROUP_SYNC
+}
+
+enum ScimProvisionJobStatus {
+  SUCCESS
+  FAILED
+}
+
+model ScimProvisionJob {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  organizationId     String                 @map("organization_id") @db.Uuid
+  scimTokenId        String                 @map("scim_token_id") @db.Uuid
+  operation          ScimOperationType
+  /// The IdP's own identifier for the resource being provisioned (SCIM
+  /// externalId, or the SCIM resource id on update/deactivate) — not
+  /// persisted anywhere else, kept here purely for audit/troubleshooting.
+  externalId         String?                @map("external_id")
+  targetUserId       String?                @map("target_user_id") @db.Uuid
+  targetMembershipId String?                @map("target_membership_id") @db.Uuid
+  status             ScimProvisionJobStatus
+  requestPayload     Json                   @map("request_payload")
+  responsePayload    Json?                  @map("response_payload")
+  errorMessage       String?                @map("error_message")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scimToken          ScimToken              @relation(fields: [scimTokenId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([scimTokenId])
+  @@map("scim_provision_jobs")
 }

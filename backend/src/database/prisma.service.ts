@@ -104,6 +104,15 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.oidcConfiguration;
   }
 
+  /** SCIM 2.0 (v2.2 Phase 2) models — unscoped, same rationale as identityProvider above. */
+  get scimToken(): PrismaClient['scimToken'] {
+    return this.baseClient.scimToken;
+  }
+
+  get scimProvisionJob(): PrismaClient['scimProvisionJob'] {
+    return this.baseClient.scimProvisionJob;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }
