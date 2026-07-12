@@ -59,6 +59,13 @@ class EnvironmentVariables {
   @Min(1)
   DATABASE_TRANSACTION_MAX_WAIT_MS?: number;
 
+  /** v2.2 Platform Scale — read-replica routing point (PrismaService.replica).
+   * Unset today in every environment; wiring this to an actual replica is
+   * future work, not something this readiness pass claims to have done. */
+  @IsOptional()
+  @IsString()
+  DATABASE_REPLICA_URL?: string;
+
   @IsOptional()
   @IsInt()
   @Min(1)

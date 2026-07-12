@@ -47,7 +47,16 @@ export class AiProcessQueueService {
       .add(
         'summarize',
         { conversationId, organizationId },
-        { attempts: 3, backoff: { type: 'exponential', delay: 2000 } },
+        {
+          // v2.2 Platform Scale — deterministic per-conversation id: while
+          // a summarize job for this conversation is still queued/running,
+          // a duplicate enqueue (e.g. several inbound messages arriving in
+          // quick succession) collides instead of stacking up redundant
+          // summarization jobs for the same conversation.
+          jobId: `summarize:${conversationId}`,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 2000 },
+        },
       )
       .catch((error: unknown) =>
         this.logger.error({ err: error, conversationId }, 'Failed to enqueue AI summarize job'),

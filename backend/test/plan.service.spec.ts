@@ -1,9 +1,11 @@
 import { NotFoundException } from '@nestjs/common';
 import { PlanService } from '../src/modules/billing/plan.service';
 import { PlanRepository } from '../src/modules/billing/plan.repository';
+import { CacheService } from '../src/modules/cache/cache.service';
 
 describe('PlanService', () => {
   let planRepository: jest.Mocked<PlanRepository>;
+  let cacheService: jest.Mocked<CacheService>;
   let service: PlanService;
 
   beforeEach(() => {
@@ -16,15 +18,36 @@ describe('PlanService', () => {
       listFeatures: jest.fn(),
       findFeatureByKey: jest.fn(),
     } as never;
-    service = new PlanService(planRepository);
+    cacheService = {
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn(),
+      invalidateKey: jest.fn(),
+      invalidateTag: jest.fn(),
+    } as never;
+    service = new PlanService(planRepository, cacheService);
   });
 
-  it('lists active plans', async () => {
+  it('lists active plans and caches the catalog', async () => {
     planRepository.findAllActive.mockResolvedValue([{ id: 'plan-1', key: 'free' } as never]);
 
     const result = await service.listPlans();
 
     expect(result).toHaveLength(1);
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'billing:plan-catalog',
+      result,
+      expect.any(Number),
+    );
+  });
+
+  it('returns the cached catalog without touching the repository on a cache hit', async () => {
+    const cachedPlans = [{ id: 'plan-1', key: 'free' } as never];
+    cacheService.get.mockResolvedValue(cachedPlans);
+
+    const result = await service.listPlans();
+
+    expect(result).toBe(cachedPlans);
+    expect(planRepository.findAllActive).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException for an unknown plan key', async () => {

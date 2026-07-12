@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { AuditService } from '../audit/audit.service';
+import { CACHE_SERVICE, CacheService } from '../cache/cache.service';
 import {
   STORAGE_PROVIDER,
   StorageProvider,
@@ -11,6 +12,15 @@ import { BrandThemeEntity } from './entities/branding.entity';
 import { BrandThemeRepository } from './brand-theme.repository';
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24; // 1 day — regenerated fresh on every read, never stored.
+const THEME_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function themeCacheKey(organizationId: string): string {
+  return `brand-theme:${organizationId}`;
+}
+
+function themeTag(organizationId: string): string {
+  return `brand-theme:${organizationId}`;
+}
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/png',
@@ -39,17 +49,33 @@ export class BrandThemeService {
     private readonly tenantContextService: TenantContextService,
     private readonly auditService: AuditService,
     @Inject(STORAGE_PROVIDER) private readonly storageProvider: StorageProvider,
+    @Inject(CACHE_SERVICE) private readonly cacheService: CacheService,
   ) {}
 
+  /**
+   * Cached (v2.2 Platform Scale) — brand theme rows change rarely but are
+   * read on every branded page load. Only the raw entity is cached, never
+   * resolveUrls()'s signed URLs below (those must always be minted fresh).
+   */
   async getOrDefault(organizationId: string): Promise<BrandThemeEntity> {
     this.tenantContextService.assertOrganizationAccess(organizationId);
+
+    const cacheKey = themeCacheKey(organizationId);
+    const cached = await this.cacheService.get<BrandThemeEntity>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const existing = await this.repository.findByOrganization(organizationId);
-    return existing ?? this.defaultEntity(organizationId);
+    const entity = existing ?? this.defaultEntity(organizationId);
+    await this.cacheService.set(cacheKey, entity, THEME_CACHE_TTL_MS, [themeTag(organizationId)]);
+    return entity;
   }
 
   async update(organizationId: string, dto: UpdateBrandThemeDto): Promise<BrandThemeEntity> {
     this.tenantContextService.assertOrganizationAccess(organizationId);
     const entity = await this.repository.upsert(organizationId, dto);
+    await this.cacheService.invalidateTag(themeTag(organizationId));
     await this.auditService.record({
       action: 'update',
       resource: 'brand_theme',
@@ -94,6 +120,7 @@ export class BrandThemeService {
       await this.storageProvider.delete(previousKey).catch(() => undefined);
     }
 
+    await this.cacheService.invalidateTag(themeTag(organizationId));
     await this.auditService.record({
       action: 'upload_asset',
       resource: 'brand_theme',

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
+import { CACHE_SERVICE, CacheService } from '../src/modules/cache/cache.service';
 import { FeatureFlagEntity } from '../src/modules/platform/feature-flags/entities/feature-flag.entity';
 import { FeatureFlagRepository } from '../src/modules/platform/feature-flags/feature-flag.repository';
 import { FeatureFlagService } from '../src/modules/platform/feature-flags/feature-flag.service';
@@ -23,6 +24,7 @@ function makeFlag(overrides: Partial<FeatureFlagEntity> = {}): FeatureFlagEntity
 describe('FeatureFlagService', () => {
   let service: FeatureFlagService;
   let repository: jest.Mocked<FeatureFlagRepository>;
+  let cacheService: jest.Mocked<CacheService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -40,11 +42,21 @@ describe('FeatureFlagService', () => {
             removeOverride: jest.fn(),
           },
         },
+        {
+          provide: CACHE_SERVICE,
+          useValue: {
+            get: jest.fn().mockResolvedValue(null),
+            set: jest.fn(),
+            invalidateTag: jest.fn(),
+            invalidateKey: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get(FeatureFlagService);
     repository = module.get(FeatureFlagRepository);
+    cacheService = module.get(CACHE_SERVICE);
   });
 
   it('creates a BOOLEAN flag with a valid default value', async () => {
@@ -127,8 +139,36 @@ describe('FeatureFlagService', () => {
 
     await service.removeOverride('new-dashboard', 'org-1');
     expect(repository.removeOverride).toHaveBeenCalledWith('new-dashboard', 'org-1');
+    expect(cacheService.invalidateTag).toHaveBeenCalledWith('feature-flag:new-dashboard');
 
     const resolved = await service.resolve('new-dashboard', 'org-1');
     expect(resolved.source).toBe('default');
+  });
+
+  it('returns the cached resolution without touching the repository on a cache hit', async () => {
+    cacheService.get.mockResolvedValue({ key: 'new-dashboard', value: true, source: 'override' });
+
+    const resolved = await service.resolve('new-dashboard', 'org-1');
+
+    expect(resolved).toEqual({ key: 'new-dashboard', value: true, source: 'override' });
+    expect(repository.findByKey).not.toHaveBeenCalled();
+  });
+
+  it('invalidates the cache tag on update, delete, and setOverride', async () => {
+    repository.findByKey.mockResolvedValue(makeFlag());
+    repository.update.mockResolvedValue(makeFlag({ name: 'Renamed' }));
+    await service.update('new-dashboard', { name: 'Renamed' });
+    expect(cacheService.invalidateTag).toHaveBeenCalledWith('feature-flag:new-dashboard');
+
+    cacheService.invalidateTag.mockClear();
+    await service.delete('new-dashboard');
+    expect(cacheService.invalidateTag).toHaveBeenCalledWith('feature-flag:new-dashboard');
+
+    cacheService.invalidateTag.mockClear();
+    repository.setOverride.mockResolvedValue(
+      makeFlag({ organizationOverrides: { 'org-1': true } }),
+    );
+    await service.setOverride('new-dashboard', 'org-1', true);
+    expect(cacheService.invalidateTag).toHaveBeenCalledWith('feature-flag:new-dashboard');
   });
 });

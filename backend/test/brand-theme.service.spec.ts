@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TenantContextService } from '../src/common/tenant/tenant-context.service';
 import { AuditService } from '../src/modules/audit/audit.service';
+import { CACHE_SERVICE, CacheService } from '../src/modules/cache/cache.service';
 import {
   STORAGE_PROVIDER,
   StorageProvider,
@@ -34,6 +35,7 @@ describe('BrandThemeService', () => {
   let repository: jest.Mocked<BrandThemeRepository>;
   let tenantContextService: jest.Mocked<TenantContextService>;
   let storageProvider: jest.Mocked<StorageProvider>;
+  let cacheService: jest.Mocked<CacheService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -53,6 +55,15 @@ describe('BrandThemeService', () => {
             getSignedDownloadUrl: jest.fn(),
           },
         },
+        {
+          provide: CACHE_SERVICE,
+          useValue: {
+            get: jest.fn().mockResolvedValue(null),
+            set: jest.fn(),
+            invalidateKey: jest.fn(),
+            invalidateTag: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -60,6 +71,7 @@ describe('BrandThemeService', () => {
     repository = module.get(BrandThemeRepository);
     tenantContextService = module.get(TenantContextService);
     storageProvider = module.get(STORAGE_PROVIDER);
+    cacheService = module.get(CACHE_SERVICE);
   });
 
   it('returns a null-safe default theme when none exists yet', async () => {
@@ -67,6 +79,27 @@ describe('BrandThemeService', () => {
     const theme = await service.getOrDefault('org-1');
     expect(theme.organizationId).toBe('org-1');
     expect(theme.primaryColor).toBeNull();
+    expect(cacheService.set).toHaveBeenCalledWith('brand-theme:org-1', theme, expect.any(Number), [
+      'brand-theme:org-1',
+    ]);
+  });
+
+  it('returns the cached theme without touching the repository on a cache hit', async () => {
+    const cachedTheme = makeTheme();
+    cacheService.get.mockResolvedValue(cachedTheme);
+
+    const theme = await service.getOrDefault('org-1');
+
+    expect(theme).toBe(cachedTheme);
+    expect(repository.findByOrganization).not.toHaveBeenCalled();
+  });
+
+  it('invalidates the cache tag on update', async () => {
+    repository.upsert.mockResolvedValue(makeTheme({ primaryColor: '#112233' }));
+
+    await service.update('org-1', { primaryColor: '#112233' });
+
+    expect(cacheService.invalidateTag).toHaveBeenCalledWith('brand-theme:org-1');
   });
 
   it('never touches the repository when the caller is not a member of the requested organization', async () => {
@@ -131,6 +164,7 @@ describe('BrandThemeService', () => {
       'image/png',
     );
     expect(storageProvider.delete).toHaveBeenCalledWith('branding/org-1/logo-old.png');
+    expect(cacheService.invalidateTag).toHaveBeenCalledWith('brand-theme:org-1');
   });
 
   it('resolves signed URLs only for the assets that are actually configured', async () => {

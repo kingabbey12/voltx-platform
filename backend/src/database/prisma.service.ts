@@ -13,6 +13,8 @@ type PrismaTransactionClient = Omit<
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
   private readonly baseClient: PrismaClient;
   private readonly scopedClient: PrismaClient;
+  /** Only set when DATABASE_REPLICA_URL is configured — see the `replica` getter below. */
+  private readonly replicaClient: PrismaClient | null;
   private readonly transactionOptions: {
     maxWait: number;
     timeout: number;
@@ -31,17 +33,49 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       prismaLogLevels.push('query');
     }
 
+    const connectionLimit = configService.get<number>('database.connectionLimit', 10);
+    const poolTimeoutSeconds = configService.get<number>('database.poolTimeoutSeconds', 10);
+
     this.baseClient = new PrismaClient({
       datasourceUrl: buildDatabaseConnectionUrl(
         configService.getOrThrow<string>('databaseUrl'),
-        configService.get<number>('database.connectionLimit', 10),
-        configService.get<number>('database.poolTimeoutSeconds', 10),
+        connectionLimit,
+        poolTimeoutSeconds,
       ),
       log: prismaLogLevels,
     });
     this.scopedClient = this.baseClient.$extends(
       createTenantPrismaExtension(tenantContextService),
     ) as unknown as PrismaClient;
+
+    // v2.2 Platform Scale — read-replica routing point. Inert today (no
+    // repository reads from `replica` yet): this only exists so a future
+    // read-heavy repository can opt in to a replica without any
+    // PrismaService API change. When DATABASE_REPLICA_URL is unset (every
+    // environment today), `replica` is a true no-op alias for the primary
+    // client — proven in prisma-replica-routing.spec.ts.
+    const replicaUrl = configService.get<string>('database.replicaUrl');
+    this.replicaClient = replicaUrl
+      ? new PrismaClient({
+          datasourceUrl: buildDatabaseConnectionUrl(
+            replicaUrl,
+            connectionLimit,
+            poolTimeoutSeconds,
+          ),
+          log: prismaLogLevels,
+        })
+      : null;
+  }
+
+  /**
+   * Read-only queries that can tolerate replication lag should read from
+   * here instead of `system`/the tenant-scoped getters. Falls back to the
+   * primary client whenever DATABASE_REPLICA_URL is unset, so calling code
+   * never needs its own conditional — it's always safe to use `replica`
+   * for a read, regardless of whether a replica is actually configured.
+   */
+  get replica(): PrismaClient {
+    return this.replicaClient ?? this.baseClient;
   }
 
   /** Unscoped client for authentication and system-level operations. */
@@ -218,10 +252,12 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     await this.baseClient.$connect();
+    await this.replicaClient?.$connect();
   }
 
   async onModuleDestroy(): Promise<void> {
     await this.baseClient.$disconnect();
+    await this.replicaClient?.$disconnect();
   }
 }
 

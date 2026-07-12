@@ -10,6 +10,12 @@ export default () => ({
     slowQueryThresholdMs: parseInt(process.env.DATABASE_SLOW_QUERY_THRESHOLD_MS ?? '500', 10),
     transactionMaxWaitMs: parseInt(process.env.DATABASE_TRANSACTION_MAX_WAIT_MS ?? '5000', 10),
     transactionTimeoutMs: parseInt(process.env.DATABASE_TRANSACTION_TIMEOUT_MS ?? '10000', 10),
+    // v2.2 Platform Scale — read-replica routing point (PrismaService.replica).
+    // Inert today: unset, `replica` is just an alias for the primary client,
+    // proven a true no-op by cache.service.spec.ts-adjacent regression
+    // coverage. Wiring specific read-heavy repositories to actually use it
+    // is future work, not claimed as done by this readiness pass.
+    replicaUrl: process.env.DATABASE_REPLICA_URL ?? undefined,
   },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET,

@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { FeatureFlagType, Prisma } from '@prisma/client';
+import { CACHE_SERVICE, CacheService } from '../../cache/cache.service';
 import { FeatureFlagEntity } from './entities/feature-flag.entity';
 import {
   CreateFeatureFlagData,
@@ -18,9 +20,22 @@ export interface ResolvedFeatureFlag {
   source: 'override' | 'default';
 }
 
+const RESOLVE_CACHE_TTL_MS = 60 * 1000;
+
+function resolveCacheKey(key: string, organizationId: string): string {
+  return `feature-flag:resolve:${key}:${organizationId}`;
+}
+
+function flagTag(key: string): string {
+  return `feature-flag:${key}`;
+}
+
 @Injectable()
 export class FeatureFlagService {
-  constructor(private readonly repository: FeatureFlagRepository) {}
+  constructor(
+    private readonly repository: FeatureFlagRepository,
+    @Inject(CACHE_SERVICE) private readonly cacheService: CacheService,
+  ) {}
 
   async create(data: CreateFeatureFlagData): Promise<FeatureFlagEntity> {
     assertValueMatchesType(data.type, data.defaultValue, 'defaultValue');
@@ -51,12 +66,15 @@ export class FeatureFlagService {
     if (data.defaultValue !== undefined) {
       assertValueMatchesType(flag.type, data.defaultValue, 'defaultValue');
     }
-    return this.repository.update(key, data);
+    const updated = await this.repository.update(key, data);
+    await this.cacheService.invalidateTag(flagTag(key));
+    return updated;
   }
 
   async delete(key: string): Promise<void> {
     await this.getOrThrow(key);
     await this.repository.delete(key);
+    await this.cacheService.invalidateTag(flagTag(key));
   }
 
   async setOverride(
@@ -66,26 +84,45 @@ export class FeatureFlagService {
   ): Promise<FeatureFlagEntity> {
     const flag = await this.getOrThrow(key);
     assertValueMatchesType(flag.type, value, 'value');
-    return this.repository.setOverride(key, organizationId, value);
+    const updated = await this.repository.setOverride(key, organizationId, value);
+    await this.cacheService.invalidateTag(flagTag(key));
+    return updated;
   }
 
   async removeOverride(key: string, organizationId: string): Promise<FeatureFlagEntity> {
     await this.getOrThrow(key);
-    return this.repository.removeOverride(key, organizationId);
+    const updated = await this.repository.removeOverride(key, organizationId);
+    await this.cacheService.invalidateTag(flagTag(key));
+    return updated;
   }
 
   /**
    * Resolution order: an organization-specific override always wins over
    * the flag's platform-wide default. Exported for other modules to
    * consume directly (no HTTP round-trip) once they need to gate a code
-   * path on a flag.
+   * path on a flag. Cached briefly (v2.2 Platform Scale) since this is
+   * meant to be called on hot request paths once other modules start
+   * gating behavior on flags; every write path above invalidates the
+   * `feature-flag:<key>` tag so a change is visible within one TTL window
+   * at worst, never permanently stale.
    */
   async resolve(key: string, organizationId: string): Promise<ResolvedFeatureFlag> {
-    const flag = await this.getOrThrow(key);
-    if (Object.prototype.hasOwnProperty.call(flag.organizationOverrides, organizationId)) {
-      return { key, value: flag.organizationOverrides[organizationId], source: 'override' };
+    const cacheKey = resolveCacheKey(key, organizationId);
+    const cached = await this.cacheService.get<ResolvedFeatureFlag>(cacheKey);
+    if (cached) {
+      return cached;
     }
-    return { key, value: flag.defaultValue, source: 'default' };
+
+    const flag = await this.getOrThrow(key);
+    const result: ResolvedFeatureFlag = Object.prototype.hasOwnProperty.call(
+      flag.organizationOverrides,
+      organizationId,
+    )
+      ? { key, value: flag.organizationOverrides[organizationId], source: 'override' }
+      : { key, value: flag.defaultValue, source: 'default' };
+
+    await this.cacheService.set(cacheKey, result, RESOLVE_CACHE_TTL_MS, [flagTag(key)]);
+    return result;
   }
 }
 

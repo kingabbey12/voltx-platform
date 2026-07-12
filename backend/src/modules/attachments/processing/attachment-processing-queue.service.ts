@@ -50,7 +50,15 @@ export class AttachmentProcessingQueueService {
       .add(
         'process',
         { attachmentId, organizationId },
-        { attempts: 3, backoff: { type: 'exponential', delay: 2000 } },
+        {
+          // v2.2 Platform Scale — deterministic per-attachment id: a
+          // duplicate enqueue for the same attachment (e.g. a retried
+          // upload-completion callback) collides in BullMQ instead of
+          // running the pipeline twice concurrently.
+          jobId: `process:${attachmentId}`,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 2000 },
+        },
       )
       .catch((error: unknown) =>
         this.logger.error(
