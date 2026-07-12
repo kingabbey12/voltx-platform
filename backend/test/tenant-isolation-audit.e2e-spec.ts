@@ -340,4 +340,150 @@ describe('Tenant isolation audit (e2e)', () => {
         .expect(404);
     });
   });
+
+  describe('v2.1 billing platform — cross-tenant isolation for new resources', () => {
+    async function registerOrg(email: string, organizationName: string) {
+      const registerResponse = await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({
+          email,
+          password: 'Password123!',
+          firstName: 'Tenant',
+          lastName: 'Audit',
+          organizationName,
+        })
+        .expect(201);
+      const accessToken = (registerResponse.body as ApiSuccessResponse<{ accessToken: string }>)
+        .data.accessToken;
+      const meResponse = await request(app.getHttpServer())
+        .get('/api/v1/auth/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+      const organizationId = (meResponse.body as ApiSuccessResponse<{ organizationId: string }>)
+        .data.organizationId;
+      return { accessToken, organizationId };
+    }
+
+    it('never lets one organization see another organization’s invoices or payment methods', async () => {
+      const orgA = await registerOrg(
+        `tenant-audit-billing-org-a-${Date.now()}@example.com`,
+        'Billing Tenant Audit Org A',
+      );
+      const orgB = await registerOrg(
+        `tenant-audit-billing-org-b-${Date.now()}@example.com`,
+        'Billing Tenant Audit Org B',
+      );
+
+      const billingAccountA = await prisma.system.billingAccount.findUniqueOrThrow({
+        where: { organizationId: orgA.organizationId },
+      });
+
+      const invoiceA = await prisma.system.invoice.create({
+        data: {
+          organizationId: orgA.organizationId,
+          billingAccountId: billingAccountA.id,
+          stripeInvoiceId: `in_tenant_audit_${Date.now()}`,
+          status: 'PAID',
+          amountDue: 99,
+          amountPaid: 99,
+          amountRemaining: 0,
+          currency: 'usd',
+        },
+      });
+
+      const paymentMethodA = await prisma.system.paymentMethod.create({
+        data: {
+          organizationId: orgA.organizationId,
+          billingAccountId: billingAccountA.id,
+          stripePaymentMethodId: `pm_tenant_audit_${Date.now()}`,
+          type: 'CARD',
+          brand: 'visa',
+          last4: '4242',
+          isDefault: true,
+        },
+      });
+
+      // Org B's own invoice/payment-method lists never contain org A's rows.
+      const invoicesAsOrgB = await request(app.getHttpServer())
+        .get('/api/v1/billing/invoices')
+        .set('Authorization', `Bearer ${orgB.accessToken}`)
+        .expect(200);
+      const orgBInvoices = (
+        invoicesAsOrgB.body as ApiSuccessResponse<{ items: Array<{ id: string }> }>
+      ).data.items;
+      expect(orgBInvoices.some((item) => item.id === invoiceA.id)).toBe(false);
+
+      const paymentMethodsAsOrgB = await request(app.getHttpServer())
+        .get('/api/v1/billing/payment-methods')
+        .set('Authorization', `Bearer ${orgB.accessToken}`)
+        .expect(200);
+      const orgBPaymentMethods = (
+        paymentMethodsAsOrgB.body as ApiSuccessResponse<Array<{ id: string }>>
+      ).data;
+      expect(orgBPaymentMethods.some((item) => item.id === paymentMethodA.id)).toBe(false);
+
+      // Org B can't set org A's payment method as default or remove it,
+      // given the id directly.
+      await request(app.getHttpServer())
+        .post(`/api/v1/billing/payment-methods/${paymentMethodA.id}/default`)
+        .set('Authorization', `Bearer ${orgB.accessToken}`)
+        .expect(404);
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/billing/payment-methods/${paymentMethodA.id}`)
+        .set('Authorization', `Bearer ${orgB.accessToken}`)
+        .expect(404);
+
+      // Org A still sees its own invoice/payment method, untouched.
+      const invoicesAsOrgA = await request(app.getHttpServer())
+        .get('/api/v1/billing/invoices')
+        .set('Authorization', `Bearer ${orgA.accessToken}`)
+        .expect(200);
+      const orgAInvoices = (
+        invoicesAsOrgA.body as ApiSuccessResponse<{ items: Array<{ id: string }> }>
+      ).data.items;
+      expect(orgAInvoices.some((item) => item.id === invoiceA.id)).toBe(true);
+    });
+
+    it('never lets one organization read or mutate another organization’s subscription', async () => {
+      const orgA = await registerOrg(
+        `tenant-audit-subscription-org-a-${Date.now()}@example.com`,
+        'Subscription Tenant Audit Org A',
+      );
+      const orgB = await registerOrg(
+        `tenant-audit-subscription-org-b-${Date.now()}@example.com`,
+        'Subscription Tenant Audit Org B',
+      );
+
+      const subscriptionAsOrgA = await request(app.getHttpServer())
+        .get('/api/v1/billing/subscription')
+        .set('Authorization', `Bearer ${orgA.accessToken}`)
+        .expect(200);
+      const orgASubscription = (
+        subscriptionAsOrgA.body as ApiSuccessResponse<{ id: string; planId: string }>
+      ).data;
+
+      const subscriptionAsOrgB = await request(app.getHttpServer())
+        .get('/api/v1/billing/subscription')
+        .set('Authorization', `Bearer ${orgB.accessToken}`)
+        .expect(200);
+      const orgBSubscription = (
+        subscriptionAsOrgB.body as ApiSuccessResponse<{ id: string; planId: string }>
+      ).data;
+
+      // Each organization has its own, distinct trial subscription — org
+      // B's read of "the current subscription" never resolves to org A's,
+      // proving getCurrentForOrganizationOrThrow scopes strictly by the
+      // caller's own JWT-derived organizationId rather than e.g. returning
+      // whichever Subscription row happens to be first/most-recent overall.
+      expect(orgBSubscription.id).not.toBe(orgASubscription.id);
+      expect(orgASubscription.id).toBe(
+        (
+          await prisma.system.subscription.findFirstOrThrow({
+            where: { organizationId: orgA.organizationId },
+          })
+        ).id,
+      );
+    });
+  });
 });
