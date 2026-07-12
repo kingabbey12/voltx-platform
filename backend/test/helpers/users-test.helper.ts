@@ -45,6 +45,10 @@ export async function resetAuthTestData(prisma: PrismaService): Promise<void> {
   // Invitation.invitedByUserId/acceptedByUserId restrict user deletion (only
   // organizationId cascades), so this must run before user.deleteMany().
   await ignoreMissingTable(() => prisma.system.invitation.deleteMany());
+  // ConsentRecord.userId has no onDelete: Cascade (unlike Session/TrustedDevice),
+  // so it must also be cleared before user.deleteMany() or that call 409s with
+  // a foreign key violation on every run after the first that creates one.
+  await ignoreMissingTable(() => prisma.system.consentRecord.deleteMany());
   await ignoreMissingTable(() => prisma.system.rolePermission.deleteMany());
   await ignoreMissingTable(() => prisma.system.user.deleteMany());
   await ignoreMissingTable(() => prisma.system.organization.deleteMany());
