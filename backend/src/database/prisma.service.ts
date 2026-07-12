@@ -177,6 +177,15 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.apiKey;
   }
 
+  /** White-label (v2.2 Phase 6) models — unscoped, same rationale as identityProvider above. */
+  get brandTheme(): PrismaClient['brandTheme'] {
+    return this.baseClient.brandTheme;
+  }
+
+  get customDomain(): PrismaClient['customDomain'] {
+    return this.baseClient.customDomain;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }

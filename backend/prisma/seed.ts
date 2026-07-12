@@ -113,6 +113,10 @@ const PERMISSION_DEFINITIONS = [
   { key: 'security.trusted_device.manage', resource: 'security_trusted_device', action: 'manage', description: 'View, trust, and revoke your own trusted devices' },
   { key: 'security.apikey.manage', resource: 'security_api_key', action: 'manage', description: 'Create, list, and revoke organization API keys' },
   { key: 'security.policy.manage', resource: 'security_policy', action: 'manage', description: 'View and update the organization security policy (MFA requirement, password policy, IP allowlist)' },
+  { key: 'branding.theme.read', resource: 'branding_theme', action: 'read', description: "View the organization's brand theme" },
+  { key: 'branding.theme.manage', resource: 'branding_theme', action: 'manage', description: "Update the organization's logo, colors, favicon, and login screen branding" },
+  { key: 'branding.domain.read', resource: 'branding_domain', action: 'read', description: 'View custom domains configured for the organization' },
+  { key: 'branding.domain.manage', resource: 'branding_domain', action: 'manage', description: 'Register, verify, and remove custom domains' },
 ] as const;
 
 const ROLE_DEFINITIONS = [

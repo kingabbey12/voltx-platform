@@ -18,6 +18,7 @@ import { BillingModule } from './modules/billing/billing.module';
 import { AgentModule } from './modules/ai/agents/agent.module';
 import { AIModule } from './modules/ai/ai.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
+import { BrandingModule } from './modules/branding/branding.module';
 import { BackgroundJobsModule } from './modules/background-jobs/background-jobs.module';
 import { CommunicationsModule } from './modules/communications/communications.module';
 import { ComplianceModule } from './modules/compliance/compliance.module';
@@ -82,6 +83,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     AttachmentsModule,
     BackgroundJobsModule,
     BillingModule,
+    BrandingModule,
     AuthModule,
     CommunicationsModule,
     ComplianceModule,

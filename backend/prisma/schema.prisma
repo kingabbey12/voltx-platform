@@ -216,6 +216,8 @@ model Organization {
   sessions                Session[]
   trustedDevices          TrustedDevice[]
   apiKeys                 ApiKey[]
+  brandTheme              BrandTheme?
+  customDomains           CustomDomain[]
 
   @@index([status])
   @@index([parentOrganizationId])
@@ -3306,4 +3308,65 @@ model ApiKey {
 
   @@index([organizationId])
   @@map("api_keys")
+}
+
+/// v2.2 White-label — one branding theme per organization (1:1). Logo/
+/// favicon/login-background are stored via the existing attachments
+/// StorageProvider (storage keys only, not raw bytes) — the public
+/// branding endpoint mints a fresh signed URL per read rather than
+/// storing a permanent public URL, so nothing here needs a new storage
+/// abstraction. `emailTemplateOverrides` is a free-form Json map (e.g.
+/// `{ "invitation": { "subject": "...", "footerHtml": "..." } }`) — which
+/// keys are honored is decided by the email-sending code, not this model.
+model BrandTheme {
+  id                        String       @id @default(uuid()) @db.Uuid
+  organizationId            String       @unique @map("organization_id") @db.Uuid
+  logoStorageKey            String?      @map("logo_storage_key")
+  faviconStorageKey         String?      @map("favicon_storage_key")
+  loginBackgroundStorageKey String?      @map("login_background_storage_key")
+  primaryColor              String?      @map("primary_color")
+  secondaryColor            String?      @map("secondary_color")
+  accentColor               String?      @map("accent_color")
+  loginHeadline             String?      @map("login_headline")
+  loginSubtext              String?      @map("login_subtext")
+  emailTemplateOverrides    Json         @default("{}") @map("email_template_overrides")
+  createdAt                 DateTime     @default(now()) @map("created_at")
+  updatedAt                 DateTime     @updatedAt @map("updated_at")
+  organization              Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("brand_themes")
+}
+
+/// v2.2 White-label — domain-ownership verification status for a
+/// custom login domain. Verified via a real DNS TXT record lookup
+/// (src/modules/branding/utils/dns-verification.util.ts) against
+/// `verificationToken`; no in-app ACME/TLS issuance happens anywhere —
+/// `sslStatus` only ever reflects state fed in by an external process
+/// (documented as a deployment/infra step, not built by this phase).
+enum CustomDomainVerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum CustomDomainSslStatus {
+  PENDING
+  ACTIVE
+  FAILED
+}
+
+model CustomDomain {
+  id                 String                         @id @default(uuid()) @db.Uuid
+  organizationId     String                         @map("organization_id") @db.Uuid
+  domain             String                         @unique
+  verificationToken  String                         @map("verification_token")
+  verificationStatus CustomDomainVerificationStatus @default(PENDING) @map("verification_status")
+  sslStatus          CustomDomainSslStatus          @default(PENDING) @map("ssl_status")
+  verifiedAt         DateTime?                      @map("verified_at")
+  createdAt          DateTime                       @default(now()) @map("created_at")
+  updatedAt          DateTime                       @updatedAt @map("updated_at")
+  organization       Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("custom_domains")
 }
