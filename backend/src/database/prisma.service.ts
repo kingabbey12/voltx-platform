@@ -136,6 +136,29 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.costCenter;
   }
 
+  /**
+   * Compliance Center (v2.2 Phase 5) models — unscoped, same reasoning as
+   * identityProvider/samlConfiguration/oidcConfiguration above: these are
+   * org-scoped in the domain sense, but that isn't a scope the tenant
+   * extension enforces, so every repository method querying these must
+   * filter by organizationId explicitly.
+   */
+  get auditExport(): PrismaClient['auditExport'] {
+    return this.baseClient.auditExport;
+  }
+
+  get legalHold(): PrismaClient['legalHold'] {
+    return this.baseClient.legalHold;
+  }
+
+  get retentionPolicy(): PrismaClient['retentionPolicy'] {
+    return this.baseClient.retentionPolicy;
+  }
+
+  get consentRecord(): PrismaClient['consentRecord'] {
+    return this.baseClient.consentRecord;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }

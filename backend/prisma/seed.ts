@@ -100,6 +100,15 @@ const PERMISSION_DEFINITIONS = [
   { key: 'attachment.delete', resource: 'attachment', action: 'delete', description: 'Delete attachments' },
   { key: 'attachment.admin_override', resource: 'attachment', action: 'admin_override', description: 'Download a quarantined attachment despite a failed virus scan' },
   { key: 'ops.dead_letter.read', resource: 'ops_dead_letter', action: 'read', description: 'View background jobs that exhausted their retry attempts' },
+  { key: 'compliance.gdpr.manage', resource: 'compliance_gdpr', action: 'manage', description: 'Export and erase a member\'s personal data (GDPR data portability and right to erasure)' },
+  { key: 'compliance.legalhold.read', resource: 'compliance_legal_hold', action: 'read', description: 'View legal/litigation holds' },
+  { key: 'compliance.legalhold.manage', resource: 'compliance_legal_hold', action: 'manage', description: 'Create, update, and release legal/litigation holds' },
+  { key: 'compliance.retention.read', resource: 'compliance_retention_policy', action: 'read', description: 'View data-retention policies' },
+  { key: 'compliance.retention.manage', resource: 'compliance_retention_policy', action: 'manage', description: 'Create, update, and delete data-retention policies' },
+  { key: 'compliance.consent.read', resource: 'compliance_consent_record', action: 'read', description: 'View consent grant/revoke history' },
+  { key: 'compliance.consent.manage', resource: 'compliance_consent_record', action: 'manage', description: 'Record a consent grant or revocation on behalf of a user' },
+  { key: 'compliance.audit.export', resource: 'compliance_audit_export', action: 'export', description: 'Export the organization\'s audit log to a downloadable file' },
+  { key: 'compliance.audit.verify', resource: 'compliance_audit_export', action: 'verify', description: 'Verify the tamper-evident integrity of the organization\'s audit log hash chain' },
 ] as const;
 
 const ROLE_DEFINITIONS = [
@@ -189,6 +198,9 @@ const ROLE_DEFINITIONS = [
       'attachment.create',
       'attachment.read',
       'attachment.delete',
+      'compliance.legalhold.read',
+      'compliance.retention.read',
+      'compliance.consent.read',
     ],
   },
   {

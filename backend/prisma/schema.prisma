@@ -209,6 +209,10 @@ model Organization {
   identityProviders       IdentityProvider[]
   scimTokens              ScimToken[]
   scimProvisionJobs       ScimProvisionJob[]
+  auditExports            AuditExport[]
+  legalHolds              LegalHold[]
+  retentionPolicies       RetentionPolicy[]
+  consentRecords          ConsentRecord[]
 
   @@index([status])
   @@index([parentOrganizationId])
@@ -242,6 +246,7 @@ model User {
   acceptedInvitations     Invitation[]        @relation("InvitationAcceptedBy")
   notifications           Notification[]
   attachments             Attachment[]
+  consentRecords          ConsentRecord[]
 
   @@index([status])
   @@map("users")
@@ -545,11 +550,22 @@ model AuditLog {
   resource       String
   resourceId     String?  @map("resource_id") @db.Uuid
   metadata       Json     @default("{}")
+  /// v2.2 Compliance Center — tamper-evident hash chain, computed at write
+  /// time inside the same transaction as the insert (see AuditRepository.write).
+  /// previousHash is the `hash` of the immediately preceding row for the same
+  /// organizationId (null for the first row in an org's chain); hash is
+  /// sha256(previousHash + canonical row payload). Both nullable/additive so
+  /// rows written before this feature existed simply have no chain entry —
+  /// GET /compliance/audit/verify treats a null hash as "unchained" and skips
+  /// it rather than reporting a false tamper break.
+  previousHash   String?  @map("previous_hash")
+  hash           String?  @map("hash")
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@index([organizationId])
   @@index([userId])
   @@index([requestId])
+  @@index([organizationId, createdAt])
   @@map("audit_logs")
 }
 
@@ -3054,4 +3070,140 @@ model CostCenter {
 
   @@index([organizationId])
   @@map("cost_centers")
+}
+
+/// v2.2 Compliance Center — output format for a generated AuditExport file.
+enum AuditExportFormat {
+  CSV
+  JSON
+}
+
+/// v2.2 Compliance Center — lifecycle of an AuditExport job. Generation
+/// happens synchronously within the request in this implementation (audit
+/// log volumes here don't warrant an async worker), but the status column
+/// exists so a future move to a background job is a non-breaking change.
+enum AuditExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+/// v2.2 Compliance Center — a single request to export an organization's
+/// AuditLog rows (for a date range) to a file in the existing
+/// attachments StorageProvider, for external legal/compliance review.
+model AuditExport {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  requestedBy    String            @map("requested_by") @db.Uuid
+  fromDate       DateTime          @map("from_date")
+  toDate         DateTime          @map("to_date")
+  format         AuditExportFormat @default(JSON)
+  status         AuditExportStatus @default(PENDING)
+  storageKey     String?           @map("storage_key")
+  rowCount       Int?              @map("row_count")
+  errorMessage   String?           @map("error_message")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  completedAt    DateTime?         @map("completed_at")
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@map("audit_exports")
+}
+
+/// v2.2 Compliance Center — whether a hold is currently blocking deletion.
+enum LegalHoldStatus {
+  ACTIVE
+  RELEASED
+}
+
+/// v2.2 Compliance Center — a legal/litigation hold that blocks GDPR
+/// erasure for its target while ACTIVE. `targetUserId` scopes the hold to
+/// one data subject within the organization; a null `targetUserId` is an
+/// organization-wide hold that blocks erasure for every user in the org
+/// (e.g. a litigation matter affecting the whole tenant). `scope` carries
+/// free-form context (matter name, legal reference, resource-type
+/// restrictions) for audit/reporting.
+model LegalHold {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  name           String
+  reason         String
+  targetUserId   String?         @map("target_user_id") @db.Uuid
+  scope          Json            @default("{}")
+  status         LegalHoldStatus @default(ACTIVE)
+  createdBy      String          @map("created_by") @db.Uuid
+  releasedBy     String?         @map("released_by") @db.Uuid
+  releasedAt     DateTime?       @map("released_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([targetUserId])
+  @@map("legal_holds")
+}
+
+/// v2.2 Compliance Center — resource families a RetentionPolicy can target.
+/// Deliberately limited to resources this module actually knows how to
+/// sweep (see ComplianceRetentionService) rather than every model in the
+/// schema — extend alongside the sweep logic, not ahead of it.
+enum RetentionResourceType {
+  AUDIT_LOG
+  CONVERSATION
+  NOTIFICATION
+  ATTACHMENT
+}
+
+enum RetentionAction {
+  DELETE
+  ANONYMIZE
+}
+
+/// v2.2 Compliance Center — org-configured data-retention rule: "resource
+/// of type X older than retentionDays gets action Y." CRUD only in this
+/// phase (no scheduled sweep worker yet — see module report for scoping).
+model RetentionPolicy {
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @map("organization_id") @db.Uuid
+  resourceType   RetentionResourceType @map("resource_type")
+  retentionDays  Int                   @map("retention_days")
+  action         RetentionAction
+  isActive       Boolean               @default(true) @map("is_active")
+  createdBy      String                @map("created_by") @db.Uuid
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, resourceType])
+  @@index([organizationId])
+  @@map("retention_policies")
+}
+
+/// v2.2 Compliance Center — append-only history of a user's consent
+/// decisions. Each grant/revoke action inserts a new row rather than
+/// mutating a prior one, so the full consent history for a
+/// (userId, consentType) pair is reconstructable for audit purposes.
+/// consentType is intentionally a free-form string, not an enum — consent
+/// categories are a product/legal concern that evolves independently of
+/// deploys (e.g. "marketing_emails", "data_processing", "cookies_analytics").
+model ConsentRecord {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  consentType    String       @map("consent_type")
+  granted        Boolean
+  grantedAt      DateTime?    @map("granted_at")
+  revokedAt      DateTime?    @map("revoked_at")
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([userId, consentType])
+  @@map("consent_records")
 }
