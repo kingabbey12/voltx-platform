@@ -30,6 +30,10 @@ abstract final class AppRoutes {
   static const String salesContacts = '/sales/contacts';
   static const String salesOpportunityBoard = '/sales/opportunities';
   static const String salesCopilot = '/sales/copilot';
+  static const String billingHome = '/billing';
+  static const String billingUpgrade = '/billing/upgrade';
+  static const String billingInvoices = '/billing/invoices';
+  static const String billingPaymentMethods = '/billing/payment-methods';
   static const String settings = '/settings';
   static const String manageTeam = '/settings/team';
   static const String acceptInvitation = '/invitations/accept';
@@ -72,6 +76,10 @@ abstract final class AppRoutes {
     salesContacts,
     salesOpportunityBoard,
     salesCopilot,
+    billingHome,
+    billingUpgrade,
+    billingInvoices,
+    billingPaymentMethods,
     settings,
     manageTeam,
     components,

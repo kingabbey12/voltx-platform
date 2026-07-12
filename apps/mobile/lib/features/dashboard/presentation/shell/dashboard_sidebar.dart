@@ -68,6 +68,12 @@ class DashboardSidebar extends ConsumerWidget {
       selectedIcon: Icons.person_rounded,
     ),
     DashboardNavItem(
+      label: 'Billing',
+      route: AppRoutes.billingHome,
+      icon: Icons.credit_card_outlined,
+      selectedIcon: Icons.credit_card_rounded,
+    ),
+    DashboardNavItem(
       label: 'Settings',
       route: AppRoutes.settings,
       icon: Icons.settings_outlined,
