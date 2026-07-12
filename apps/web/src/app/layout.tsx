@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </AuthProvider>
           </QueryProvider>
         </ThemeProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
