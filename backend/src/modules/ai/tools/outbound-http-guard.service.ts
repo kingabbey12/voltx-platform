@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { promises as dns } from 'node:dns';
 import { isIPv4, isIPv6 } from 'node:net';
@@ -61,6 +61,38 @@ export class OutboundHttpGuardService {
     }
 
     throw new ToolExecutionError('Unreachable redirect loop', 'too_many_redirects');
+  }
+
+  /**
+   * A narrower, non-AI-specific check reused by any feature that must
+   * validate an attacker-influenced destination URL at *registration* time
+   * rather than at fetch time — e.g. an OAuth redirect URI or a webhook
+   * endpoint URL. Unlike `fetch()`/`assertAllowedAndLog`, this never
+   * follows redirects, never consults the AI-tool host allowlist
+   * (`ai.httpTool.allowedHosts` has no meaning for a third party's own
+   * domain), and never audit-logs as an AI tool call — it only performs
+   * the DNS-resolution/private-IP check that is the actual SSRF-prevention
+   * primitive, plus a scheme check (only http/https are ever valid
+   * redirect/webhook targets).
+   */
+  async assertUrlIsSafeDestination(rawUrl: string): Promise<void> {
+    let parsed: URL;
+    try {
+      parsed = new URL(rawUrl);
+    } catch {
+      throw new BadRequestException(`"${rawUrl}" is not a valid URL`);
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new BadRequestException(`Unsupported URL scheme "${parsed.protocol}" in "${rawUrl}"`);
+    }
+
+    const blockedReason = await this.checkBlockedAddress(parsed.hostname.toLowerCase());
+    if (blockedReason) {
+      throw new BadRequestException(
+        `"${rawUrl}" is not a permitted destination (${blockedReason})`,
+      );
+    }
   }
 
   private async assertAllowedAndLog(rawUrl: string, toolName: string, hop: number): Promise<void> {

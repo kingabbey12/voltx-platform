@@ -62,6 +62,15 @@ export function createSwaggerDocument(app: INestApplication): OpenAPIObject {
       },
       'ServiceAccountToken',
     )
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        description:
+          "v2.3 Developer Platform — an OAuth 2.0 access token issued to a third-party application on a user's behalf (see OAuthAccessTokenGuard). Obtained via POST /oauth/token.",
+      },
+      'OAuth2AccessToken',
+    )
     .addGlobalParameters({
       name: REQUEST_ID_HEADER,
       in: 'header',

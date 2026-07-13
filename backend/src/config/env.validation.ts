@@ -136,6 +136,45 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  PERSONAL_ACCESS_TOKEN_PREFIX?: string;
+
+  @IsOptional()
+  @IsString()
+  SERVICE_ACCOUNT_TOKEN_PREFIX?: string;
+
+  @IsOptional()
+  @IsString()
+  OAUTH_CLIENT_SECRET_PREFIX?: string;
+
+  @IsOptional()
+  @IsString()
+  OAUTH_ACCESS_TOKEN_PREFIX?: string;
+
+  @IsOptional()
+  @IsString()
+  OAUTH_REFRESH_TOKEN_PREFIX?: string;
+
+  @IsOptional()
+  @IsString()
+  OAUTH_AUTHORIZATION_CODE_PREFIX?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  OAUTH_AUTHORIZATION_CODE_TTL_SECONDS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  OAUTH_ACCESS_TOKEN_TTL_SECONDS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  OAUTH_REFRESH_TOKEN_TTL_SECONDS?: number;
+
+  @IsOptional()
+  @IsString()
   SENTRY_DSN?: string;
 
   @IsOptional()

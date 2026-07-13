@@ -350,7 +350,11 @@ class HttpPostTool implements AITool<
       inject: [CalculatorTool, DatetimeTool, UuidTool, JsonTool, HttpGetTool, HttpPostTool],
     },
   ],
-  exports: [ToolRegistry, ToolExecutor, ToolService],
+  // OutboundHttpGuardService is exported so other modules that need to
+  // validate an attacker-influenced destination URL (e.g. the v2.3 Developer
+  // Platform's OAuth redirect-URI registration) can reuse its
+  // assertUrlIsSafeDestination() SSRF check rather than reimplementing it.
+  exports: [ToolRegistry, ToolExecutor, ToolService, OutboundHttpGuardService],
 })
 export class ToolModule {}
 

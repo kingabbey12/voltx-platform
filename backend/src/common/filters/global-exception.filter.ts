@@ -12,6 +12,7 @@ import {
   AIProviderError,
   AIProviderErrorCategory,
 } from '../../modules/ai/providers/ai-provider.interface';
+import { OAuthWireException } from '../../modules/oauth-provider/errors/oauth-wire.exception';
 import { API_VERSION } from '../constants/api.constants';
 import { REQUEST_ID_HEADER } from '../constants/request-id.constants';
 import { ERROR_CODES, ErrorCode, getDefaultErrorCode } from '../errors/error-codes';
@@ -60,6 +61,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+
+    // OAuth token/revoke/introspect errors must be RFC 6749/7009-shaped
+    // (`{ error, error_description }`), never this API's normal envelope —
+    // no generic OAuth2 client library parses the latter. OAuthWireException
+    // is only ever thrown from the OAuth provider's token flows, so this
+    // check is exhaustive for that surface without needing a path match.
+    if (exception instanceof OAuthWireException) {
+      response.status(exception.getStatus()).json(exception.getResponse());
+      return;
+    }
 
     // AIProviderError is a plain Error (not an HttpException, since it's
     // thrown from deep inside provider/runtime code with no HTTP context),

@@ -225,6 +225,7 @@ model Organization {
   brandTheme              BrandTheme?
   customDomains           CustomDomain[]
   serviceAccounts         ServiceAccount[]
+  oauthApplications       OAuthApplication[]
 
   @@index([status])
   @@index([parentOrganizationId])
@@ -3598,4 +3599,129 @@ model ServiceAccountToken {
 
   @@index([serviceAccountId])
   @@map("service_account_tokens")
+}
+
+enum OAuthApplicationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+/// v2.3 Developer Platform (Phase 2) — a third-party application registered
+/// to act as an OAuth 2.0 client against Voltx's own authorization server.
+/// clientId is non-secret (safe to embed in a public app); clientSecretHash
+/// follows the exact hash-and-compare convention every other credential in
+/// this codebase uses. `scopes` is the maximum set of permission keys this
+/// app can ever request — the authorizing user's own current permissions
+/// further narrow what's actually granted at consent time (same
+/// can't-exceed-caller rule as ApiKey/PersonalAccessToken/ServiceAccount).
+model OAuthApplication {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  organizationId     String                 @map("organization_id") @db.Uuid
+  ownerUserId        String                 @map("owner_user_id") @db.Uuid
+  name               String
+  description        String?
+  logoUrl            String?                @map("logo_url")
+  clientId           String                 @unique @map("client_id")
+  clientSecretHash   String                 @map("client_secret_hash")
+  /// Non-secret hint (e.g. "vcs_ab12cd34...") shown in the UI, same
+  /// convention as every other credential's *Prefix column.
+  clientSecretPrefix String                 @map("client_secret_prefix")
+  scopes             String[]               @default([])
+  status             OAuthApplicationStatus @default(ACTIVE)
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  redirectUris       OAuthRedirectUri[]
+  authorizationCodes OAuthAuthorizationCode[]
+  accessTokens       OAuthAccessToken[]
+  refreshTokens      OAuthRefreshToken[]
+
+  @@index([organizationId])
+  @@map("oauth_applications")
+}
+
+/// Validated at registration time via OutboundHttpGuardService — the exact
+/// same private-IP/DNS-resolution SSRF check already used for AI tool
+/// outbound requests, since a redirect URI is just as attacker-influenced.
+model OAuthRedirectUri {
+  id            String   @id @default(uuid()) @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  uri           String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application OAuthApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, uri])
+  @@index([applicationId])
+  @@map("oauth_redirect_uris")
+}
+
+/// Single-use, short-lived (~60s) authorization grant issued after user
+/// consent. codeHash follows the standard hash-and-compare convention;
+/// consumedAt enforces single-use atomically (see
+/// OAuthTokenService.exchangeAuthorizationCode, which consumes it via a
+/// conditional updateMany so a replayed code can never be redeemed twice).
+model OAuthAuthorizationCode {
+  id                        String    @id @default(uuid()) @db.Uuid
+  applicationId             String    @map("application_id") @db.Uuid
+  authorizingUserId         String    @map("authorizing_user_id") @db.Uuid
+  authorizingOrganizationId String    @map("authorizing_organization_id") @db.Uuid
+  codeHash                  String    @unique @map("code_hash")
+  redirectUri               String    @map("redirect_uri")
+  scopes                    String[]  @default([])
+  /// PKCE (RFC 7636) — S256 is the only supported method; "plain" is
+  /// deliberately rejected at issuance (see OAuthAuthorizationService).
+  codeChallenge             String    @map("code_challenge")
+  codeChallengeMethod       String    @map("code_challenge_method")
+  expiresAt                 DateTime  @map("expires_at")
+  consumedAt                DateTime? @map("consumed_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+
+  application OAuthApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("oauth_authorization_codes")
+}
+
+model OAuthAccessToken {
+  id                        String    @id @default(uuid()) @db.Uuid
+  applicationId             String    @map("application_id") @db.Uuid
+  authorizingUserId         String    @map("authorizing_user_id") @db.Uuid
+  authorizingOrganizationId String    @map("authorizing_organization_id") @db.Uuid
+  tokenHash                 String    @unique @map("token_hash")
+  tokenPrefix               String    @map("token_prefix")
+  scopes                    String[]  @default([])
+  expiresAt                 DateTime  @map("expires_at")
+  revokedAt                 DateTime? @map("revoked_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+
+  application  OAuthApplication   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  refreshToken OAuthRefreshToken?
+
+  @@index([applicationId])
+  @@index([authorizingUserId])
+  @@map("oauth_access_tokens")
+}
+
+/// Rotated on every use (see OAuthTokenService.refresh): the presented
+/// refresh token is revoked and a brand-new access/refresh pair is issued,
+/// rather than the same refresh token being reusable indefinitely.
+model OAuthRefreshToken {
+  id                        String    @id @default(uuid()) @db.Uuid
+  applicationId             String    @map("application_id") @db.Uuid
+  accessTokenId             String    @unique @map("access_token_id") @db.Uuid
+  authorizingUserId         String    @map("authorizing_user_id") @db.Uuid
+  authorizingOrganizationId String    @map("authorizing_organization_id") @db.Uuid
+  tokenHash                 String    @unique @map("token_hash")
+  scopes                    String[]  @default([])
+  expiresAt                 DateTime  @map("expires_at")
+  revokedAt                 DateTime? @map("revoked_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+
+  application OAuthApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  accessToken OAuthAccessToken @relation(fields: [accessTokenId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("oauth_refresh_tokens")
 }

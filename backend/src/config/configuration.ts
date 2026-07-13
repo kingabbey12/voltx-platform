@@ -62,6 +62,24 @@ export default () => ({
   developerPlatform: {
     personalAccessTokenPrefix: process.env.PERSONAL_ACCESS_TOKEN_PREFIX ?? 'vpat',
     serviceAccountTokenPrefix: process.env.SERVICE_ACCOUNT_TOKEN_PREFIX ?? 'vsa',
+    // v2.3 Phase 2 — OAuth Applications (Voltx as an authorization server).
+    oauthClientSecretPrefix: process.env.OAUTH_CLIENT_SECRET_PREFIX ?? 'vcs',
+    oauthAccessTokenPrefix: process.env.OAUTH_ACCESS_TOKEN_PREFIX ?? 'voat',
+    oauthRefreshTokenPrefix: process.env.OAUTH_REFRESH_TOKEN_PREFIX ?? 'vort',
+    oauthAuthorizationCodePrefix: process.env.OAUTH_AUTHORIZATION_CODE_PREFIX ?? 'vac',
+    // Deliberately short — an authorization code is exchanged by the
+    // client's backend within seconds of the user approving consent; a
+    // long-lived code would needlessly widen the window an intercepted
+    // redirect could be replayed in.
+    oauthAuthorizationCodeTtlSeconds: parseInt(
+      process.env.OAUTH_AUTHORIZATION_CODE_TTL_SECONDS ?? '60',
+      10,
+    ),
+    oauthAccessTokenTtlSeconds: parseInt(process.env.OAUTH_ACCESS_TOKEN_TTL_SECONDS ?? '3600', 10),
+    oauthRefreshTokenTtlSeconds: parseInt(
+      process.env.OAUTH_REFRESH_TOKEN_TTL_SECONDS ?? '2592000',
+      10,
+    ),
   },
   sentry: {
     dsn: process.env.SENTRY_DSN ?? '',

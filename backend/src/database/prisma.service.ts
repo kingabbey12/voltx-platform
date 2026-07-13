@@ -251,6 +251,27 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.serviceAccountToken;
   }
 
+  /** Developer Platform (v2.3 Phase 2) models — unscoped, same rationale as identityProvider above. */
+  get oAuthApplication(): PrismaClient['oAuthApplication'] {
+    return this.baseClient.oAuthApplication;
+  }
+
+  get oAuthRedirectUri(): PrismaClient['oAuthRedirectUri'] {
+    return this.baseClient.oAuthRedirectUri;
+  }
+
+  get oAuthAuthorizationCode(): PrismaClient['oAuthAuthorizationCode'] {
+    return this.baseClient.oAuthAuthorizationCode;
+  }
+
+  get oAuthAccessToken(): PrismaClient['oAuthAccessToken'] {
+    return this.baseClient.oAuthAccessToken;
+  }
+
+  get oAuthRefreshToken(): PrismaClient['oAuthRefreshToken'] {
+    return this.baseClient.oAuthRefreshToken;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }

@@ -33,6 +33,7 @@ import { NotificationModule } from './modules/notifications/notification.module'
 import { OperatorModule } from './modules/ai/operator/operator.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { OrganizationStructureModule } from './modules/organization-structure/organization-structure.module';
+import { OAuthProviderModule } from './modules/oauth-provider/oauth-provider.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { PlatformAlertModule } from './modules/platform/alerts/platform-alert.module';
 import { FeatureFlagModule } from './modules/platform/feature-flags/feature-flag.module';
@@ -100,6 +101,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     AuthModule,
     CommunicationsModule,
     DeveloperPlatformModule,
+    OAuthProviderModule,
     ComplianceModule,
     HealthModule,
     IdentityModule,
