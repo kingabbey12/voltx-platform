@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { CurrentUser } from '../auth/interfaces/current-user.interface';
 import { PermissionRepository } from '../permissions/permission.repository';
 import { AuditService } from '../audit/audit.service';
+import { WebhookDispatchService } from '../webhooks/webhook-dispatch.service';
 import { sha256Hex } from '../security/utils/security-hash.util';
 import {
   DecideOAuthAuthorizationDto,
@@ -23,6 +24,7 @@ export class OAuthAuthorizationService {
     private readonly permissionRepository: PermissionRepository,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
+    private readonly webhookDispatchService: WebhookDispatchService,
   ) {}
 
   async getConsentContext(
@@ -98,6 +100,12 @@ export class OAuthAuthorizationService {
       resourceId: application.id,
       metadata: { scopes },
     });
+
+    await this.webhookDispatchService.publish(
+      'oauth_application.authorized',
+      currentUser.organizationId,
+      { applicationId: application.id, applicationName: application.name, scopes },
+    );
 
     return {
       redirectUrl: buildRedirectUrl(dto.redirect_uri, { code: rawCode, state: dto.state }),

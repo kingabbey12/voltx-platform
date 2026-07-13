@@ -81,6 +81,12 @@ export default () => ({
       10,
     ),
   },
+  // v2.3 Developer Platform (Phase 3) — outbound webhooks.
+  webhooks: {
+    maxDeliveryAttempts: parseInt(process.env.WEBHOOK_MAX_DELIVERY_ATTEMPTS ?? '6', 10),
+    retryBaseDelayMs: parseInt(process.env.WEBHOOK_RETRY_BASE_DELAY_MS ?? '5000', 10),
+    requestTimeoutMs: parseInt(process.env.WEBHOOK_REQUEST_TIMEOUT_MS ?? '10000', 10),
+  },
   sentry: {
     dsn: process.env.SENTRY_DSN ?? '',
     environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'development',

@@ -272,6 +272,15 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.oAuthRefreshToken;
   }
 
+  /** Developer Platform (v2.3 Phase 3) models — unscoped, same rationale as identityProvider above. */
+  get webhookEndpoint(): PrismaClient['webhookEndpoint'] {
+    return this.baseClient.webhookEndpoint;
+  }
+
+  get webhookDelivery(): PrismaClient['webhookDelivery'] {
+    return this.baseClient.webhookDelivery;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }

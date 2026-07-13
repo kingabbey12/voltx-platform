@@ -4,6 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { OAuthApplicationStatus } from '@prisma/client';
 import { CurrentUser } from '../src/modules/auth/interfaces/current-user.interface';
 import { AuditService } from '../src/modules/audit/audit.service';
+import { WebhookDispatchService } from '../src/modules/webhooks/webhook-dispatch.service';
 import { OAuthApplicationWithRedirectUrisEntity } from '../src/modules/oauth-provider/entities/oauth-application.entity';
 import { OAuthApplicationRepository } from '../src/modules/oauth-provider/oauth-application.repository';
 import { OAuthAuthorizationCodeRepository } from '../src/modules/oauth-provider/oauth-authorization-code.repository';
@@ -79,6 +80,7 @@ describe('OAuthAuthorizationService', () => {
           useValue: { get: jest.fn((_k: string, fallback: unknown) => fallback) },
         },
         { provide: AuditService, useValue: { record: jest.fn() } },
+        { provide: WebhookDispatchService, useValue: { publish: jest.fn() } },
       ],
     }).compile();
 

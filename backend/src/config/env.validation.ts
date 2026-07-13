@@ -174,6 +174,21 @@ class EnvironmentVariables {
   OAUTH_REFRESH_TOKEN_TTL_SECONDS?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  WEBHOOK_MAX_DELIVERY_ATTEMPTS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  WEBHOOK_RETRY_BASE_DELAY_MS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  WEBHOOK_REQUEST_TIMEOUT_MS?: number;
+
+  @IsOptional()
   @IsString()
   SENTRY_DSN?: string;
 

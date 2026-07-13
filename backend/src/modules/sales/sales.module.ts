@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AgentModule } from '../ai/agents/agent.module';
 import { AIModule } from '../ai/ai.module';
 import { ToolModule } from '../ai/tools/tool.module';
+import { WebhooksModule } from '../webhooks/webhooks.module';
 import { CompaniesController } from './companies/companies.controller';
 import { CompaniesRepository } from './companies/companies.repository';
 import { CompaniesService } from './companies/companies.service';
@@ -22,7 +23,7 @@ import { SalesToolSourceService } from './tools/sales-tool-source.service';
 import { FinanceToolSourceService } from './tools/finance-tool-source.service';
 
 @Module({
-  imports: [AIModule, AgentModule, ToolModule],
+  imports: [AIModule, AgentModule, ToolModule, WebhooksModule],
   controllers: [
     CompaniesController,
     ContactsController,

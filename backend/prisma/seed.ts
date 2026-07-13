@@ -118,6 +118,8 @@ const PERMISSION_DEFINITIONS = [
   { key: 'developer_platform.service_account.manage', resource: 'developer_platform_service_account', action: 'manage', description: 'Create, suspend, and issue tokens for organization service accounts' },
   { key: 'developer_platform.oauth_application.read', resource: 'developer_platform_oauth_application', action: 'read', description: "View the organization's registered OAuth applications" },
   { key: 'developer_platform.oauth_application.manage', resource: 'developer_platform_oauth_application', action: 'manage', description: 'Register, update, suspend, and delete OAuth applications, and rotate their client secrets' },
+  { key: 'developer_platform.webhook_endpoint.read', resource: 'developer_platform_webhook_endpoint', action: 'read', description: "View the organization's webhook endpoints and delivery logs" },
+  { key: 'developer_platform.webhook_endpoint.manage', resource: 'developer_platform_webhook_endpoint', action: 'manage', description: 'Register, update, suspend, delete, and replay deliveries for webhook endpoints' },
   { key: 'branding.theme.read', resource: 'branding_theme', action: 'read', description: "View the organization's brand theme" },
   { key: 'branding.theme.manage', resource: 'branding_theme', action: 'manage', description: "Update the organization's logo, colors, favicon, and login screen branding" },
   { key: 'branding.domain.read', resource: 'branding_domain', action: 'read', description: 'View custom domains configured for the organization' },
@@ -222,6 +224,8 @@ const ROLE_DEFINITIONS = [
       'developer_platform.service_account.manage',
       'developer_platform.oauth_application.read',
       'developer_platform.oauth_application.manage',
+      'developer_platform.webhook_endpoint.read',
+      'developer_platform.webhook_endpoint.manage',
     ],
   },
   {

@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 import { AuditService } from '../../audit/audit.service';
+import { WebhookDispatchService } from '../../webhooks/webhook-dispatch.service';
 import { SalesAiActionDto, SalesAiActionResponseDto } from '../dto/sales-ai.dto';
 import { SalesAiService } from '../sales-ai.service';
 import { CreateLeadDto, LeadResponseDto, PaginatedLeadsDto, UpdateLeadDto } from './dto/lead.dto';
@@ -12,6 +14,8 @@ export class LeadsService {
     private readonly leadsRepository: LeadsRepository,
     private readonly salesAiService: SalesAiService,
     private readonly auditService: AuditService,
+    private readonly webhookDispatchService: WebhookDispatchService,
+    private readonly tenantContextService: TenantContextService,
   ) {}
 
   async create(dto: CreateLeadDto): Promise<LeadResponseDto> {
@@ -34,6 +38,12 @@ export class LeadsService {
         status: entity.status,
       },
     });
+
+    await this.webhookDispatchService.publish(
+      'sales.lead.created',
+      this.tenantContextService.getOrThrow().organizationId,
+      { id: entity.id, title: entity.title, status: entity.status },
+    );
 
     return LeadResponseDto.fromEntity(entity);
   }

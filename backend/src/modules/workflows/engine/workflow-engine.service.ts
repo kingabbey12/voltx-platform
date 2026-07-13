@@ -19,6 +19,7 @@ import { WorkflowRunEntity } from '../entities/workflow-run.entity';
 import { WorkflowRunRepository } from '../workflow-run.repository';
 import { WorkflowStepRunRepository } from '../workflow-step-run.repository';
 import { WorkflowVersionRepository } from '../workflow-version.repository';
+import { WebhookDispatchService } from '../../webhooks/webhook-dispatch.service';
 import { evaluateCondition } from './workflow-condition.util';
 import { WorkflowStreamEvent } from './workflow-stream-event.types';
 
@@ -75,6 +76,7 @@ export class WorkflowEngineService {
     private readonly workflowDeadLetterRepository: WorkflowDeadLetterRepository,
     private readonly stepExecutorRegistry: StepExecutorRegistry,
     private readonly aiGatewayService: AIGatewayService,
+    private readonly webhookDispatchService: WebhookDispatchService,
     configService: ConfigService,
   ) {
     this.defaultStepTimeoutMs = configService.get<number>('workflow.defaultStepTimeoutMs', 300_000);
@@ -495,6 +497,10 @@ export class WorkflowEngineService {
       event: 'WorkflowCompleted',
       message: 'Workflow run completed successfully',
     });
+    await this.webhookDispatchService.publish('workflow.run.completed', run.organizationId, {
+      workflowRunId: run.id,
+      workflowId: run.workflowId,
+    });
   }
 
   private async *failRun(
@@ -517,6 +523,11 @@ export class WorkflowEngineService {
       level: 'ERROR',
       event: 'WorkflowFailed',
       message: `Workflow run failed at step "${failure.stepId}": ${failure.error ?? 'unknown error'}`,
+    });
+    await this.webhookDispatchService.publish('workflow.run.failed', run.organizationId, {
+      workflowRunId: run.id,
+      workflowId: run.workflowId,
+      error: failure.error ?? 'Workflow run failed',
     });
     yield {
       type: 'workflow_failed',

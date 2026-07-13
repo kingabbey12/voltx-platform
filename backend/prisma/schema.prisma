@@ -226,6 +226,7 @@ model Organization {
   customDomains           CustomDomain[]
   serviceAccounts         ServiceAccount[]
   oauthApplications       OAuthApplication[]
+  webhookEndpoints        WebhookEndpoint[]
 
   @@index([status])
   @@index([parentOrganizationId])
@@ -3724,4 +3725,67 @@ model OAuthRefreshToken {
 
   @@index([applicationId])
   @@map("oauth_refresh_tokens")
+}
+
+enum WebhookEndpointStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+/// v2.3 Developer Platform (Phase 3) — a developer-registered HTTPS
+/// destination that receives signed, retried deliveries of the event
+/// types it subscribes to (see webhook-event.catalog.ts). `url` is
+/// validated at registration time via OutboundHttpGuardService, the same
+/// SSRF check as an OAuth redirect URI — a webhook URL is exactly as
+/// attacker-influenced. `encryptedSecret` is AES-256-GCM at rest
+/// (EncryptionService) and decrypted only at delivery time to compute the
+/// HMAC signature; it is never re-displayed after creation.
+model WebhookEndpoint {
+  id              String                @id @default(uuid()) @db.Uuid
+  organizationId  String                @map("organization_id") @db.Uuid
+  url             String
+  description     String?
+  encryptedSecret String                @map("encrypted_secret")
+  eventTypes      String[]              @default([]) @map("event_types")
+  status          WebhookEndpointStatus @default(ACTIVE)
+  createdByUserId String?               @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries   WebhookDelivery[]
+
+  @@index([organizationId])
+  @@map("webhook_endpoints")
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  EXHAUSTED
+}
+
+/// One row per delivery *attempt series* for one event occurrence — a
+/// manual replay (see WebhookEndpointController) creates a brand-new row
+/// rather than mutating an existing one, so the original delivery's
+/// history is never overwritten.
+model WebhookDelivery {
+  id                 String                @id @default(uuid()) @db.Uuid
+  endpointId         String                @map("endpoint_id") @db.Uuid
+  eventType          String                @map("event_type")
+  payload            Json
+  status             WebhookDeliveryStatus @default(PENDING)
+  responseStatusCode Int?                  @map("response_status_code")
+  responseBody       String?               @map("response_body")
+  attemptCount       Int                   @default(0) @map("attempt_count")
+  deliveredAt        DateTime?             @map("delivered_at")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId])
+  @@index([status])
+  @@map("webhook_deliveries")
 }

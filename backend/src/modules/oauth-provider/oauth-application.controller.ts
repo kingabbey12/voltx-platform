@@ -109,6 +109,7 @@ export class OAuthApplicationController {
   }
 
   @Post(':id/rotate-secret')
+  @HttpCode(HttpStatus.OK)
   @Permissions('developer_platform.oauth_application.manage')
   @ApiOperation({
     summary: "Rotate an OAuth application's client secret",

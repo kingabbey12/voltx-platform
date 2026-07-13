@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ToolModule } from '../ai/tools/tool.module';
 import { PermissionsModule } from '../permissions/permissions.module';
+import { WebhooksModule } from '../webhooks/webhooks.module';
 import { OAuthAccessTokenGuard } from './guards/oauth-access-token.guard';
 import { OAuthApplicationController } from './oauth-application.controller';
 import { OAuthApplicationRepository } from './oauth-application.repository';
@@ -22,7 +23,7 @@ import { OAuthTokenService } from './oauth-token.service';
  * no parallel RBAC or credential-hashing implementation.
  */
 @Module({
-  imports: [PermissionsModule, ToolModule],
+  imports: [PermissionsModule, ToolModule, WebhooksModule],
   controllers: [
     OAuthApplicationController,
     OAuthAuthorizeController,

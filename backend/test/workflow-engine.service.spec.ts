@@ -155,6 +155,7 @@ describe('WorkflowEngineService', () => {
   let workflowDeadLetterRepository: { create: jest.Mock };
   let stepExecutorRegistry: { get: jest.Mock };
   let aiGatewayService: { executeTool: jest.Mock };
+  let webhookDispatchService: { publish: jest.Mock };
 
   function buildEngine(configOverrides: Record<string, unknown> = {}): WorkflowEngineService {
     return new WorkflowEngineService(
@@ -167,6 +168,7 @@ describe('WorkflowEngineService', () => {
       workflowDeadLetterRepository as never,
       stepExecutorRegistry as never,
       aiGatewayService as never,
+      webhookDispatchService as never,
       configServiceWithDefaults(configOverrides),
     );
   }
@@ -191,6 +193,7 @@ describe('WorkflowEngineService', () => {
     workflowDeadLetterRepository = { create: jest.fn().mockResolvedValue(undefined) };
     stepExecutorRegistry = { get: jest.fn() };
     aiGatewayService = { executeTool: jest.fn().mockResolvedValue({ result: { content: 'ok' } }) };
+    webhookDispatchService = { publish: jest.fn().mockResolvedValue(undefined) };
     stepRunRepository = new FakeWorkflowStepRunRepository();
   });
 
