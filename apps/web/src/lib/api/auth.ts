@@ -11,6 +11,8 @@ export interface User {
   status: string;
   /** Cross-organization Platform Console access (v2.2) — already returned by GET /auth/me. */
   isPlatformAdmin: boolean;
+  /** Already returned by GET /auth/me (UserResponseDto) — the web client just hadn't typed it yet. */
+  mfaEnabled: boolean;
   lastLoginAt: string | null;
   emailVerifiedAt: string | null;
   createdAt: string;
