@@ -11,6 +11,7 @@ import { ServiceAccountRepository } from './service-account.repository';
 import { ServiceAccountService } from './service-account.service';
 import { PersonalAccessTokenGuard } from './guards/personal-access-token.guard';
 import { ServiceAccountGuard } from './guards/service-account.guard';
+import { JwtOrPersonalAccessTokenGuard } from './guards/jwt-or-personal-access-token.guard';
 
 /**
  * v2.3 Developer Platform (Phase 1) — Personal Access Tokens (user-scoped)
@@ -35,7 +36,8 @@ import { ServiceAccountGuard } from './guards/service-account.guard';
     ServiceAccountRepository,
     ServiceAccountService,
     ServiceAccountGuard,
+    JwtOrPersonalAccessTokenGuard,
   ],
-  exports: [PersonalAccessTokenGuard, ServiceAccountGuard],
+  exports: [PersonalAccessTokenGuard, ServiceAccountGuard, JwtOrPersonalAccessTokenGuard],
 })
 export class DeveloperPlatformModule {}

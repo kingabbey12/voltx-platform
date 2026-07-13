@@ -5,6 +5,7 @@ import { AgentModule } from '../ai/agents/agent.module';
 import { ToolModule } from '../ai/tools/tool.module';
 import { AuthModule } from '../auth/auth.module';
 import { BillingModule } from '../billing/billing.module';
+import { DeveloperPlatformModule } from '../developer-platform/developer-platform.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { WorkflowDefinitionValidatorService } from './definition/workflow-definition-validator.service';
 import { WorkflowEngineService } from './engine/workflow-engine.service';
@@ -78,6 +79,7 @@ const queueProcessors = redisEnabled ? [WorkflowRunProcessor] : [];
     BillingModule,
     ToolModule,
     WebhooksModule,
+    DeveloperPlatformModule,
     ...queueImports,
   ],
   // WorkflowTemplateController/WorkflowSecretController/WorkflowVariableController

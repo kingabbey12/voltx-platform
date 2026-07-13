@@ -23,8 +23,8 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Response } from 'express';
-import { AUTH_GUARDS } from '../../common/guards/protected.guards';
 import { writeEventStreamToResponse } from '../ai/streaming/write-event-stream-to-response';
+import { JwtOrPersonalAccessTokenGuard } from '../developer-platform/guards/jwt-or-personal-access-token.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserInterface } from '../auth/interfaces/current-user.interface';
 import { Permissions } from '../permissions/decorators/permissions.decorator';
@@ -86,7 +86,7 @@ export class WorkflowController {
   ) {}
 
   @Post()
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.create')
   @ApiOperation({ summary: 'Create a workflow (as a first draft version)' })
   @ApiCreatedResponse({ type: WorkflowSuccessResponseDto })
@@ -97,7 +97,7 @@ export class WorkflowController {
   }
 
   @Get()
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.read')
   @ApiOperation({ summary: 'List workflows' })
   @ApiOkResponse({ type: PaginatedWorkflowsResponseDto })
@@ -113,7 +113,7 @@ export class WorkflowController {
   }
 
   @Get('dead-letters')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.admin')
   @ApiOperation({ summary: 'List steps that exhausted retries (the dead letter queue)' })
   @ApiOkResponse({ type: PaginatedWorkflowDeadLettersResponseDto })
@@ -133,7 +133,7 @@ export class WorkflowController {
   // NOTE: this route MUST be registered before ':id' too, same reason as
   // 'dead-letters' just above.
   @Get('approvals')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.approve')
   @ApiOperation({ summary: 'List this organization’s pending workflow approvals' })
   @ApiOkResponse({ type: PaginatedWorkflowApprovalsResponseDto })
@@ -154,7 +154,7 @@ export class WorkflowController {
   // segment, so a literal route like this one has to come first or a
   // request for it would be swallowed by ':id' instead.
   @Get(':id')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.read')
   @ApiOperation({ summary: 'Get a workflow' })
   @ApiOkResponse({ type: WorkflowSuccessResponseDto })
@@ -165,7 +165,7 @@ export class WorkflowController {
   }
 
   @Patch(':id')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.create')
   @ApiOperation({ summary: 'Update a workflow (providing definition creates a new version)' })
   @ApiOkResponse({ type: WorkflowSuccessResponseDto })
@@ -179,7 +179,7 @@ export class WorkflowController {
   }
 
   @Post(':id/publish')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.publish')
   @ApiOperation({ summary: 'Publish the latest version of a workflow' })
   @ApiCreatedResponse({ type: WorkflowSuccessResponseDto })
@@ -190,7 +190,7 @@ export class WorkflowController {
   }
 
   @Post(':id/archive')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.publish')
   @ApiOperation({ summary: 'Archive a workflow' })
   @ApiCreatedResponse({ type: WorkflowSuccessResponseDto })
@@ -201,7 +201,7 @@ export class WorkflowController {
   }
 
   @Delete(':id')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.delete')
   @ApiOperation({ summary: 'Soft delete a workflow' })
   @ApiOkResponse({ type: WorkflowSuccessResponseDto })
@@ -212,7 +212,7 @@ export class WorkflowController {
   }
 
   @Get(':id/versions')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.read')
   @ApiOperation({ summary: 'List every version of a workflow' })
   @ApiOkResponse({ type: WorkflowVersionsSuccessResponseDto })
@@ -223,7 +223,7 @@ export class WorkflowController {
   }
 
   @Post(':id/schedules')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.admin')
   @ApiOperation({ summary: 'Create a CRON/DELAYED/EVENT schedule for a workflow' })
   @ApiCreatedResponse({ type: WorkflowScheduleSuccessResponseDto })
@@ -240,7 +240,7 @@ export class WorkflowController {
   }
 
   @Get(':id/schedules')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.admin')
   @ApiOperation({ summary: 'List a workflow’s schedules' })
   @ApiOkResponse({ type: WorkflowSchedulesSuccessResponseDto })
@@ -251,7 +251,7 @@ export class WorkflowController {
   }
 
   @Patch(':id/schedules/:scheduleId')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.admin')
   @ApiOperation({ summary: 'Enable or disable a schedule' })
   @ApiOkResponse({ type: WorkflowScheduleSuccessResponseDto })
@@ -265,7 +265,7 @@ export class WorkflowController {
   }
 
   @Post(':id/run')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard, FeatureGateGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard, FeatureGateGuard)
   @Permissions('workflow.run')
   @RequireFeature('workflow_executions')
   @ApiOperation({ summary: 'Run a workflow to completion (or until paused/waiting-approval)' })
@@ -286,7 +286,7 @@ export class WorkflowController {
 
   @Post(':id/run/stream')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.run')
   @ApiOperation({ summary: 'Run a workflow and stream every lifecycle/step event over SSE' })
   @ApiConsumes('application/json')
@@ -309,7 +309,7 @@ export class WorkflowController {
   }
 
   @Get(':id/runs')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.read')
   @ApiOperation({ summary: 'Workflow run history' })
   @ApiOkResponse({ type: PaginatedWorkflowRunsResponseDto })
@@ -325,7 +325,7 @@ export class WorkflowController {
   }
 
   @Get(':id/metrics')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.admin')
   @ApiOperation({
     summary: 'Workflow execution metrics (time, retries, success rate, cost, usage)',
@@ -338,7 +338,7 @@ export class WorkflowController {
   }
 
   @Get(':id/health')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.admin')
   @ApiOperation({ summary: 'Coarse workflow health signal' })
   @ApiOkResponse({ type: WorkflowHealthDto })
@@ -348,7 +348,7 @@ export class WorkflowController {
   }
 
   @Get('runs/:runId')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.read')
   @ApiOperation({ summary: 'Get a workflow run' })
   @ApiOkResponse({ type: WorkflowRunResponseDto })
@@ -359,7 +359,7 @@ export class WorkflowController {
   }
 
   @Post('runs/:runId/pause')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.run')
   @ApiOperation({ summary: 'Pause a running workflow run' })
   @ApiCreatedResponse({ type: WorkflowRunResponseDto })
@@ -370,7 +370,7 @@ export class WorkflowController {
   }
 
   @Post('runs/:runId/resume')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.run')
   @ApiOperation({ summary: 'Resume a paused or waiting-approval workflow run' })
   @ApiCreatedResponse({ type: WorkflowRunResponseDto })
@@ -385,7 +385,7 @@ export class WorkflowController {
 
   @Post('runs/:runId/resume/stream')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.run')
   @ApiOperation({ summary: 'Resume a workflow run and stream lifecycle/step events over SSE' })
   @ApiConsumes('application/json')
@@ -402,7 +402,7 @@ export class WorkflowController {
   }
 
   @Post('runs/:runId/cancel')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.run')
   @ApiOperation({ summary: 'Cancel a workflow run' })
   @ApiCreatedResponse({ type: WorkflowRunResponseDto })
@@ -413,7 +413,7 @@ export class WorkflowController {
   }
 
   @Post('runs/:runId/retry')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.run')
   @ApiOperation({ summary: 'Retry a failed workflow run (only its failed steps re-execute)' })
   @ApiCreatedResponse({ type: WorkflowRunResponseDto })
@@ -427,7 +427,7 @@ export class WorkflowController {
   }
 
   @Get('runs/:runId/logs')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.read')
   @ApiOperation({ summary: 'Workflow run execution logs' })
   @ApiOkResponse({ type: PaginatedWorkflowLogsResponseDto })
@@ -445,7 +445,7 @@ export class WorkflowController {
   }
 
   @Get('runs/:runId/checkpoints')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.read')
   @ApiOperation({ summary: 'List the checkpoint history for a workflow run' })
   @ApiOkResponse({ type: WorkflowCheckpointsSuccessResponseDto })
@@ -456,7 +456,7 @@ export class WorkflowController {
   }
 
   @Post('approvals/:approvalId/decide')
-  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @UseGuards(JwtOrPersonalAccessTokenGuard, PermissionGuard)
   @Permissions('workflow.approve')
   @ApiOperation({ summary: 'Approve or reject a pending workflow approval step' })
   @ApiCreatedResponse({ type: WorkflowApprovalResponseDto })

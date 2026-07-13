@@ -1,0 +1,31 @@
+{
+  "name": "@voltx/cli",
+  "version": "0.1.0",
+  "description": "Official command-line tool for the Voltx public API",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "voltx": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node -e \"require('fs').chmodSync('dist/index.js', 0o755)\"",
+    "test": "node --import tsx --test test/config.test.ts test/workflows-api.test.ts",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@voltx/sdk": "file:../sdk-typescript",
+    "commander": "^13.1.0",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
