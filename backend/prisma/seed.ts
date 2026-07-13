@@ -113,6 +113,9 @@ const PERMISSION_DEFINITIONS = [
   { key: 'security.trusted_device.manage', resource: 'security_trusted_device', action: 'manage', description: 'View, trust, and revoke your own trusted devices' },
   { key: 'security.apikey.manage', resource: 'security_api_key', action: 'manage', description: 'Create, list, and revoke organization API keys' },
   { key: 'security.policy.manage', resource: 'security_policy', action: 'manage', description: 'View and update the organization security policy (MFA requirement, password policy, IP allowlist)' },
+  { key: 'developer_platform.personal_access_token.manage', resource: 'developer_platform_pat', action: 'manage', description: 'Create, list, and revoke your own personal access tokens' },
+  { key: 'developer_platform.service_account.read', resource: 'developer_platform_service_account', action: 'read', description: "View the organization's service accounts" },
+  { key: 'developer_platform.service_account.manage', resource: 'developer_platform_service_account', action: 'manage', description: 'Create, suspend, and issue tokens for organization service accounts' },
   { key: 'branding.theme.read', resource: 'branding_theme', action: 'read', description: "View the organization's brand theme" },
   { key: 'branding.theme.manage', resource: 'branding_theme', action: 'manage', description: "Update the organization's logo, colors, favicon, and login screen branding" },
   { key: 'branding.domain.read', resource: 'branding_domain', action: 'read', description: 'View custom domains configured for the organization' },
@@ -212,6 +215,9 @@ const ROLE_DEFINITIONS = [
       'security.session.manage',
       'security.trusted_device.manage',
       'security.apikey.manage',
+      'developer_platform.personal_access_token.manage',
+      'developer_platform.service_account.read',
+      'developer_platform.service_account.manage',
     ],
   },
   {
@@ -251,6 +257,7 @@ const ROLE_DEFINITIONS = [
       'attachment.read',
       'security.session.manage',
       'security.trusted_device.manage',
+      'developer_platform.personal_access_token.manage',
     ],
   },
   {
@@ -278,6 +285,7 @@ const ROLE_DEFINITIONS = [
       'attachment.read',
       'security.session.manage',
       'security.trusted_device.manage',
+      'developer_platform.personal_access_token.manage',
     ],
   },
 ] as const;

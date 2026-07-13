@@ -56,6 +56,13 @@ export default () => ({
     // ever being re-displayed after creation.
     prefix: process.env.API_KEY_PREFIX ?? 'vk',
   },
+  // v2.3 Developer Platform — same non-secret-prefix convention as
+  // apiKeys.prefix above, one per new credential kind so they're visually
+  // distinguishable at a glance (vpat_ vs vsa_ vs vk_).
+  developerPlatform: {
+    personalAccessTokenPrefix: process.env.PERSONAL_ACCESS_TOKEN_PREFIX ?? 'vpat',
+    serviceAccountTokenPrefix: process.env.SERVICE_ACCOUNT_TOKEN_PREFIX ?? 'vsa',
+  },
   sentry: {
     dsn: process.env.SENTRY_DSN ?? '',
     environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'development',
