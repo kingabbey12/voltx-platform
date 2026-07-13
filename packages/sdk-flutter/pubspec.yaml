@@ -1,0 +1,15 @@
+name: voltx_sdk
+description: Official Dart/Flutter SDK for the Voltx public API.
+version: 0.1.0
+homepage: https://usevoltx.com
+publish_to: none
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  crypto: ^3.0.6
+  dio: ^5.8.0+1
+
+dev_dependencies:
+  test: ^1.25.0
