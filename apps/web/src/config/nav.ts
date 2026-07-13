@@ -8,6 +8,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Store,
   TerminalSquare,
   Users,
   Workflow,
@@ -34,6 +35,7 @@ export const mainNav: NavItem[] = [
 export const secondaryNav: NavItem[] = [
   { label: "Team", href: "/settings/team", icon: Users },
   { label: "Billing", href: "/billing", icon: CreditCard, shortcut: "G B" },
+  { label: "Marketplace", href: "/marketplace", icon: Store, shortcut: "G M" },
   { label: "Developers", href: "/developers", icon: TerminalSquare, shortcut: "G V" },
   { label: "Settings", href: "/settings", icon: Settings, shortcut: "G S" },
 ];
