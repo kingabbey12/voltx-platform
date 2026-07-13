@@ -9,11 +9,11 @@ import { flattenOperations, type OpenApiOperation } from "@/lib/api/developer-po
 import { cn } from "@/lib/utils";
 
 const METHOD_VARIANT: Record<string, string> = {
-  GET: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  POST: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-  PATCH: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  PUT: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  DELETE: "bg-red-500/15 text-red-600 dark:text-red-400",
+  GET: "bg-blue-500/15 text-blue-400",
+  POST: "bg-emerald-500/15 text-emerald-400",
+  PATCH: "bg-amber-500/15 text-amber-400",
+  PUT: "bg-amber-500/15 text-amber-400",
+  DELETE: "bg-red-500/15 text-red-400",
 };
 
 function OperationRow({ operation }: { operation: OpenApiOperation }) {

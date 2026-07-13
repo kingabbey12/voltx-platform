@@ -24,8 +24,8 @@ function NavLink({ item, collapsed }: { item: (typeof mainNav)[number]; collapse
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground",
-        active && "text-sidebar-foreground",
+        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors duration-200 hover:bg-primary/5 hover:text-sidebar-foreground",
+        active && "text-primary hover:text-primary",
         collapsed && "justify-center px-2",
       )}
     >
@@ -33,10 +33,15 @@ function NavLink({ item, collapsed }: { item: (typeof mainNav)[number]; collapse
         <motion.span
           layoutId="sidebar-active"
           className="absolute inset-0 rounded-lg bg-primary/10"
-          transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
         />
       )}
-      <item.icon className="relative h-4.5 w-4.5 shrink-0" />
+      <item.icon
+        className={cn(
+          "relative h-4.5 w-4.5 shrink-0 text-primary/50 transition-colors duration-200 group-hover:text-primary",
+          active && "text-primary",
+        )}
+      />
       {!collapsed && <span className="relative truncate">{item.label}</span>}
     </Link>
   );

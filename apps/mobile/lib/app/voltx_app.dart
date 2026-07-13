@@ -14,8 +14,6 @@ class VoltxApp extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
-    final themeMode = ref.watch(themeModeProvider);
-    final lightTheme = ref.watch(lightThemeProvider);
     final darkTheme = ref.watch(darkThemeProvider);
 
     useEffect(() {
@@ -27,8 +25,11 @@ class VoltxApp extends HookConsumerWidget {
     return MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
-      themeMode: themeMode,
-      theme: lightTheme,
+      // Single black & gold theme, always — no light-mode palette is
+      // designed (see theme/tokens/color_tokens.dart), so the app is
+      // permanently dark rather than following system/user preference.
+      themeMode: ThemeMode.dark,
+      theme: darkTheme,
       darkTheme: darkTheme,
       routerConfig: router,
     );

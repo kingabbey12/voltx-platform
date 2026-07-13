@@ -2,9 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import { Command } from "cmdk";
-import { LogOut, Moon, Search, Sun } from "lucide-react";
+import { LogOut, Search } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { mainNav, secondaryNav } from "@/config/nav";
 import { useLogout } from "@/hooks/use-auth";
@@ -17,7 +16,6 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter();
-  const { setTheme } = useTheme();
   const logout = useLogout();
 
   useEffect(() => {
@@ -73,26 +71,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               ))}
             </Command.Group>
             <Command.Group heading="Actions">
-              <Command.Item
-                onSelect={() => {
-                  setTheme("light");
-                  onOpenChange(false);
-                }}
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm aria-selected:bg-secondary"
-              >
-                <Sun className="h-4 w-4 text-muted-foreground" />
-                Switch to light theme
-              </Command.Item>
-              <Command.Item
-                onSelect={() => {
-                  setTheme("dark");
-                  onOpenChange(false);
-                }}
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm aria-selected:bg-secondary"
-              >
-                <Moon className="h-4 w-4 text-muted-foreground" />
-                Switch to dark theme
-              </Command.Item>
               <Command.Item
                 onSelect={() => {
                   onOpenChange(false);

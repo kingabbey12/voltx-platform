@@ -1,7 +1,6 @@
 "use client";
 
-import { useTheme } from "next-themes";
-import { LogOut, Moon, Settings, Sun, SunMoon } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -9,9 +8,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -25,7 +21,6 @@ function initials(firstName: string, lastName: string): string {
 export function UserMenu() {
   const user = useAuthStore((state) => state.user);
   const logout = useLogout();
-  const { theme, setTheme } = useTheme();
 
   if (!user) return null;
 
@@ -53,29 +48,6 @@ export function UserMenu() {
             Settings
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <SunMoon className="h-4 w-4" />
-            Theme
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuItem onClick={() => setTheme("light")}>
-              <Sun className="h-4 w-4" />
-              Light
-              {theme === "light" && <span className="ml-auto text-xs text-primary">✓</span>}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("dark")}>
-              <Moon className="h-4 w-4" />
-              Dark
-              {theme === "dark" && <span className="ml-auto text-xs text-primary">✓</span>}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("system")}>
-              <SunMoon className="h-4 w-4" />
-              System
-              {theme === "system" && <span className="ml-auto text-xs text-primary">✓</span>}
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => logout.mutate()} className="text-destructive focus:text-destructive">
           <LogOut className="h-4 w-4" />

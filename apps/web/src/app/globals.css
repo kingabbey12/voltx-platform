@@ -3,89 +3,53 @@
 @tailwind utilities;
 
 :root {
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter",
-    "Segoe UI", Roboto, system-ui, sans-serif;
-  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    system-ui, sans-serif;
+  --font-heading: var(--font-space-grotesk), var(--font-sans);
+  --font-mono: var(--font-ibm-plex-mono), "SF Mono", Menlo, Consolas, monospace;
 
-  --background: 240 20% 99%;
-  --foreground: 240 10% 6%;
+  --background: 0 0% 2%;
+  --foreground: 0 0% 100%;
 
-  --card: 0 0% 100%;
-  --card-foreground: 240 10% 6%;
+  --card: 0 0% 8%;
+  --card-foreground: 0 0% 100%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 6%;
+  --popover: 0 0% 8%;
+  --popover-foreground: 0 0% 100%;
 
-  --primary: 243 75% 55%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 46 65% 52%;
+  --primary-foreground: 0 0% 4%;
 
-  --secondary: 240 10% 95%;
-  --secondary-foreground: 240 10% 12%;
+  --secondary: 0 0% 5%;
+  --secondary-foreground: 0 0% 100%;
 
-  --muted: 240 8% 95%;
-  --muted-foreground: 240 5% 40%;
+  --muted: 0 0% 8%;
+  --muted-foreground: 0 0% 65%;
 
-  --accent: 190 85% 42%;
-  --accent-foreground: 0 0% 100%;
+  --accent: 44 86% 70%;
+  --accent-foreground: 0 0% 4%;
 
-  --destructive: 0 72% 51%;
+  --destructive: 352 100% 62%;
   --destructive-foreground: 0 0% 100%;
 
-  --success: 152 60% 36%;
-  --success-foreground: 0 0% 100%;
+  --success: 145 100% 39%;
+  --success-foreground: 0 0% 4%;
 
-  --warning: 38 92% 42%;
-  --warning-foreground: 0 0% 100%;
+  --warning: 42 100% 50%;
+  --warning-foreground: 0 0% 4%;
 
-  --border: 240 8% 90%;
-  --input: 240 8% 88%;
-  --ring: 243 75% 55%;
+  --info: 217 91% 60%;
+  --info-foreground: 0 0% 100%;
 
-  --sidebar: 240 15% 97%;
-  --sidebar-foreground: 240 10% 15%;
-  --sidebar-border: 240 8% 90%;
+  --border: 0 0% 15%;
+  --input: 0 0% 15%;
+  --ring: 46 65% 52%;
 
-  --radius: 0.75rem;
-}
+  --sidebar: 0 0% 2%;
+  --sidebar-foreground: 0 0% 65%;
+  --sidebar-border: 0 0% 15%;
 
-.dark {
-  --background: 240 21% 5%;
-  --foreground: 240 20% 97%;
-
-  --card: 240 18% 7%;
-  --card-foreground: 240 20% 97%;
-
-  --popover: 240 18% 7%;
-  --popover-foreground: 240 20% 97%;
-
-  --primary: 243 90% 68%;
-  --primary-foreground: 240 20% 8%;
-
-  --secondary: 240 14% 13%;
-  --secondary-foreground: 240 20% 95%;
-
-  --muted: 240 12% 13%;
-  --muted-foreground: 240 8% 65%;
-
-  --accent: 190 95% 60%;
-  --accent-foreground: 240 20% 8%;
-
-  --destructive: 0 72% 58%;
-  --destructive-foreground: 0 0% 100%;
-
-  --success: 152 55% 48%;
-  --success-foreground: 240 20% 8%;
-
-  --warning: 38 92% 55%;
-  --warning-foreground: 240 20% 8%;
-
-  --border: 240 12% 16%;
-  --input: 240 12% 18%;
-  --ring: 243 90% 68%;
-
-  --sidebar: 240 20% 6%;
-  --sidebar-foreground: 240 15% 88%;
-  --sidebar-border: 240 12% 14%;
+  --radius: 0.875rem;
 }
 
 @layer base {
@@ -102,6 +66,15 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading;
   }
 
   ::selection {
@@ -132,6 +105,6 @@
   }
 
   .glass-panel {
-    @apply bg-card/70 backdrop-blur-xl border border-border/70;
+    @apply bg-card/70 backdrop-blur-xl border border-primary/20;
   }
 }

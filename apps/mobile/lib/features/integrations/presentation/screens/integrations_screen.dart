@@ -5,6 +5,7 @@ import '../../../../shared/widgets/async_value_view.dart';
 import '../../../../shared/widgets/pagination_bar.dart';
 import '../../../../shared/widgets/pull_to_refresh.dart';
 import '../../../../theme/tokens/spacing.dart';
+import '../../../../theme/voltx_theme.dart';
 import '../../../ai/presentation/shell/ai_nav_bar.dart';
 import '../../../ai/presentation/widgets/ai_workspace_components.dart';
 import '../../data/models/integration_models.dart';
@@ -152,7 +153,7 @@ class _ConnectionCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              AiSuggestionChip(label: connection.status, icon: Icons.circle, color: _statusColor(connection.status)),
+              AiSuggestionChip(label: connection.status, icon: Icons.circle, color: _statusColor(context, connection.status)),
             ],
           ),
           if (connection.lastError != null) ...[
@@ -237,12 +238,13 @@ class _ConnectionCard extends ConsumerWidget {
     }
   }
 
-  Color _statusColor(String status) {
+  Color _statusColor(BuildContext context, String status) {
+    final colors = context.voltxColors;
     return switch (status) {
-      'CONNECTED' => Colors.green,
-      'ERROR' => Colors.redAccent,
-      'PENDING' => Colors.orange,
-      _ => Colors.grey,
+      'CONNECTED' => colors.success,
+      'ERROR' => colors.error,
+      'PENDING' => colors.warning,
+      _ => colors.textTertiary,
     };
   }
 

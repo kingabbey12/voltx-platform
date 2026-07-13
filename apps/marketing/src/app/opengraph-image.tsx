@@ -16,9 +16,9 @@ export default function OgImage() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#08090c",
+          backgroundColor: "#050505",
           backgroundImage:
-            "radial-gradient(circle at 30% 20%, rgba(99,102,241,0.35), transparent 55%), radial-gradient(circle at 75% 75%, rgba(34,211,238,0.25), transparent 55%)",
+            "radial-gradient(circle at 30% 20%, rgba(212,175,55,0.28), transparent 55%), radial-gradient(circle at 75% 75%, rgba(244,208,111,0.18), transparent 55%)",
           padding: 80,
         }}
       >
@@ -31,9 +31,9 @@ export default function OgImage() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "linear-gradient(135deg, #7B7CF6, #22D3EE)",
+              background: "linear-gradient(135deg, #D4AF37, #F4D06F)",
               fontSize: 36,
-              color: "white",
+              color: "#050505",
               fontWeight: 700,
             }}
           >

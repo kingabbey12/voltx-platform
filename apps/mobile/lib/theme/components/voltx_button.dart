@@ -51,7 +51,8 @@ class _VoltxButtonState extends State<VoltxButton> {
     final background = switch (widget.variant) {
       VoltxButtonVariant.primary => scheme.primary,
       VoltxButtonVariant.secondary => colors.surfaceMuted,
-      VoltxButtonVariant.ghost => Colors.transparent,
+      VoltxButtonVariant.ghost =>
+        _hovered ? scheme.primary.withValues(alpha: 0.1) : Colors.transparent,
       VoltxButtonVariant.destructive => colors.error,
     };
 
@@ -63,8 +64,8 @@ class _VoltxButtonState extends State<VoltxButton> {
     };
 
     final border = switch (widget.variant) {
-      VoltxButtonVariant.secondary => Border.all(color: colors.borderSubtle),
-      VoltxButtonVariant.ghost => Border.all(color: colors.borderSubtle),
+      VoltxButtonVariant.secondary => Border.all(color: scheme.primary.withValues(alpha: 0.6)),
+      VoltxButtonVariant.ghost => null,
       _ => null,
     };
 

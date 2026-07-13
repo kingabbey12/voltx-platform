@@ -82,7 +82,7 @@ export function Header() {
                   <motion.span
                     layoutId="nav-underline"
                     className="absolute inset-x-3 bottom-0.5 h-[2px] rounded-full bg-gradient-to-r from-primary to-accent"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                   />
                 ) : (
                   <span className="absolute inset-x-3 bottom-0.5 h-[2px] scale-x-0 rounded-full bg-foreground/20 transition-transform duration-300 ease-out group-hover:scale-x-100" />

@@ -34,7 +34,7 @@ export function ImpersonationBanner() {
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-900 dark:text-amber-200">
+    <div className="flex items-center justify-between gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-warning">
       <div className="flex items-center gap-2">
         <ShieldAlert className="h-4 w-4 shrink-0" />
         <span>
@@ -45,7 +45,7 @@ export function ImpersonationBanner() {
       <Button
         size="sm"
         variant="outline"
-        className="shrink-0 border-amber-500/40 bg-transparent hover:bg-amber-500/10"
+        className="shrink-0 border-warning/40 bg-transparent hover:bg-warning/10"
         onClick={() => void handleExit()}
         isLoading={endImpersonation.isPending}
       >

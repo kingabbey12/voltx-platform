@@ -39,8 +39,8 @@ class _VoltxCardState extends State<VoltxCard> {
     final borderColor = _focused
         ? scheme.primary.withValues(alpha: 0.55)
         : _hovered
-            ? colors.borderStrong
-            : colors.borderSubtle;
+            ? scheme.primary.withValues(alpha: 0.35)
+            : scheme.primary.withValues(alpha: 0.2);
 
     final decoration = BoxDecoration(
       gradient: LinearGradient(
@@ -66,7 +66,7 @@ class _VoltxCardState extends State<VoltxCard> {
         VoltxCardVariant.outlined => colors.surfaceElevated,
         VoltxCardVariant.flat => colors.surfaceMuted,
       },
-      borderRadius: radii.lgBorder,
+      borderRadius: radii.cardBorder,
       border: widget.variant == VoltxCardVariant.outlined || interactive
           ? Border.all(color: borderColor)
           : null,
@@ -97,12 +97,13 @@ class _VoltxCardState extends State<VoltxCard> {
         child: AnimatedContainer(
           duration: context.voltxMotion.fast,
           curve: context.voltxMotion.standardCurve,
+          transform: Matrix4.translationValues(0, _hovered ? -2 : 0, 0),
           decoration: decoration,
           child: Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: widget.onTap,
-              borderRadius: radii.lgBorder,
+              borderRadius: radii.cardBorder,
               splashColor: scheme.primary.withValues(alpha: 0.08),
               highlightColor: scheme.primary.withValues(alpha: 0.04),
               child: content,

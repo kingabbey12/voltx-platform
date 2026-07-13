@@ -55,14 +55,18 @@ class VoltxColorsExtension extends ThemeExtension<VoltxColorsExtension> {
     surfaceMuted: ColorTokens.surfaceMutedDark,
     surfaceElevated: ColorTokens.surfaceElevatedDark,
     overlay: ColorTokens.overlayDark,
-    success: Color(0xFF4ADE80),
-    successSurface: Color(0xFF14532D),
-    warning: Color(0xFFFBBF24),
-    warningSurface: Color(0xFF78350F),
-    error: Color(0xFFF87171),
-    errorSurface: Color(0xFF7F1D1D),
-    info: Color(0xFF38BDF8),
-    infoSurface: Color(0xFF0C4A6E),
+    // Semantic colors and their low-alpha surface tints both derive from
+    // the same ColorTokens value — previously this hardcoded a second,
+    // divergent set of pastel hex literals that didn't match
+    // ColorTokens.success/warning/error/info at all.
+    success: ColorTokens.success,
+    successSurface: Color(0x2900C853),
+    warning: ColorTokens.warning,
+    warningSurface: Color(0x29FFB300),
+    error: ColorTokens.error,
+    errorSurface: Color(0x29FF3D57),
+    info: ColorTokens.info,
+    infoSurface: Color(0x293B82F6),
   );
 
   final Color textPrimary;

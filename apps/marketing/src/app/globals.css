@@ -4,43 +4,40 @@
 
 @layer base {
   :root {
-    --font-sans:
-      -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI",
-      Roboto, system-ui, sans-serif;
-    --background: 240 20% 99%;
-    --foreground: 240 10% 6%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 6%;
-    --primary: 243 82% 63%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 15% 95%;
-    --secondary-foreground: 240 10% 10%;
-    --muted: 240 15% 95%;
-    --muted-foreground: 240 5% 40%;
-    --accent: 190 90% 50%;
-    --accent-foreground: 240 10% 6%;
-    --border: 240 12% 90%;
-    --input: 240 12% 90%;
-    --ring: 243 82% 63%;
-    --radius: 0.875rem;
-  }
+    --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      system-ui, sans-serif;
+    --font-heading: var(--font-space-grotesk), var(--font-sans);
+    --font-mono: var(--font-ibm-plex-mono), "SF Mono", Menlo, Consolas, monospace;
 
-  .dark {
-    --background: 240 21% 5%;
-    --foreground: 240 20% 97%;
-    --card: 240 20% 7%;
-    --card-foreground: 240 20% 97%;
-    --primary: 243 90% 68%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 15% 12%;
-    --secondary-foreground: 240 20% 97%;
-    --muted: 240 15% 12%;
-    --muted-foreground: 240 8% 65%;
-    --accent: 190 95% 60%;
-    --accent-foreground: 240 20% 97%;
-    --border: 240 15% 16%;
-    --input: 240 15% 16%;
-    --ring: 243 90% 68%;
+    --background: 0 0% 2%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 46 65% 52%;
+    --primary-foreground: 0 0% 4%;
+    --secondary: 0 0% 5%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 8%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 44 86% 70%;
+    --accent-foreground: 0 0% 4%;
+    --destructive: 352 100% 62%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 145 100% 39%;
+    --success-foreground: 0 0% 4%;
+    --warning: 42 100% 50%;
+    --warning-foreground: 0 0% 4%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 46 65% 52%;
+    --sidebar: 0 0% 2%;
+    --sidebar-foreground: 0 0% 65%;
+    --sidebar-border: 0 0% 15%;
+    --radius: 0.875rem;
   }
 }
 
@@ -56,9 +53,19 @@
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
     font-feature-settings: "cv11", "ss01";
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading;
   }
 
   ::selection {
@@ -98,7 +105,7 @@
   }
 
   .glass-panel {
-    @apply border border-white/10 bg-white/[0.03] backdrop-blur-xl;
+    @apply border border-primary/20 bg-white/[0.03] backdrop-blur-xl;
   }
 
   .shimmer-border {

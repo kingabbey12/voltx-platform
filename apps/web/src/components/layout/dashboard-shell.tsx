@@ -18,6 +18,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   return (
     <TooltipProvider>
@@ -31,6 +32,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <TopNav
+            scrolled={scrolled}
             sidebarCollapsed={sidebarCollapsed}
             onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
             onOpenMobileNav={() => setMobileNavOpen(true)}
@@ -39,7 +41,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           />
 
           <div className="flex min-h-0 flex-1">
-            <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+            <main
+              className="min-w-0 flex-1 overflow-y-auto"
+              onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 4)}
+            >
+              {children}
+            </main>
             <AiCommandCenter open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
           </div>
         </div>

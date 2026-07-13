@@ -28,7 +28,7 @@ export default function OnboardingPage() {
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_10%,transparent_75%)]"
       >
-        <div className="absolute left-1/2 top-[-10%] h-[28rem] w-[48rem] -translate-x-1/2 rounded-full bg-primary/15 blur-[120px] dark:bg-primary/20" />
+        <div className="absolute left-1/2 top-[-10%] h-[28rem] w-[48rem] -translate-x-1/2 rounded-full bg-primary/20 blur-[120px]" />
       </div>
 
       <div className="mb-8 flex items-center gap-2.5">

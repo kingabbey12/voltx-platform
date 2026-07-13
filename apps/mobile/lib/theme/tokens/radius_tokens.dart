@@ -8,4 +8,9 @@ abstract final class RadiusTokens {
   static const double xl = 24;
   static const double xxl = 30;
   static const double full = 999;
+
+  /// Cards specifically render at 20px per the design system spec —
+  /// bigger than [md] (buttons/inputs, 14px) but its own step, not [lg]
+  /// (18px) or [xl] (24px).
+  static const double card = 20;
 }

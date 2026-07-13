@@ -106,8 +106,10 @@ abstract final class AppTheme {
         surfaceTintColor: Colors.transparent,
         shadowColor: shadows.card.first.color,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(RadiusTokens.lg),
-          side: BorderSide(color: colors.borderSubtle.withValues(alpha: isLight ? 0.9 : 1)),
+          borderRadius: BorderRadius.circular(RadiusTokens.card),
+          side: BorderSide(
+            color: isLight ? colors.borderSubtle.withValues(alpha: 0.9) : colorScheme.primary.withValues(alpha: 0.2),
+          ),
         ),
         margin: EdgeInsets.zero,
       ),
@@ -413,23 +415,27 @@ abstract final class AppTheme {
     surfaceContainerLow: Color(0xFFF7F9FF),
   );
 
+  // Every value here now derives from ColorTokens' black/gold palette —
+  // this previously hardcoded a second, divergent blue/purple palette
+  // (e.g. primary was 0xFF86A7FF, never ColorTokens.brandPrimary) that
+  // silently diverged from the rest of the design system.
   static final ColorScheme _darkColorScheme = ColorScheme(
     brightness: Brightness.dark,
-    primary: Color(0xFF86A7FF),
+    primary: ColorTokens.brandPrimary,
     onPrimary: ColorTokens.neutral950,
-    primaryContainer: Color(0xFF243A75),
-    onPrimaryContainer: Color(0xFFDDE7FF),
-    secondary: Color(0xFFB39AFF),
+    primaryContainer: const Color(0xFF2E2410),
+    onPrimaryContainer: ColorTokens.brandSecondary,
+    secondary: ColorTokens.brandSecondary,
     onSecondary: ColorTokens.neutral950,
-    error: Color(0xFFFF7E95),
-    onError: ColorTokens.neutral950,
+    error: ColorTokens.error,
+    onError: ColorTokens.neutral0,
     surface: ColorTokens.surfaceDark,
     onSurface: ColorTokens.neutral50,
-    onSurfaceVariant: Color(0xFF9EABCA),
+    onSurfaceVariant: ColorTokens.neutral400,
     outline: ColorTokens.borderDark,
-    outlineVariant: Color(0xFF2B3758),
-    surfaceContainerHighest: Color(0xFF202A49),
-    surfaceContainer: Color(0xFF151D33),
-    surfaceContainerLow: Color(0xFF10162A),
+    outlineVariant: ColorTokens.borderStrongDark,
+    surfaceContainerHighest: const Color(0xFF1A1A1A),
+    surfaceContainer: ColorTokens.surfaceElevatedDark,
+    surfaceContainerLow: ColorTokens.surfaceMutedDark,
   );
 }

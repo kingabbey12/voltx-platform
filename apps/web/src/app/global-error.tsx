@@ -26,13 +26,15 @@ export default function GlobalError({
             fontFamily:
               "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
             textAlign: "center",
+            background: "#050505",
+            color: "#ffffff",
           }}
         >
           <div>
             <p style={{ fontSize: "14px", fontWeight: 600, marginBottom: "8px" }}>
               Something went wrong
             </p>
-            <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px" }}>
+            <p style={{ fontSize: "13px", color: "#A5A5A5", marginBottom: "16px" }}>
               An unexpected error occurred. Please try again.
             </p>
             <button
@@ -41,10 +43,10 @@ export default function GlobalError({
                 fontSize: "13px",
                 fontWeight: 500,
                 padding: "8px 16px",
-                borderRadius: "8px",
-                border: "1px solid #d1d5db",
-                background: "#111827",
-                color: "#fff",
+                borderRadius: "14px",
+                border: "1px solid #D4AF37",
+                background: "#0E0E0E",
+                color: "#ffffff",
                 cursor: "pointer",
               }}
             >

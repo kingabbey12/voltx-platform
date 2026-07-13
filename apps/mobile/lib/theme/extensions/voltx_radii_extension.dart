@@ -13,6 +13,7 @@ class VoltxRadiiExtension extends ThemeExtension<VoltxRadiiExtension> {
     required this.lg,
     required this.xl,
     required this.full,
+    required this.card,
   });
 
   static const VoltxRadiiExtension standard = VoltxRadiiExtension(
@@ -22,6 +23,7 @@ class VoltxRadiiExtension extends ThemeExtension<VoltxRadiiExtension> {
     lg: RadiusTokens.lg,
     xl: RadiusTokens.xl,
     full: RadiusTokens.full,
+    card: RadiusTokens.card,
   );
 
   final double xs;
@@ -30,6 +32,7 @@ class VoltxRadiiExtension extends ThemeExtension<VoltxRadiiExtension> {
   final double lg;
   final double xl;
   final double full;
+  final double card;
 
   BorderRadius get xsBorder => BorderRadius.circular(xs);
   BorderRadius get smBorder => BorderRadius.circular(sm);
@@ -37,6 +40,7 @@ class VoltxRadiiExtension extends ThemeExtension<VoltxRadiiExtension> {
   BorderRadius get lgBorder => BorderRadius.circular(lg);
   BorderRadius get xlBorder => BorderRadius.circular(xl);
   BorderRadius get fullBorder => BorderRadius.circular(full);
+  BorderRadius get cardBorder => BorderRadius.circular(card);
 
   @override
   VoltxRadiiExtension copyWith({
@@ -46,6 +50,7 @@ class VoltxRadiiExtension extends ThemeExtension<VoltxRadiiExtension> {
     double? lg,
     double? xl,
     double? full,
+    double? card,
   }) {
     return VoltxRadiiExtension(
       xs: xs ?? this.xs,
@@ -54,6 +59,7 @@ class VoltxRadiiExtension extends ThemeExtension<VoltxRadiiExtension> {
       lg: lg ?? this.lg,
       xl: xl ?? this.xl,
       full: full ?? this.full,
+      card: card ?? this.card,
     );
   }
 
@@ -73,6 +79,7 @@ class VoltxRadiiExtension extends ThemeExtension<VoltxRadiiExtension> {
       lg: lerpDouble(lg, other.lg, t)!,
       xl: lerpDouble(xl, other.xl, t)!,
       full: lerpDouble(full, other.full, t)!,
+      card: lerpDouble(card, other.card, t)!,
     );
   }
 }

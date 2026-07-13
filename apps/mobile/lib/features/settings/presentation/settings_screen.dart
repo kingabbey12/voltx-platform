@@ -4,19 +4,15 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../router/routes.dart';
-import '../../../theme/components/voltx_navigation.dart';
-import '../../../theme/theme_providers.dart';
 import '../../../theme/tokens/spacing.dart';
 import '../../../theme/voltx_theme.dart';
 
-/// App settings including theme mode selection.
+/// App settings.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeProvider);
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
@@ -24,23 +20,6 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           Text('Settings', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: AppSpacing.md),
-          Text(
-            'Appearance',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-            const SizedBox(height: AppSpacing.xs),
-            VoltxSegmentedControl<ThemeMode>(
-              segments: const {
-                ThemeMode.system: Text('System'),
-                ThemeMode.light: Text('Light'),
-                ThemeMode.dark: Text('Dark'),
-              },
-              selected: {themeMode},
-              onSelectionChanged: (selection) {
-                ref.read(themeModeProvider.notifier).state = selection.first;
-              },
-            ),
-            const SizedBox(height: AppSpacing.lg),
             Text(
               'About',
               style: Theme.of(context).textTheme.titleMedium,
@@ -51,7 +30,7 @@ class SettingsScreen extends ConsumerWidget {
                 leading: const Icon(Icons.info_outline_rounded),
                 title: const Text('Voltx Design System'),
                 subtitle: Text(
-                  'Version 1.0.0 — Apple + Linear',
+                  'Version 1.0.0',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: context.voltxColors.textSecondary,
                       ),

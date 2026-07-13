@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { UserMenu } from "@/components/layout/user-menu";
 import { mainNav, secondaryNav } from "@/config/nav";
+import { cn } from "@/lib/utils";
 
 function currentPageLabel(pathname: string): string {
   const item = [...mainNav, ...secondaryNav].find(
@@ -15,6 +16,7 @@ function currentPageLabel(pathname: string): string {
 }
 
 interface TopNavProps {
+  scrolled: boolean;
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
   onOpenMobileNav: () => void;
@@ -23,6 +25,7 @@ interface TopNavProps {
 }
 
 export function TopNav({
+  scrolled,
   sidebarCollapsed,
   onToggleSidebar,
   onOpenMobileNav,
@@ -32,7 +35,14 @@ export function TopNav({
   const pathname = usePathname();
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-xl">
+    <header
+      className={cn(
+        "flex h-16 shrink-0 items-center gap-3 border-b px-4 transition-all duration-300 ease-out",
+        scrolled
+          ? "border-border bg-background/80 backdrop-blur-xl"
+          : "border-transparent bg-transparent",
+      )}
+    >
       <Button
         variant="ghost"
         size="icon"

@@ -30,6 +30,7 @@ dependencies:
   file_picker: ^8.1.4
   mime: ^2.0.0
   url_launcher: ^6.3.1
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   build_runner: ^2.4.15

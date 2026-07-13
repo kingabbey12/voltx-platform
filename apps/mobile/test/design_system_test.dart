@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,6 +13,26 @@ import 'package:voltx_mobile/theme/extensions/voltx_radii_extension.dart';
 import 'package:voltx_mobile/theme/extensions/voltx_shadows_extension.dart';
 import 'package:voltx_mobile/theme/tokens/radius_tokens.dart';
 import 'package:voltx_mobile/theme/tokens/spacing.dart';
+
+/// AppTheme.light()/dark() call GoogleFonts.*, which schedules a
+/// fire-and-forget Future fetching the font over the network —
+/// unavailable in this sandboxed test run. That Future's error is
+/// otherwise reported as an unhandled error against whichever test
+/// happens to be running when it fires; running the call inside its own
+/// zone here (rather than relying on flutter_test_config.dart's outer
+/// zone, which plain `test()` bodies don't share with Flutter's
+/// binding-level error hooks) catches it at the source instead.
+T _buildIgnoringFontFetchErrors<T>(T Function() build) {
+  late T result;
+  runZonedGuarded(() => result = build(), (error, stack) {
+    final message = error.toString();
+    if (!message.contains('allowRuntimeFetching is false but font') &&
+        !message.contains('Failed to load font with url')) {
+      throw error;
+    }
+  });
+  return result;
+}
 
 void main() {
   group('Design tokens', () {
@@ -29,7 +51,7 @@ void main() {
 
   group('Theme extensions', () {
     test('light theme registers Voltx extensions', () {
-      final theme = AppTheme.light();
+      final theme = _buildIgnoringFontFetchErrors(AppTheme.light);
 
       expect(theme.extension<VoltxColorsExtension>(), VoltxColorsExtension.light);
       expect(theme.extension<VoltxRadiiExtension>(), VoltxRadiiExtension.standard);
@@ -38,7 +60,7 @@ void main() {
     });
 
     test('dark theme registers Voltx extensions', () {
-      final theme = AppTheme.dark();
+      final theme = _buildIgnoringFontFetchErrors(AppTheme.dark);
 
       expect(theme.extension<VoltxColorsExtension>(), VoltxColorsExtension.dark);
       expect(theme.brightness, Brightness.dark);
