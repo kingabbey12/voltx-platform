@@ -23,26 +23,38 @@ export type NavLink = {
 };
 
 export const mainNav: NavLink[] = [
-  { label: "Features", href: "/features" },
+  { label: "Solutions", href: "/solutions" },
+  { label: "Developers", href: "/developers" },
+  { label: "Enterprise", href: "/enterprise" },
   { label: "Pricing", href: "/pricing" },
-  { label: "About", href: "/about" },
-  { label: "Contact", href: "/contact" },
 ];
 
 export const footerNav: { title: string; links: NavLink[] }[] = [
   {
     title: "Product",
     links: [
+      { label: "Solutions", href: "/solutions" },
+      { label: "Enterprise", href: "/enterprise" },
       { label: "Features", href: "/features" },
       { label: "Pricing", href: "/pricing" },
       { label: "Sign in", href: siteConfig.appUrl },
+    ],
+  },
+  {
+    title: "Developers",
+    links: [
+      { label: "Developers", href: "/developers" },
+      { label: "Docs", href: "/docs" },
       { label: "API reference", href: siteConfig.apiUrl },
+      { label: "Changelog", href: `${siteConfig.appUrl}/developers/changelog` },
     ],
   },
   {
     title: "Company",
     links: [
       { label: "About", href: "/about" },
+      { label: "Blog", href: "/blog" },
+      { label: "Careers", href: "/careers" },
       { label: "Contact", href: "/contact" },
     ],
   },

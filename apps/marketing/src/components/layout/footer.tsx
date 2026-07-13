@@ -75,28 +75,6 @@ export function Footer() {
               </ul>
             </div>
           ))}
-
-          <div className="col-span-2 flex flex-col gap-3 md:col-span-1">
-            <h3 className="text-sm font-semibold text-foreground">Platform</h3>
-            <ul className="flex flex-col gap-2.5">
-              <li>
-                <a
-                  href={siteConfig.appUrl}
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  app.usevoltx.com
-                </a>
-              </li>
-              <li>
-                <a
-                  href={siteConfig.apiUrl}
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  api.usevoltx.com
-                </a>
-              </li>
-            </ul>
-          </div>
         </div>
 
         <div className="mt-16 flex flex-col items-center justify-between gap-4 border-t border-border/70 pt-8 md:flex-row">

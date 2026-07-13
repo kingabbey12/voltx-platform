@@ -1,15 +1,17 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { useSearchParams } from "next/navigation";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { submitContactForm, type ContactFormState } from "./actions";
+import type { JobListing } from "@/lib/careers";
+import { submitJobApplication, type ApplicationFormState } from "./actions";
 
-const initialState: ContactFormState = { status: "idle" };
+const initialState: ApplicationFormState = { status: "idle" };
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -18,51 +20,83 @@ function SubmitButton() {
       {pending ? (
         <>
           <Loader2 className="h-4 w-4 animate-spin" />
-          Sending...
+          Submitting...
         </>
       ) : (
-        "Send message"
+        "Submit application"
       )}
     </Button>
   );
 }
 
-export function ContactForm() {
-  const [state, formAction] = useActionState(submitContactForm, initialState);
+export function ApplicationForm({ jobs }: { jobs: JobListing[] }) {
+  const [state, formAction] = useActionState(submitJobApplication, initialState);
+  const searchParams = useSearchParams();
+  const roleFromUrl = searchParams.get("role");
+  const [role, setRole] = useState(
+    roleFromUrl && jobs.some((job) => job.id === roleFromUrl) ? roleFromUrl : "",
+  );
 
   return (
     <form action={formAction} className="flex flex-col gap-5" noValidate>
+      <div>
+        <Label htmlFor="role">Role</Label>
+        <select
+          id="role"
+          name="role"
+          required
+          value={role}
+          onChange={(event) => setRole(event.target.value)}
+          className="flex h-11 w-full rounded-lg border border-input bg-background/60 px-4 py-2 text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <option value="" disabled>
+            Select a role
+          </option>
+          {jobs.map((job) => (
+            <option key={job.id} value={job.id}>
+              {job.title} — {job.department}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div>
           <Label htmlFor="name">Full name</Label>
           <Input id="name" name="name" required autoComplete="name" placeholder="Jane Cooper" />
         </div>
         <div>
-          <Label htmlFor="email">Work email</Label>
+          <Label htmlFor="email">Email</Label>
           <Input
             id="email"
             name="email"
             type="email"
             required
             autoComplete="email"
-            placeholder="jane@company.com"
+            placeholder="jane@example.com"
           />
         </div>
       </div>
 
       <div>
-        <Label htmlFor="company">Company</Label>
-        <Input id="company" name="company" autoComplete="organization" placeholder="Acme Inc." />
+        <Label htmlFor="portfolioUrl">Portfolio, resume, or LinkedIn URL</Label>
+        <Input
+          id="portfolioUrl"
+          name="portfolioUrl"
+          type="url"
+          placeholder="https://"
+          autoComplete="url"
+        />
       </div>
 
       <div>
-        <Label htmlFor="message">How can we help?</Label>
+        <Label htmlFor="message">Why this role?</Label>
         <Textarea
           id="message"
           name="message"
           required
           minLength={10}
-          placeholder="Tell us a bit about your team and what you're looking for..."
+          placeholder="Tell us about relevant experience and why you're interested..."
         />
       </div>
 
