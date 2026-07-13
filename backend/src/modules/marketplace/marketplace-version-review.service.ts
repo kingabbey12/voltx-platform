@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { MarketplaceAppStatus, MarketplaceAppVersionStatus } from '@prisma/client';
+import { ExtensionMaterializationService } from '../extensions/extension-materialization.service';
 import { AuditService } from '../audit/audit.service';
 import {
   MarketplaceAppVersionResponseDto,
@@ -18,6 +19,7 @@ export class MarketplaceVersionReviewService {
   constructor(
     private readonly repository: MarketplaceAppRepository,
     private readonly auditService: AuditService,
+    private readonly extensionMaterializationService: ExtensionMaterializationService,
   ) {}
 
   async listPending(): Promise<MarketplaceAppVersionResponseDto[]> {
@@ -33,6 +35,11 @@ export class MarketplaceVersionReviewService {
 
     const approved = await this.repository.approveVersion(versionId, reviewerUserId);
     await this.repository.setStatus(version.appId, MarketplaceAppStatus.PUBLISHED);
+    await this.extensionMaterializationService.materializeFromVersion(
+      version.appId,
+      versionId,
+      approved.manifest,
+    );
 
     await this.auditService.recordWithExplicitActor({
       organizationId: (await this.appOrganizationId(version.appId)) ?? version.appId,

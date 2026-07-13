@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { Blocks } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import {
   Tooltip,
@@ -10,6 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { mainNav, platformNav, secondaryNav } from "@/config/nav";
+import { useInstalledExtensions } from "@/hooks/use-extensions";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +53,18 @@ function NavLink({ item, collapsed }: { item: (typeof mainNav)[number]; collapse
 
 export function Sidebar({ collapsed }: { collapsed: boolean }) {
   const isPlatformAdmin = useAuthStore((state) => state.user?.isPlatformAdmin);
+  const { data: installedExtensions } = useInstalledExtensions();
+
+  // A developer's manifest only ever supplies a `label`/`targetPath`
+  // (see manifest-validator.util.ts) — never an icon component, so every
+  // installed app's nav entry renders with the same fixed Blocks icon
+  // rather than evaluating a developer-supplied icon name into a
+  // component lookup.
+  const extensionNav = (installedExtensions?.navEntries ?? []).map((entry) => ({
+    label: entry.label,
+    href: `/apps${entry.targetPath}`,
+    icon: Blocks,
+  }));
 
   return (
     <aside
@@ -72,6 +86,14 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
         {secondaryNav.map((item) => (
           <NavLink key={item.href} item={item} collapsed={collapsed} />
         ))}
+        {extensionNav.length > 0 && (
+          <>
+            <div className="my-2 h-px bg-sidebar-border" />
+            {extensionNav.map((item) => (
+              <NavLink key={item.href} item={item} collapsed={collapsed} />
+            ))}
+          </>
+        )}
         {isPlatformAdmin && (
           <>
             <div className="my-2 h-px bg-sidebar-border" />

@@ -306,6 +306,25 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.marketplaceRevenueShare;
   }
 
+  // v2.3 Developer Platform (Phase 8) — Extension Framework. Unscoped,
+  // same rationale as marketplaceApp above (materialized versions/reads
+  // aren't organization-owned rows).
+  get extensionCustomPage(): PrismaClient['extensionCustomPage'] {
+    return this.baseClient.extensionCustomPage;
+  }
+
+  get extensionCustomWidget(): PrismaClient['extensionCustomWidget'] {
+    return this.baseClient.extensionCustomWidget;
+  }
+
+  get extensionCustomNavEntry(): PrismaClient['extensionCustomNavEntry'] {
+    return this.baseClient.extensionCustomNavEntry;
+  }
+
+  get extensionAiTool(): PrismaClient['extensionAiTool'] {
+    return this.baseClient.extensionAiTool;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }

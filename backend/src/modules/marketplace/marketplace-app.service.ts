@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { MarketplaceAppStatus, Prisma } from '@prisma/client';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
+import { validateExtensionManifest } from '../extensions/utils/manifest-validator.util';
 import { AuditService } from '../audit/audit.service';
 import {
   CreateMarketplaceAppDto,
@@ -95,6 +96,11 @@ export class MarketplaceAppService {
       throw new BadRequestException(
         `Version "${dto.version}" has already been submitted for this app`,
       );
+    }
+
+    const manifestErrors = validateExtensionManifest(dto.manifest);
+    if (manifestErrors.length > 0) {
+      throw new BadRequestException(`Invalid extension manifest: ${manifestErrors.join('; ')}`);
     }
 
     const entity = await this.repository.createVersion({

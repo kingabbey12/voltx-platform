@@ -1,11 +1,14 @@
 import { Module } from '@nestjs/common';
 import { PlatformAdminGuard } from '../../common/guards/platform-admin.guard';
 import { BillingModule } from '../billing/billing.module';
+import { ExtensionsModule } from '../extensions/extensions.module';
 import { UsersModule } from '../users/users.module';
 import { DeveloperConnectController } from './developer-connect.controller';
 import { DeveloperConnectAccountRepository } from './developer-connect-account.repository';
 import { DeveloperConnectService } from './developer-connect.service';
 import { MarketplaceAppController } from './marketplace-app.controller';
+import { MarketplaceAppExtensionController } from './marketplace-app-extension.controller';
+import { MarketplaceAppExtensionService } from './marketplace-app-extension.service';
 import { MarketplaceAppRepository } from './marketplace-app.repository';
 import { MarketplaceAppService } from './marketplace-app.service';
 import { MarketplaceInstallController } from './marketplace-install.controller';
@@ -29,9 +32,10 @@ import { MarketplaceVersionReviewService } from './marketplace-version-review.se
  * dependency; nothing in BillingModule references Marketplace.
  */
 @Module({
-  imports: [BillingModule, UsersModule],
+  imports: [BillingModule, UsersModule, ExtensionsModule],
   controllers: [
     MarketplaceAppController,
+    MarketplaceAppExtensionController,
     MarketplaceVersionReviewController,
     MarketplacePublicController,
     MarketplaceInstallController,
@@ -46,6 +50,7 @@ import { MarketplaceVersionReviewService } from './marketplace-version-review.se
     DeveloperConnectAccountRepository,
     MarketplaceRevenueShareRepository,
     MarketplaceAppService,
+    MarketplaceAppExtensionService,
     MarketplaceVersionReviewService,
     MarketplacePublicService,
     MarketplaceInstallService,

@@ -3856,6 +3856,13 @@ model MarketplaceAppVersion {
   app      MarketplaceApp       @relation(fields: [appId], references: [id], onDelete: Cascade)
   installs MarketplaceInstall[]
 
+  // v2.3 Developer Platform (Phase 8) — materialized from `manifest` once
+  // this version is approved (see ExtensionMaterializationService).
+  customPages  ExtensionCustomPage[]
+  customWidgets ExtensionCustomWidget[]
+  navEntries   ExtensionCustomNavEntry[]
+  aiTools      ExtensionAiTool[]
+
   @@unique([appId, version])
   @@index([appId])
   @@index([status])
@@ -3955,4 +3962,83 @@ model MarketplaceRevenueShare {
 
   @@index([appId])
   @@map("marketplace_revenue_shares")
+}
+
+// v2.3 Developer Platform (Phase 8) — Extension Framework. Declarative
+// only: pages/widgets/nav are a fixed-component-palette JSON tree
+// rendered by the web app's own generic ManifestRenderer, never
+// arbitrary developer code; Custom AI Tools are HMAC-signed HTTPS calls
+// to the developer's own endpoint (same threat model as an outbound
+// webhook), invoked through the existing ToolRegistry.registerDynamicSource
+// extension point. Rows here are materialized from a
+// MarketplaceAppVersion's own `manifest` field once that version is
+// approved (see ExtensionMaterializationService) — the manifest itself
+// is validated at submission time (see manifest-validator.util.ts).
+
+enum ExtensionWidgetPlacement {
+  DASHBOARD
+  CRM_SIDEBAR
+}
+
+model ExtensionCustomPage {
+  id                      String   @id @default(uuid()) @db.Uuid
+  marketplaceAppVersionId String   @map("marketplace_app_version_id") @db.Uuid
+  path                    String
+  manifest                Json
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  version MarketplaceAppVersion @relation(fields: [marketplaceAppVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([marketplaceAppVersionId, path])
+  @@index([marketplaceAppVersionId])
+  @@map("extension_custom_pages")
+}
+
+model ExtensionCustomWidget {
+  id                      String                   @id @default(uuid()) @db.Uuid
+  marketplaceAppVersionId String                   @map("marketplace_app_version_id") @db.Uuid
+  placement               ExtensionWidgetPlacement
+  manifest                Json
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+
+  version MarketplaceAppVersion @relation(fields: [marketplaceAppVersionId], references: [id], onDelete: Cascade)
+
+  @@index([marketplaceAppVersionId])
+  @@index([placement])
+  @@map("extension_custom_widgets")
+}
+
+model ExtensionCustomNavEntry {
+  id                      String   @id @default(uuid()) @db.Uuid
+  marketplaceAppVersionId String   @map("marketplace_app_version_id") @db.Uuid
+  label                   String
+  icon                    String?
+  targetPath              String   @map("target_path")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  version MarketplaceAppVersion @relation(fields: [marketplaceAppVersionId], references: [id], onDelete: Cascade)
+
+  @@index([marketplaceAppVersionId])
+  @@map("extension_custom_nav_entries")
+}
+
+model ExtensionAiTool {
+  id                      String   @id @default(uuid()) @db.Uuid
+  marketplaceAppVersionId String   @map("marketplace_app_version_id") @db.Uuid
+  name                    String
+  description             String
+  parametersSchema        Json     @map("parameters_schema")
+  responseSchema          Json     @map("response_schema")
+  endpointUrl             String   @map("endpoint_url")
+  encryptedSigningSecret  String   @map("encrypted_signing_secret")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  version MarketplaceAppVersion @relation(fields: [marketplaceAppVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([marketplaceAppVersionId, name])
+  @@index([marketplaceAppVersionId])
+  @@map("extension_ai_tools")
 }

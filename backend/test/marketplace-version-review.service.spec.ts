@@ -2,17 +2,20 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { MarketplaceAppStatus, MarketplaceAppVersionStatus } from '@prisma/client';
 import { MarketplaceVersionReviewService } from '../src/modules/marketplace/marketplace-version-review.service';
 import { MarketplaceAppRepository } from '../src/modules/marketplace/marketplace-app.repository';
+import { ExtensionMaterializationService } from '../src/modules/extensions/extension-materialization.service';
 import { AuditService } from '../src/modules/audit/audit.service';
 
 describe('MarketplaceVersionReviewService', () => {
   let repository: jest.Mocked<MarketplaceAppRepository>;
   let auditService: jest.Mocked<AuditService>;
+  let extensionMaterializationService: jest.Mocked<ExtensionMaterializationService>;
   let service: MarketplaceVersionReviewService;
 
   const pendingVersion = {
     id: 'version-1',
     appId: 'app-1',
     status: MarketplaceAppVersionStatus.PENDING_REVIEW,
+    manifest: {},
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -28,8 +31,13 @@ describe('MarketplaceVersionReviewService', () => {
       setStatus: jest.fn(),
     } as never;
     auditService = { record: jest.fn(), recordWithExplicitActor: jest.fn() } as never;
+    extensionMaterializationService = { materializeFromVersion: jest.fn() } as never;
 
-    service = new MarketplaceVersionReviewService(repository, auditService);
+    service = new MarketplaceVersionReviewService(
+      repository,
+      auditService,
+      extensionMaterializationService,
+    );
   });
 
   it('404s approving a version that does not exist', async () => {
@@ -63,6 +71,11 @@ describe('MarketplaceVersionReviewService', () => {
 
     expect(repository.approveVersion).toHaveBeenCalledWith('version-1', 'admin-1');
     expect(repository.setStatus).toHaveBeenCalledWith('app-1', MarketplaceAppStatus.PUBLISHED);
+    expect(extensionMaterializationService.materializeFromVersion).toHaveBeenCalledWith(
+      'app-1',
+      'version-1',
+      {},
+    );
     expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'marketplace_app_version.approved', userId: 'admin-1' }),
     );
