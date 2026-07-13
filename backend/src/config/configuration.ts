@@ -87,6 +87,21 @@ export default () => ({
     retryBaseDelayMs: parseInt(process.env.WEBHOOK_RETRY_BASE_DELAY_MS ?? '5000', 10),
     requestTimeoutMs: parseInt(process.env.WEBHOOK_REQUEST_TIMEOUT_MS ?? '10000', 10),
   },
+  // v2.3 Developer Platform (Phase 7) — Marketplace + Stripe Connect.
+  // Registered as its own webhook endpoint in the Stripe dashboard (see
+  // MarketplaceStripeWebhookController) — same Stripe account/API key as
+  // billing.stripe.apiKey above, but a distinct signing secret since it's a
+  // separate endpoint URL.
+  marketplace: {
+    platformFeeBps: parseInt(process.env.MARKETPLACE_PLATFORM_FEE_BPS ?? '2000', 10),
+    stripeWebhookSecret: process.env.MARKETPLACE_STRIPE_WEBHOOK_SECRET ?? '',
+    // Stripe Connect Express onboarding needs a return/refresh URL to send
+    // the developer back to after the hosted onboarding flow — same
+    // caller-is-the-web-app convention as invitations.acceptBaseUrl above.
+    connectReturnBaseUrl:
+      process.env.MARKETPLACE_CONNECT_RETURN_BASE_URL ??
+      'https://app.voltx.example/developers/connect',
+  },
   sentry: {
     dsn: process.env.SENTRY_DSN ?? '',
     environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'development',

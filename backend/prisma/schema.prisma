@@ -227,6 +227,9 @@ model Organization {
   serviceAccounts         ServiceAccount[]
   oauthApplications       OAuthApplication[]
   webhookEndpoints        WebhookEndpoint[]
+  marketplaceApps         MarketplaceApp[]         @relation("MarketplaceAppDeveloper")
+  marketplaceInstalls     MarketplaceInstall[]     @relation("MarketplaceInstallOrganization")
+  developerConnectAccount DeveloperConnectAccount?
 
   @@index([status])
   @@index([parentOrganizationId])
@@ -3788,4 +3791,168 @@ model WebhookDelivery {
   @@index([endpointId])
   @@index([status])
   @@map("webhook_deliveries")
+}
+
+enum MarketplaceAppStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  SUSPENDED
+}
+
+enum MarketplaceAppVersionStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+}
+
+/// v2.3 Developer Platform (Phase 7) — a marketplace listing owned by its
+/// developer organization. `status` reflects the app as a whole (does it
+/// have any published version at all, is it suspended); each version has
+/// its own independent review lifecycle (see MarketplaceAppVersionStatus).
+model MarketplaceApp {
+  id                      String               @id @default(uuid()) @db.Uuid
+  developerOrganizationId String               @map("developer_organization_id") @db.Uuid
+  name                    String
+  description             String?
+  category                String
+  iconUrl                 String?              @map("icon_url")
+  status                  MarketplaceAppStatus @default(DRAFT)
+  createdAt               DateTime             @default(now()) @map("created_at")
+  updatedAt               DateTime             @updatedAt @map("updated_at")
+
+  developerOrganization Organization              @relation("MarketplaceAppDeveloper", fields: [developerOrganizationId], references: [id], onDelete: Cascade)
+  versions              MarketplaceAppVersion[]
+  installs              MarketplaceInstall[]
+  reviews               MarketplaceReview[]
+  revenueShares         MarketplaceRevenueShare[]
+
+  @@index([developerOrganizationId])
+  @@index([status])
+  @@map("marketplace_apps")
+}
+
+/// A single submission for review. `manifest` is the Phase 8 Extension
+/// Framework manifest (declarative pages/widgets/nav/AI tools) — stored as
+/// opaque JSON here since this phase only needs to persist and serve it,
+/// not interpret it. `priceCents` of 0 means free (installs directly, no
+/// Stripe involved); a positive value routes install through the Stripe
+/// Connect purchase flow (see MarketplaceInstallService).
+model MarketplaceAppVersion {
+  id               String                      @id @default(uuid()) @db.Uuid
+  appId            String                      @map("app_id") @db.Uuid
+  version          String
+  manifest         Json
+  changelog        String?
+  priceCents       Int                         @default(0) @map("price_cents")
+  status           MarketplaceAppVersionStatus @default(DRAFT)
+  reviewedByUserId String?                     @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt       DateTime?                   @map("reviewed_at")
+  rejectionReason  String?                     @map("rejection_reason")
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  updatedAt        DateTime                    @updatedAt @map("updated_at")
+
+  app      MarketplaceApp       @relation(fields: [appId], references: [id], onDelete: Cascade)
+  installs MarketplaceInstall[]
+
+  @@unique([appId, version])
+  @@index([appId])
+  @@index([status])
+  @@map("marketplace_app_versions")
+}
+
+enum MarketplaceInstallStatus {
+  ACTIVE
+  UNINSTALLED
+}
+
+/// One row per (app, installing organization) — the @@unique enforces
+/// "installed at most once per org", matching a real app-store constraint.
+model MarketplaceInstall {
+  id                       String                   @id @default(uuid()) @db.Uuid
+  appId                    String                   @map("app_id") @db.Uuid
+  installingOrganizationId String                   @map("installing_organization_id") @db.Uuid
+  installedVersionId       String                   @map("installed_version_id") @db.Uuid
+  status                   MarketplaceInstallStatus @default(ACTIVE)
+  installedByUserId        String                   @map("installed_by_user_id") @db.Uuid
+  uninstalledAt            DateTime?                @map("uninstalled_at")
+  createdAt                DateTime                 @default(now()) @map("created_at")
+
+  app                    MarketplaceApp            @relation(fields: [appId], references: [id], onDelete: Cascade)
+  installingOrganization Organization              @relation("MarketplaceInstallOrganization", fields: [installingOrganizationId], references: [id], onDelete: Cascade)
+  installedVersion       MarketplaceAppVersion     @relation(fields: [installedVersionId], references: [id], onDelete: Restrict)
+  reviews                MarketplaceReview[]
+  revenueShares          MarketplaceRevenueShare[]
+
+  @@unique([appId, installingOrganizationId])
+  @@index([installingOrganizationId])
+  @@map("marketplace_installs")
+}
+
+/// @@unique enforces one review per installing organization per app — a
+/// real e-commerce review constraint, matching the plan's own requirement.
+model MarketplaceReview {
+  id                       String   @id @default(uuid()) @db.Uuid
+  appId                    String   @map("app_id") @db.Uuid
+  installId                String   @map("install_id") @db.Uuid
+  installingOrganizationId String   @map("installing_organization_id") @db.Uuid
+  rating                   Int
+  comment                  String?
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  app     MarketplaceApp     @relation(fields: [appId], references: [id], onDelete: Cascade)
+  install MarketplaceInstall @relation(fields: [installId], references: [id], onDelete: Cascade)
+
+  @@unique([appId, installingOrganizationId])
+  @@index([appId])
+  @@map("marketplace_reviews")
+}
+
+enum DeveloperConnectOnboardingStatus {
+  PENDING
+  ONBOARDING
+  COMPLETE
+}
+
+/// A developer organization's Stripe Connect Express account, used as the
+/// `transfer_data.destination` for paid app purchases so revenue lands
+/// with the developer directly (minus the platform's application fee)
+/// rather than needing a separate manual payout step.
+model DeveloperConnectAccount {
+  id                       String                           @id @default(uuid()) @db.Uuid
+  organizationId           String                           @unique @map("organization_id") @db.Uuid
+  stripeConnectedAccountId String                           @unique @map("stripe_connected_account_id")
+  onboardingStatus         DeveloperConnectOnboardingStatus @default(PENDING) @map("onboarding_status")
+  payoutsEnabled           Boolean                          @default(false) @map("payouts_enabled")
+  createdAt                DateTime                         @default(now()) @map("created_at")
+  updatedAt                DateTime                         @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("developer_connect_accounts")
+}
+
+/// One row per completed paid-app purchase. Amounts are always
+/// server-computed from the MarketplaceAppVersion's own listed
+/// `priceCents` at webhook-confirmation time — never trusted from client
+/// input — so the platform fee can never be bypassed by a manipulated
+/// client-supplied amount.
+model MarketplaceRevenueShare {
+  id                      String   @id @default(uuid()) @db.Uuid
+  appId                   String   @map("app_id") @db.Uuid
+  installId               String   @map("install_id") @db.Uuid
+  purchaseAmountCents     Int      @map("purchase_amount_cents")
+  platformFeeCents        Int      @map("platform_fee_cents")
+  developerPayoutCents    Int      @map("developer_payout_cents")
+  stripeCheckoutSessionId String   @unique @map("stripe_checkout_session_id")
+  stripePaymentIntentId   String?  @map("stripe_payment_intent_id")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  app     MarketplaceApp     @relation(fields: [appId], references: [id], onDelete: Cascade)
+  install MarketplaceInstall @relation(fields: [installId], references: [id], onDelete: Cascade)
+
+  @@index([appId])
+  @@map("marketplace_revenue_shares")
 }

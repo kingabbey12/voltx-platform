@@ -53,6 +53,7 @@ import { SalesModule } from './modules/sales/sales.module';
 import { SecurityModule } from './modules/security/security.module';
 import { UsersModule } from './modules/users/users.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { WorkflowModule } from './modules/workflows/workflow.module';
 import { WorkflowEventsModule } from './modules/workflows/scheduling/workflow-events.module';
 import { EncryptionModule } from './modules/integrations/security/encryption.module';
@@ -104,6 +105,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     DeveloperPlatformModule,
     OAuthProviderModule,
     WebhooksModule,
+    MarketplaceModule,
     ComplianceModule,
     HealthModule,
     IdentityModule,

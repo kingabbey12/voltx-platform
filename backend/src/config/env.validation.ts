@@ -189,6 +189,20 @@ class EnvironmentVariables {
   WEBHOOK_REQUEST_TIMEOUT_MS?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10000)
+  MARKETPLACE_PLATFORM_FEE_BPS?: number;
+
+  @IsOptional()
+  @IsString()
+  MARKETPLACE_STRIPE_WEBHOOK_SECRET?: string;
+
+  @IsOptional()
+  @IsString()
+  MARKETPLACE_CONNECT_RETURN_BASE_URL?: string;
+
+  @IsOptional()
   @IsString()
   SENTRY_DSN?: string;
 

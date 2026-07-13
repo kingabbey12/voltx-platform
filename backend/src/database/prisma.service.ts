@@ -281,6 +281,31 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.webhookDelivery;
   }
 
+  /** Developer Platform (v2.3 Phase 7) models — unscoped, same rationale as identityProvider above. */
+  get marketplaceApp(): PrismaClient['marketplaceApp'] {
+    return this.baseClient.marketplaceApp;
+  }
+
+  get marketplaceAppVersion(): PrismaClient['marketplaceAppVersion'] {
+    return this.baseClient.marketplaceAppVersion;
+  }
+
+  get marketplaceInstall(): PrismaClient['marketplaceInstall'] {
+    return this.baseClient.marketplaceInstall;
+  }
+
+  get marketplaceReview(): PrismaClient['marketplaceReview'] {
+    return this.baseClient.marketplaceReview;
+  }
+
+  get developerConnectAccount(): PrismaClient['developerConnectAccount'] {
+    return this.baseClient.developerConnectAccount;
+  }
+
+  get marketplaceRevenueShare(): PrismaClient['marketplaceRevenueShare'] {
+    return this.baseClient.marketplaceRevenueShare;
+  }
+
   $transaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.runInTransaction(fn);
   }

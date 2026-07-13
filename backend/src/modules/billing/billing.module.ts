@@ -96,6 +96,10 @@ const queueProcessors = redisEnabled ? [StripeWebhookProcessor] : [];
     UsageMeteringService,
     QuotaService,
     FeatureGateGuard,
+    // v2.3 Developer Platform (Phase 7) — Marketplace's own Stripe Connect
+    // revenue-share flow depends on this one shared client (see
+    // MarketplaceModule), never a second `new Stripe()` instance.
+    StripeClientService,
   ],
 })
 export class BillingModule {}
