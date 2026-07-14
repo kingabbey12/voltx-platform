@@ -15,6 +15,12 @@ import '../features/billing/presentation/screens/billing_dashboard_screen.dart';
 import '../features/billing/presentation/screens/billing_invoices_screen.dart';
 import '../features/billing/presentation/screens/billing_payment_methods_screen.dart';
 import '../features/billing/presentation/screens/billing_upgrade_screen.dart';
+import '../features/marketplace/presentation/screens/marketplace_app_detail_screen.dart';
+import '../features/marketplace/presentation/screens/marketplace_app_manage_screen.dart';
+import '../features/marketplace/presentation/screens/marketplace_browse_screen.dart';
+import '../features/marketplace/presentation/screens/marketplace_installed_screen.dart';
+import '../features/marketplace/presentation/screens/marketplace_my_apps_screen.dart';
+import '../features/marketplace/presentation/screens/marketplace_payouts_screen.dart';
 import '../features/security/presentation/screens/security_api_keys_screen.dart';
 import '../features/security/presentation/screens/security_devices_screen.dart';
 import '../features/security/presentation/screens/security_login_history_screen.dart';
@@ -424,6 +430,48 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'securityLoginHistory',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: SecurityLoginHistoryScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.marketplaceInstalled,
+            name: 'marketplaceInstalled',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: MarketplaceInstalledScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.marketplaceMyApps,
+            name: 'marketplaceMyApps',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: MarketplaceMyAppsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '${AppRoutes.marketplaceMyApps}/:id',
+            name: 'marketplaceMyAppDetails',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: MarketplaceAppManageScreen(appId: state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.marketplacePayouts,
+            name: 'marketplacePayouts',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: MarketplacePayoutsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.marketplaceHome,
+            name: 'marketplaceHome',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: MarketplaceBrowseScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '${AppRoutes.marketplaceHome}/:id',
+            name: 'marketplaceAppDetails',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: MarketplaceAppDetailScreen(appId: state.pathParameters['id']!),
             ),
           ),
           GoRoute(

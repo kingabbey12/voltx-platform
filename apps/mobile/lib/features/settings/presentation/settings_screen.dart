@@ -29,6 +29,19 @@ class SettingsScreen extends ConsumerWidget {
               child: Column(
                 children: [
                   ListTile(
+                    leading: const Icon(Icons.storefront_outlined),
+                    title: const Text('Marketplace'),
+                    subtitle: Text(
+                      'Browse, install, and publish apps',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.voltxColors.textSecondary,
+                          ),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => context.go(AppRoutes.marketplaceHome),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
                     leading: const Icon(Icons.lock_outline_rounded),
                     title: const Text('Security Center'),
                     subtitle: Text(

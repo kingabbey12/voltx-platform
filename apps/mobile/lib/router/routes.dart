@@ -40,6 +40,10 @@ abstract final class AppRoutes {
   static const String securityMfa = '/security/mfa';
   static const String securityApiKeys = '/security/api-keys';
   static const String securityLoginHistory = '/security/login-history';
+  static const String marketplaceHome = '/marketplace';
+  static const String marketplaceInstalled = '/marketplace/installed';
+  static const String marketplaceMyApps = '/marketplace/apps';
+  static const String marketplacePayouts = '/marketplace/payouts';
   static const String settings = '/settings';
   static const String manageTeam = '/settings/team';
   static const String acceptInvitation = '/invitations/accept';
@@ -92,10 +96,18 @@ abstract final class AppRoutes {
     securityMfa,
     securityApiKeys,
     securityLoginHistory,
+    marketplaceHome,
+    marketplaceInstalled,
+    marketplaceMyApps,
+    marketplacePayouts,
     settings,
     manageTeam,
     components,
   };
+
+  static String marketplaceAppDetails(String id) => '$marketplaceHome/$id';
+
+  static String marketplaceMyAppDetails(String id) => '$marketplaceMyApps/$id';
 
   static String salesLeadDetails(String id) => '$salesPipeline/$id';
 
