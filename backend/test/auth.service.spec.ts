@@ -17,6 +17,7 @@ import { VerificationTokenService } from '../src/modules/auth/verification-token
 import { OrganizationRepository } from '../src/modules/organization/organization.repository';
 import { PrismaService } from '../src/database/prisma.service';
 import { UsersRepository } from '../src/modules/users/users.repository';
+import { AuditService } from '../src/modules/audit/audit.service';
 import { BillingAccountService } from '../src/modules/billing/billing-account.service';
 import { PlanService } from '../src/modules/billing/plan.service';
 import { SubscriptionService } from '../src/modules/billing/subscription.service';
@@ -41,6 +42,7 @@ describe('AuthService', () => {
   let usersRepository: jest.Mocked<UsersRepository>;
   let sessionRepository: jest.Mocked<SessionRepository>;
   let trustedDeviceRepository: jest.Mocked<TrustedDeviceRepository>;
+  let auditService: jest.Mocked<AuditService>;
   let jwtService: jest.Mocked<JwtService>;
   let configService: jest.Mocked<ConfigService>;
   let prismaService: { system: { organization: { findUnique: jest.Mock } } };
@@ -64,6 +66,7 @@ describe('AuthService', () => {
           useValue: {
             create: jest.fn(),
             findValidByTokenHash: jest.fn(),
+            findByTokenHash: jest.fn(),
             revokeById: jest.fn(),
             revokeAllByUserId: jest.fn(),
           },
@@ -117,12 +120,20 @@ describe('AuthService', () => {
           useValue: {
             create: jest.fn().mockResolvedValue({ id: 'session-id' }),
             touchLastActiveAt: jest.fn(),
+            revoke: jest.fn(),
           },
         },
         {
           provide: TrustedDeviceRepository,
           useValue: {
             isTrusted: jest.fn().mockResolvedValue(false),
+          },
+        },
+        {
+          provide: AuditService,
+          useValue: {
+            record: jest.fn(),
+            recordWithExplicitActor: jest.fn(),
           },
         },
         {
@@ -169,6 +180,7 @@ describe('AuthService', () => {
     usersRepository = module.get(UsersRepository);
     sessionRepository = module.get(SessionRepository);
     trustedDeviceRepository = module.get(TrustedDeviceRepository);
+    auditService = module.get(AuditService);
     jwtService = module.get(JwtService);
     configService = module.get(ConfigService);
     prismaService = module.get(PrismaService);
@@ -544,6 +556,75 @@ describe('AuthService', () => {
     );
     expect(result.accessToken).toBe('new-access-token');
     expect(result.refreshToken).toBe('new-refresh-token');
+  });
+
+  it('revokes the whole session on a replayed (already-rotated) refresh token', async () => {
+    jest.spyOn(refreshTokenUtil, 'hashRefreshToken').mockReturnValue('stolen-hash');
+    refreshTokenRepository.findValidByTokenHash.mockResolvedValue(null);
+    refreshTokenRepository.findByTokenHash.mockResolvedValue({
+      id: 'token-id',
+      userId: 'user-id',
+      tokenHash: 'stolen-hash',
+      expiresAt: new Date('2026-08-01'),
+      revokedAt: new Date('2026-07-01'),
+      createdAt: new Date('2026-06-01'),
+      sessionId: 'session-id',
+    });
+    authContextRepository.findActiveMembershipContext.mockResolvedValue({
+      id: 'membership-id',
+      organizationId: 'org-id',
+      userId: 'user-id',
+      roleId: 'role-id',
+      roleKey: 'admin',
+      roleName: 'Admin',
+    });
+
+    await expect(service.refresh('stolen-refresh-token')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+
+    expect(sessionRepository.revoke).toHaveBeenCalledWith('session-id');
+    expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.refresh_token_reuse_detected',
+        organizationId: 'org-id',
+        userId: 'user-id',
+      }),
+    );
+  });
+
+  it('does not flag reuse for a token that simply expired naturally', async () => {
+    jest.spyOn(refreshTokenUtil, 'hashRefreshToken').mockReturnValue('expired-hash');
+    refreshTokenRepository.findValidByTokenHash.mockResolvedValue(null);
+    refreshTokenRepository.findByTokenHash.mockResolvedValue({
+      id: 'token-id',
+      userId: 'user-id',
+      tokenHash: 'expired-hash',
+      expiresAt: new Date('2026-01-01'),
+      revokedAt: null,
+      createdAt: new Date('2025-12-01'),
+      sessionId: 'session-id',
+    });
+
+    await expect(service.refresh('expired-refresh-token')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+
+    expect(sessionRepository.revoke).not.toHaveBeenCalled();
+    expect(auditService.recordWithExplicitActor).not.toHaveBeenCalled();
+  });
+
+  it('does not flag reuse for a refresh token hash that never existed', async () => {
+    jest.spyOn(refreshTokenUtil, 'hashRefreshToken').mockReturnValue('garbage-hash');
+    refreshTokenRepository.findValidByTokenHash.mockResolvedValue(null);
+    refreshTokenRepository.findByTokenHash.mockResolvedValue(null);
+
+    await expect(service.refresh('garbage-refresh-token')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+
+    expect(sessionRepository.revoke).not.toHaveBeenCalled();
+    expect(auditService.recordWithExplicitActor).not.toHaveBeenCalled();
   });
 
   it('verifies email and marks emailVerifiedAt', async () => {

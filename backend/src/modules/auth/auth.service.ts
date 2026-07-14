@@ -14,6 +14,7 @@ import { parseOrganizationSecurityPolicy } from '../organization/utils/organizat
 import { UsersRepository } from '../users/users.repository';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { UserEntity } from '../users/entities/user.entity';
+import { AuditService } from '../audit/audit.service';
 import { BillingAccountService } from '../billing/billing-account.service';
 import { PlanService } from '../billing/plan.service';
 import { SubscriptionService } from '../billing/subscription.service';
@@ -66,6 +67,7 @@ export class AuthService {
     private readonly planService: PlanService,
     private readonly sessionRepository: SessionRepository,
     private readonly trustedDeviceRepository: TrustedDeviceRepository,
+    private readonly auditService: AuditService,
   ) {}
 
   async login(
@@ -320,6 +322,7 @@ export class AuthService {
     const storedToken = await this.refreshTokenRepository.findValidByTokenHash(tokenHash);
 
     if (!storedToken) {
+      await this.handlePossibleRefreshTokenReuse(tokenHash);
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
@@ -348,6 +351,46 @@ export class AuthService {
       membership.organizationId,
       storedToken.sessionId ?? undefined,
     );
+  }
+
+  /**
+   * A presented refresh-token hash that fails findValidByTokenHash() is
+   * ambiguous on its own: it could be garbage, a naturally expired token,
+   * or — the dangerous case — a legitimately-issued token that was already
+   * rotated out by an earlier refresh, being replayed by whoever stole it
+   * off the original device. Only the last case is a theft signal, so we
+   * look the hash up again with no state filter to tell them apart: a
+   * revoked-but-not-expired hit means reuse. The response to attackers and
+   * to a client that simply retried a request is deliberately identical
+   * (both just get "Invalid or expired refresh token" from the caller) —
+   * this only changes what happens server-side.
+   */
+  private async handlePossibleRefreshTokenReuse(tokenHash: string): Promise<void> {
+    const replayed = await this.refreshTokenRepository.findByTokenHash(tokenHash);
+    if (!replayed || !replayed.revokedAt) {
+      return;
+    }
+
+    if (replayed.sessionId) {
+      await this.sessionRepository.revoke(replayed.sessionId);
+    } else {
+      await this.refreshTokenRepository.revokeAllByUserId(replayed.userId);
+    }
+
+    const membership = await this.authContextRepository
+      .findActiveMembershipContext(replayed.userId)
+      .catch(() => null);
+
+    if (membership) {
+      await this.auditService.recordWithExplicitActor({
+        action: 'auth.refresh_token_reuse_detected',
+        resource: 'session',
+        resourceId: replayed.sessionId ?? replayed.id,
+        organizationId: membership.organizationId,
+        userId: replayed.userId,
+        metadata: { refreshTokenId: replayed.id },
+      });
+    }
   }
 
   async logout(userId: string, refreshToken: string): Promise<void> {

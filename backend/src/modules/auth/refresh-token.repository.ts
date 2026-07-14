@@ -44,6 +44,14 @@ export class RefreshTokenRepository {
     });
   }
 
+  /** Looks up a refresh token hash regardless of revoked/expired state —
+   * used only to distinguish a replayed (already-rotated-out) token, which
+   * is a theft signal, from a merely garbage or naturally-expired one,
+   * which isn't. Never used to authorize anything. */
+  async findByTokenHash(tokenHash: string): Promise<RefreshTokenRecord | null> {
+    return this.prisma.refreshToken.findFirst({ where: { tokenHash } });
+  }
+
   async revokeById(id: string): Promise<void> {
     await this.prisma.refreshToken.update({
       where: { id },
