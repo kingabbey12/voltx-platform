@@ -18,6 +18,7 @@ import { OrganizationRepository } from '../src/modules/organization/organization
 import { PrismaService } from '../src/database/prisma.service';
 import { UsersRepository } from '../src/modules/users/users.repository';
 import { AuditService } from '../src/modules/audit/audit.service';
+import { MailService } from '../src/modules/mail/mail.service';
 import { BillingAccountService } from '../src/modules/billing/billing-account.service';
 import { PlanService } from '../src/modules/billing/plan.service';
 import { SubscriptionService } from '../src/modules/billing/subscription.service';
@@ -44,6 +45,7 @@ describe('AuthService', () => {
   let sessionRepository: jest.Mocked<SessionRepository>;
   let trustedDeviceRepository: jest.Mocked<TrustedDeviceRepository>;
   let auditService: jest.Mocked<AuditService>;
+  let mailService: jest.Mocked<MailService>;
   let billingAccountService: jest.Mocked<BillingAccountService>;
   let planService: jest.Mocked<PlanService>;
   let jwtService: jest.Mocked<JwtService>;
@@ -147,6 +149,12 @@ describe('AuthService', () => {
           },
         },
         {
+          provide: MailService,
+          useValue: {
+            send: jest.fn(),
+          },
+        },
+        {
           provide: JwtService,
           useValue: {
             signAsync: jest.fn(),
@@ -192,6 +200,7 @@ describe('AuthService', () => {
     sessionRepository = module.get(SessionRepository);
     trustedDeviceRepository = module.get(TrustedDeviceRepository);
     auditService = module.get(AuditService);
+    mailService = module.get(MailService);
     billingAccountService = module.get(BillingAccountService);
     planService = module.get(PlanService);
     jwtService = module.get(JwtService);
@@ -544,6 +553,9 @@ describe('AuthService', () => {
 
     authRepository.findUserByEmail.mockResolvedValue(null);
     organizationRepository.isSlugTaken.mockResolvedValue(false);
+    verificationTokenService.issueEmailVerificationToken.mockResolvedValue({
+      token: 'verify-token',
+    });
     prismaService.system.role.findUniqueOrThrow.mockResolvedValue({ id: 'owner-role-id' });
     prismaService.system.$transaction.mockImplementation(
       (callback: (tx: unknown) => Promise<unknown>) =>
@@ -607,6 +619,12 @@ describe('AuthService', () => {
       organizationName: 'Acme Inc',
     });
 
+    expect(mailService.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'jane.doe@example.com',
+        subject: 'Verify your email address',
+      }),
+    );
     expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'auth.register_succeeded',
@@ -847,6 +865,7 @@ describe('AuthService', () => {
 
   it('returns generic message for password reset requests', async () => {
     authRepository.findUserIdByEmail.mockResolvedValue('user-id');
+    verificationTokenService.issuePasswordResetToken.mockResolvedValue({ token: 'reset-token' });
     authContextRepository.findActiveMembershipContext.mockResolvedValue({
       id: 'membership-id',
       organizationId: 'org-id',
@@ -860,6 +879,12 @@ describe('AuthService', () => {
 
     expect(result.message).toBe('If the account exists, a password reset email has been sent.');
     expect(verificationTokenService.issuePasswordResetToken).toHaveBeenCalledWith('user-id');
+    expect(mailService.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'jane.doe@example.com',
+        subject: 'Reset your Voltx password',
+      }),
+    );
     expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'auth.password_reset_requested',

@@ -15,6 +15,8 @@ import { UsersRepository } from '../users/users.repository';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { UserEntity } from '../users/entities/user.entity';
 import { AuditService } from '../audit/audit.service';
+import { MailService } from '../mail/mail.service';
+import { passwordResetTemplate, verifyEmailTemplate } from '../mail/mail.templates';
 import { BillingAccountService } from '../billing/billing-account.service';
 import { PlanService } from '../billing/plan.service';
 import { SubscriptionService } from '../billing/subscription.service';
@@ -68,6 +70,7 @@ export class AuthService {
     private readonly sessionRepository: SessionRepository,
     private readonly trustedDeviceRepository: TrustedDeviceRepository,
     private readonly auditService: AuditService,
+    private readonly mailService: MailService,
   ) {}
 
   async login(
@@ -282,7 +285,9 @@ export class AuthService {
       return { organization: createdOrganization, user: createdUser };
     });
 
-    await this.verificationTokenService.issueEmailVerificationToken(user.id);
+    const { token: verificationToken } =
+      await this.verificationTokenService.issueEmailVerificationToken(user.id);
+    await this.sendVerificationEmail(user.email, verificationToken);
     await this.startTrialSubscription(organization.id, user.id, user.email);
     await this.auditService.recordWithExplicitActor({
       action: 'auth.register_succeeded',
@@ -530,7 +535,8 @@ export class AuthService {
     const userId = await this.authRepository.findUserIdByEmail(dto.email);
 
     if (userId) {
-      await this.verificationTokenService.issuePasswordResetToken(userId);
+      const { token } = await this.verificationTokenService.issuePasswordResetToken(userId);
+      await this.sendPasswordResetEmail(dto.email, token);
 
       const membership = await this.authContextRepository.findActiveMembershipContext(userId);
       if (membership) {
@@ -656,5 +662,19 @@ export class AuthService {
       ACCESS_TOKEN_EXPIRES_IN,
     );
     return parseDurationToSeconds(configured, 900);
+  }
+
+  private async sendVerificationEmail(email: string, token: string): Promise<void> {
+    const webAppBaseUrl = this.configService.get<string>('mail.webAppBaseUrl', '');
+    const verifyUrl = `${webAppBaseUrl}/verify-email?token=${encodeURIComponent(token)}`;
+    const { subject, html, text } = verifyEmailTemplate(verifyUrl);
+    await this.mailService.send({ to: email, subject, html, text });
+  }
+
+  private async sendPasswordResetEmail(email: string, token: string): Promise<void> {
+    const webAppBaseUrl = this.configService.get<string>('mail.webAppBaseUrl', '');
+    const resetUrl = `${webAppBaseUrl}/reset-password?token=${encodeURIComponent(token)}`;
+    const { subject, html, text } = passwordResetTemplate(resetUrl);
+    await this.mailService.send({ to: email, subject, html, text });
   }
 }

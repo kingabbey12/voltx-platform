@@ -429,6 +429,18 @@ class EnvironmentVariables {
   @IsString()
   INVITATIONS_ACCEPT_BASE_URL?: string;
 
+  @IsOptional()
+  @IsString()
+  RESEND_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  MAIL_FROM_ADDRESS?: string;
+
+  @IsOptional()
+  @IsString()
+  WEB_APP_BASE_URL?: string;
+
   // Required in every environment (including dev/test) — this key encrypts
   // every stored OAuth token/API key/webhook secret at rest.
   // EncryptionService.onModuleInit() enforces the same requirement again at

@@ -14,6 +14,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { TenantModule } from './common/tenant/tenant.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { MailModule } from './modules/mail/mail.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AgentModule } from './modules/ai/agents/agent.module';
 import { AIModule } from './modules/ai/ai.module';
@@ -92,6 +93,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     CacheModule,
     TenantModule,
     AuditModule,
+    MailModule,
     WorkflowEventsModule,
     EncryptionModule,
     AIModule,

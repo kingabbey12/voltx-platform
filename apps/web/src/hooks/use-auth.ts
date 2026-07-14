@@ -58,3 +58,9 @@ export function useResetPassword() {
       authApi.resetPassword(token, password),
   });
 }
+
+export function useVerifyEmail() {
+  return useMutation({
+    mutationFn: (token: string) => authApi.verifyEmail(token),
+  });
+}

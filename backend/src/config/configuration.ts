@@ -191,10 +191,20 @@ export default () => ({
   },
   invitations: {
     // The mobile app's deep-link scheme (or a web app's URL) that opens the
-    // "accept invitation" screen with ?token=... appended — there is no
-    // email-sending infrastructure in this backend, so the invitation
-    // response hands this link to the inviter to share directly.
+    // "accept invitation" screen with ?token=... appended — invitations
+    // still aren't emailed automatically (the response hands this link to
+    // the inviter to share directly); only email verification and password
+    // reset (see `mail` below) are wired to actually send mail.
     acceptBaseUrl: process.env.INVITATIONS_ACCEPT_BASE_URL ?? 'voltx://invitations/accept',
+  },
+  mail: {
+    // Resend (https://resend.com) — same provider as apps/marketing's
+    // contact form. Unset in any environment = MailService logs and
+    // no-ops instead of sending (see mail.service.ts).
+    resendApiKey: process.env.RESEND_API_KEY ?? '',
+    fromAddress: process.env.MAIL_FROM_ADDRESS ?? 'Voltx <noreply@usevoltx.com>',
+    // Base URL of the web app that hosts /verify-email and /reset-password.
+    webAppBaseUrl: process.env.WEB_APP_BASE_URL ?? 'https://app.usevoltx.com',
   },
   integrations: {
     encryptionKey: process.env.INTEGRATIONS_ENCRYPTION_KEY ?? '',
