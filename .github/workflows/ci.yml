@@ -80,6 +80,61 @@ jobs:
       - name: Build
         run: pnpm build
 
+  web:
+    name: Web (lint, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+        env:
+          # CI never actually calls the API — this just has to satisfy
+          # apps/web/src/config/env.ts's build-time validation (a real
+          # absolute URL, no /auth|/login|/health path segment) since the
+          # value gets inlined into the client bundle at build time.
+          NEXT_PUBLIC_API_BASE_URL: https://api.ci.usevoltx.example/api/v1
+
+  marketing:
+    name: Marketing (lint, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/marketing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/marketing/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
   mobile:
     name: Mobile (analyze, test, build macos)
     runs-on: macos-latest
