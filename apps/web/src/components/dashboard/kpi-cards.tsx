@@ -65,7 +65,9 @@ export function KpiCards() {
               {kpi.isLoading ? (
                 <div className="mt-1 h-6 w-16 animate-pulse rounded bg-secondary" />
               ) : (
-                <p className="truncate text-xl font-semibold tracking-tight">{kpi.value}</p>
+                <p className="truncate font-mono text-xl font-semibold tabular-nums tracking-tight">
+                  {kpi.value}
+                </p>
               )}
             </div>
           </CardContent>
