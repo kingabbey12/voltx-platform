@@ -35,6 +35,16 @@ class EnvironmentVariables {
   @IsString()
   DATABASE_URL!: string;
 
+  /** Read only by the Prisma CLI (`prisma migrate deploy`/`dev`) via
+   * schema.prisma's `directUrl`, never by the running app — declared here
+   * purely so `pnpm prisma:migrate:*` fails loudly with a clear message
+   * instead of a generic "environment variable not found" if it's unset in
+   * an environment (like Neon) where DATABASE_URL is a pooled connection
+   * that can't run migrations. */
+  @IsOptional()
+  @IsString()
+  DIRECT_URL?: string;
+
   @IsOptional()
   @IsInt()
   @Min(1)

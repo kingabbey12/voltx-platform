@@ -61,6 +61,7 @@ jobs:
           PORT=3000
           LOG_LEVEL=silent
           DATABASE_URL=postgresql://voltx:voltx@localhost:5433/voltx_test
+          DIRECT_URL=postgresql://voltx:voltx@localhost:5433/voltx_test
           JWT_ACCESS_SECRET=ci-jwt-access-secret-minimum-32-characters-long
           JWT_ACCESS_EXPIRES_IN=15m
           AUTH_RATE_LIMIT_LIMIT=1000
@@ -73,6 +74,7 @@ jobs:
         run: pnpm prisma:migrate:deploy
         env:
           DATABASE_URL: postgresql://voltx:voltx@localhost:5433/voltx_test
+          DIRECT_URL: postgresql://voltx:voltx@localhost:5433/voltx_test
 
       - name: E2E tests
         run: pnpm test:e2e

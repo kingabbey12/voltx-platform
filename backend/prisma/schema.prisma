@@ -4,7 +4,17 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // DATABASE_URL is the runtime (pooled) connection — safe for Neon's
+  // PgBouncer endpoint. directUrl is read only by the Prisma migration
+  // engine (`prisma migrate deploy`, `prisma migrate dev`), which needs a
+  // direct, unpooled connection: transaction-mode PgBouncer doesn't support
+  // the prepared statements / advisory locks migrations rely on. DIRECT_URL
+  // must be set in every environment that ever runs a migration — for a
+  // non-pooled database (local docker-compose, CI's ephemeral Postgres)
+  // it's simply the same value as DATABASE_URL; for Neon it's the separate
+  // unpooled connection string from the Neon dashboard.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum OrganizationStatus {
