@@ -1,6 +1,7 @@
 import {
   Bot,
   Building2,
+  ClipboardCheck,
   CreditCard,
   Inbox,
   LayoutDashboard,
@@ -38,6 +39,7 @@ export const secondaryNav: NavItem[] = [
   { label: "Billing", href: "/billing", icon: CreditCard, shortcut: "G B" },
   { label: "Marketplace", href: "/marketplace", icon: Store, shortcut: "G M" },
   { label: "Security", href: "/security", icon: Lock },
+  { label: "Compliance", href: "/compliance", icon: ClipboardCheck },
   { label: "Developers", href: "/developers", icon: TerminalSquare, shortcut: "G V" },
   { label: "Settings", href: "/settings", icon: Settings, shortcut: "G S" },
 ];
