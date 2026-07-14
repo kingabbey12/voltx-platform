@@ -74,6 +74,12 @@ class DashboardSidebar extends ConsumerWidget {
       selectedIcon: Icons.credit_card_rounded,
     ),
     DashboardNavItem(
+      label: 'Security',
+      route: AppRoutes.securityHome,
+      icon: Icons.lock_outline_rounded,
+      selectedIcon: Icons.lock_rounded,
+    ),
+    DashboardNavItem(
       label: 'Settings',
       route: AppRoutes.settings,
       icon: Icons.settings_outlined,

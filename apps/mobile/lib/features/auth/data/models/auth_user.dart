@@ -11,6 +11,7 @@ class AuthUser {
     this.permissions = const [],
     this.avatarUrl,
     this.onboardingCompleted = false,
+    this.mfaEnabled = false,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
@@ -31,6 +32,7 @@ class AuthUser {
           const [],
       avatarUrl: json['avatarUrl'] as String?,
       onboardingCompleted: json['onboardingCompleted'] as bool? ?? false,
+      mfaEnabled: json['mfaEnabled'] as bool? ?? false,
     );
   }
 
@@ -44,6 +46,7 @@ class AuthUser {
   final List<String> permissions;
   final String? avatarUrl;
   final bool onboardingCompleted;
+  final bool mfaEnabled;
 
   String get displayName => '$firstName $lastName'.trim();
 
@@ -56,6 +59,7 @@ class AuthUser {
     String? firstName,
     String? lastName,
     bool? onboardingCompleted,
+    bool? mfaEnabled,
   }) {
     return AuthUser(
       id: id,
@@ -68,6 +72,7 @@ class AuthUser {
       permissions: permissions ?? this.permissions,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
+      mfaEnabled: mfaEnabled ?? this.mfaEnabled,
     );
   }
 }

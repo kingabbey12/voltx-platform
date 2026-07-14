@@ -6,6 +6,7 @@ import '../../../dashboard/presentation/providers/dashboard_providers.dart';
 import '../../../integrations/presentation/providers/integration_providers.dart';
 import '../../../knowledge/presentation/providers/knowledge_providers.dart';
 import '../../../sales/presentation/providers/sales_providers.dart';
+import '../../../security/presentation/providers/security_providers.dart';
 import '../../../workflows/presentation/providers/workflow_providers.dart';
 import '../../data/models/auth_organization_membership.dart';
 import '../../data/models/auth_user.dart';
@@ -157,6 +158,13 @@ void invalidateOrganizationScopedProviders(WidgetRef ref) {
   ref.invalidate(integrationConnectionsProvider);
   ref.invalidate(integrationConnectionDetailProvider);
   ref.invalidate(integrationMetricsProvider);
+
+  // Security
+  ref.invalidate(securityPolicyProvider);
+  ref.invalidate(sessionsProvider);
+  ref.invalidate(trustedDevicesProvider);
+  ref.invalidate(apiKeysProvider);
+  ref.invalidate(loginHistoryProvider);
 
   // Dashboard (derives from the above; also invalidates its own sources)
   refreshDashboardData(ref);

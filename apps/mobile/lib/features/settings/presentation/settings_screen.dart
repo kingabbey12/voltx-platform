@@ -21,6 +21,30 @@ class SettingsScreen extends ConsumerWidget {
           Text('Settings', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: AppSpacing.md),
             Text(
+              'Workspace',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Card(
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.lock_outline_rounded),
+                    title: const Text('Security Center'),
+                    subtitle: Text(
+                      'Sessions, devices, MFA, API keys, and login history',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.voltxColors.textSecondary,
+                          ),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => context.go(AppRoutes.securityHome),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
               'About',
               style: Theme.of(context).textTheme.titleMedium,
             ),

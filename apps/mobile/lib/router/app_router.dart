@@ -15,6 +15,12 @@ import '../features/billing/presentation/screens/billing_dashboard_screen.dart';
 import '../features/billing/presentation/screens/billing_invoices_screen.dart';
 import '../features/billing/presentation/screens/billing_payment_methods_screen.dart';
 import '../features/billing/presentation/screens/billing_upgrade_screen.dart';
+import '../features/security/presentation/screens/security_api_keys_screen.dart';
+import '../features/security/presentation/screens/security_devices_screen.dart';
+import '../features/security/presentation/screens/security_login_history_screen.dart';
+import '../features/security/presentation/screens/security_mfa_screen.dart';
+import '../features/security/presentation/screens/security_policy_screen.dart';
+import '../features/security/presentation/screens/security_sessions_screen.dart';
 import '../features/ai/presentation/screens/ai_agents_screen.dart';
 import '../features/ai/presentation/screens/ai_automations_screen.dart';
 import '../features/ai/presentation/screens/ai_workflow_approvals_screen.dart';
@@ -376,6 +382,48 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'billingPaymentMethods',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: BillingPaymentMethodsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.securityHome,
+            name: 'securityHome',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SecurityPolicyScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.securitySessions,
+            name: 'securitySessions',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SecuritySessionsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.securityDevices,
+            name: 'securityDevices',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SecurityDevicesScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.securityMfa,
+            name: 'securityMfa',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SecurityMfaScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.securityApiKeys,
+            name: 'securityApiKeys',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SecurityApiKeysScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.securityLoginHistory,
+            name: 'securityLoginHistory',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SecurityLoginHistoryScreen(),
             ),
           ),
           GoRoute(

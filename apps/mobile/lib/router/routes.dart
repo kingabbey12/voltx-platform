@@ -34,6 +34,12 @@ abstract final class AppRoutes {
   static const String billingUpgrade = '/billing/upgrade';
   static const String billingInvoices = '/billing/invoices';
   static const String billingPaymentMethods = '/billing/payment-methods';
+  static const String securityHome = '/security';
+  static const String securitySessions = '/security/sessions';
+  static const String securityDevices = '/security/devices';
+  static const String securityMfa = '/security/mfa';
+  static const String securityApiKeys = '/security/api-keys';
+  static const String securityLoginHistory = '/security/login-history';
   static const String settings = '/settings';
   static const String manageTeam = '/settings/team';
   static const String acceptInvitation = '/invitations/accept';
@@ -80,6 +86,12 @@ abstract final class AppRoutes {
     billingUpgrade,
     billingInvoices,
     billingPaymentMethods,
+    securityHome,
+    securitySessions,
+    securityDevices,
+    securityMfa,
+    securityApiKeys,
+    securityLoginHistory,
     settings,
     manageTeam,
     components,
