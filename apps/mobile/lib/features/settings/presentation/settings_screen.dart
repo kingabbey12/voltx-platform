@@ -53,6 +53,19 @@ class SettingsScreen extends ConsumerWidget {
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => context.go(AppRoutes.securityHome),
                   ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.fact_check_outlined),
+                    title: const Text('Compliance Center'),
+                    subtitle: Text(
+                      'Consent, GDPR, legal holds, audit, and retention',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.voltxColors.textSecondary,
+                          ),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => context.go(AppRoutes.complianceHome),
+                  ),
                 ],
               ),
             ),

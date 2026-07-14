@@ -15,6 +15,11 @@ import '../features/billing/presentation/screens/billing_dashboard_screen.dart';
 import '../features/billing/presentation/screens/billing_invoices_screen.dart';
 import '../features/billing/presentation/screens/billing_payment_methods_screen.dart';
 import '../features/billing/presentation/screens/billing_upgrade_screen.dart';
+import '../features/compliance/presentation/screens/compliance_audit_screen.dart';
+import '../features/compliance/presentation/screens/compliance_consent_screen.dart';
+import '../features/compliance/presentation/screens/compliance_gdpr_screen.dart';
+import '../features/compliance/presentation/screens/compliance_legal_holds_screen.dart';
+import '../features/compliance/presentation/screens/compliance_retention_screen.dart';
 import '../features/marketplace/presentation/screens/marketplace_app_detail_screen.dart';
 import '../features/marketplace/presentation/screens/marketplace_app_manage_screen.dart';
 import '../features/marketplace/presentation/screens/marketplace_browse_screen.dart';
@@ -472,6 +477,41 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'marketplaceAppDetails',
             pageBuilder: (context, state) => NoTransitionPage(
               child: MarketplaceAppDetailScreen(appId: state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.complianceGdpr,
+            name: 'complianceGdpr',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ComplianceGdprScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.complianceLegalHolds,
+            name: 'complianceLegalHolds',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ComplianceLegalHoldsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.complianceAudit,
+            name: 'complianceAudit',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ComplianceAuditScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.complianceRetention,
+            name: 'complianceRetention',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ComplianceRetentionScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.complianceHome,
+            name: 'complianceHome',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ComplianceConsentScreen(),
             ),
           ),
           GoRoute(

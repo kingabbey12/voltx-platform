@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/network_providers.dart';
 import '../../../ai/presentation/providers/ai_providers.dart';
 import '../../../dashboard/presentation/providers/dashboard_providers.dart';
+import '../../../compliance/presentation/providers/compliance_providers.dart';
 import '../../../integrations/presentation/providers/integration_providers.dart';
 import '../../../knowledge/presentation/providers/knowledge_providers.dart';
 import '../../../marketplace/presentation/providers/marketplace_providers.dart';
@@ -173,6 +174,11 @@ void invalidateOrganizationScopedProviders(WidgetRef ref) {
   ref.invalidate(myAppVersionsProvider);
   ref.invalidate(myAppAiToolsProvider);
   ref.invalidate(connectStatusProvider);
+
+  // Compliance
+  ref.invalidate(consentRecordsProvider);
+  ref.invalidate(legalHoldsProvider);
+  ref.invalidate(retentionPoliciesProvider);
 
   // Dashboard (derives from the above; also invalidates its own sources)
   refreshDashboardData(ref);

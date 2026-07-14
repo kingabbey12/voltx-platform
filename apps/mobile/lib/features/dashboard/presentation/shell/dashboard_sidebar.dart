@@ -86,6 +86,12 @@ class DashboardSidebar extends ConsumerWidget {
       selectedIcon: Icons.lock_rounded,
     ),
     DashboardNavItem(
+      label: 'Compliance',
+      route: AppRoutes.complianceHome,
+      icon: Icons.fact_check_outlined,
+      selectedIcon: Icons.fact_check_rounded,
+    ),
+    DashboardNavItem(
       label: 'Settings',
       route: AppRoutes.settings,
       icon: Icons.settings_outlined,

@@ -44,6 +44,11 @@ abstract final class AppRoutes {
   static const String marketplaceInstalled = '/marketplace/installed';
   static const String marketplaceMyApps = '/marketplace/apps';
   static const String marketplacePayouts = '/marketplace/payouts';
+  static const String complianceHome = '/compliance';
+  static const String complianceGdpr = '/compliance/gdpr';
+  static const String complianceLegalHolds = '/compliance/legal-holds';
+  static const String complianceAudit = '/compliance/audit';
+  static const String complianceRetention = '/compliance/retention';
   static const String settings = '/settings';
   static const String manageTeam = '/settings/team';
   static const String acceptInvitation = '/invitations/accept';
@@ -100,6 +105,11 @@ abstract final class AppRoutes {
     marketplaceInstalled,
     marketplaceMyApps,
     marketplacePayouts,
+    complianceHome,
+    complianceGdpr,
+    complianceLegalHolds,
+    complianceAudit,
+    complianceRetention,
     settings,
     manageTeam,
     components,
