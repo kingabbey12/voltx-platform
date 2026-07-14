@@ -106,7 +106,9 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 
   let response: Response;
   try {
-    response = await fetch(buildUrl(path, query), {
+    const requestUrl = buildUrl(path, query);
+    console.log("API REQUEST:", requestUrl);
+    response = await fetch(requestUrl, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
