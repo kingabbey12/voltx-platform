@@ -18,6 +18,7 @@ export const ERROR_CODES = {
   aiRateLimited: 'AI_RATE_LIMITED',
   aiContextLengthExceeded: 'AI_CONTEXT_LENGTH_EXCEEDED',
   aiTimeout: 'AI_TIMEOUT',
+  attachmentScanningUnavailable: 'ATTACHMENT_SCANNING_UNAVAILABLE',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

@@ -12,16 +12,16 @@ function buildConfig(values: Record<string, unknown>): ConfigService {
 describe('resolveVirusScanProvider', () => {
   const noop = {} as NoopVirusScanProvider;
 
-  it('refuses to start in production when CLAMAV_HOST is unset', async () => {
+  it('falls back to the no-op scanner in production when CLAMAV_HOST is unset, without crashing boot', async () => {
     const clamav = { ping: jest.fn() } as unknown as ClamAvVirusScanProvider;
     const configService = buildConfig({
       nodeEnv: 'production',
       'attachments.virusScan.clamavHost': '',
     });
 
-    await expect(resolveVirusScanProvider(configService, clamav, noop)).rejects.toThrow(
-      /CLAMAV_HOST must be set in production/,
-    );
+    const resolved = await resolveVirusScanProvider(configService, clamav, noop);
+
+    expect(resolved).toBe(noop);
     expect(clamav.ping).not.toHaveBeenCalled();
   });
 

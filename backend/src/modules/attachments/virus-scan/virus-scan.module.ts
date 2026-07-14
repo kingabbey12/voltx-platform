@@ -5,9 +5,14 @@ import { NoopVirusScanProvider } from './noop-virus-scan.provider';
 import { VirusScanProvider, VIRUS_SCAN_PROVIDER } from './virus-scan-provider.interface';
 
 /**
- * Exported (not inlined in the factory below) so the production
- * fail-fast behavior — the actual point of this function — can be unit
- * tested without bootstrapping the whole module.
+ * Exported (not inlined in the factory below) so this resolution logic
+ * can be unit tested without bootstrapping the whole module.
+ *
+ * ClamAV is an optional dependency — an unreachable or unconfigured
+ * scanner must never prevent the app from booting (in any environment).
+ * When it isn't configured, the no-op provider is selected here and
+ * AttachmentService is responsible for refusing uploads at request time
+ * (503) in production, so no file can ever be persisted unscanned.
  */
 export async function resolveVirusScanProvider(
   configService: ConfigService,
@@ -17,18 +22,17 @@ export async function resolveVirusScanProvider(
   const clamavHost = configService.get<string>('attachments.virusScan.clamavHost', '');
   const isProduction = configService.get<string>('nodeEnv', '') === 'production';
 
-  if (isProduction) {
-    // The no-op provider marks every upload "clean" without ever
-    // scanning it — fine for local dev, never acceptable once real
-    // user-uploaded files are accepted in production.
-    if (!clamavHost) {
-      throw new Error('CLAMAV_HOST must be set in production — uploads cannot go unscanned.');
-    }
-    await clamav.ping();
-    return clamav;
+  if (!clamavHost) {
+    return noop;
   }
 
-  return clamavHost ? clamav : noop;
+  if (isProduction) {
+    // Confirms clamd is actually reachable and responding at boot,
+    // rather than deferring that discovery to the first real upload.
+    await clamav.ping();
+  }
+
+  return clamav;
 }
 
 @Module({

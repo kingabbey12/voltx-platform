@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AttachmentRepository } from '../src/modules/attachments/attachment.repository';
@@ -9,6 +13,10 @@ import {
   STORAGE_PROVIDER,
   StorageProvider,
 } from '../src/modules/attachments/storage/storage-provider.interface';
+import {
+  VIRUS_SCAN_PROVIDER,
+  VirusScanProvider,
+} from '../src/modules/attachments/virus-scan/virus-scan-provider.interface';
 import { TenantContextService } from '../src/common/tenant/tenant-context.service';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { UsageMeteringService } from '../src/modules/billing/usage-metering.service';
@@ -22,6 +30,7 @@ describe('AttachmentService', () => {
   let tenantContextService: jest.Mocked<TenantContextService>;
   let auditService: jest.Mocked<AuditService>;
   let quotaService: jest.Mocked<QuotaService>;
+  let virusScanProvider: jest.Mocked<VirusScanProvider>;
 
   const attachmentEntity: AttachmentEntity = {
     id: 'attachment-1',
@@ -78,6 +87,10 @@ describe('AttachmentService', () => {
           },
         },
         {
+          provide: VIRUS_SCAN_PROVIDER,
+          useValue: { name: 'clamav', scan: jest.fn() },
+        },
+        {
           provide: AttachmentProcessingQueueService,
           useValue: { enqueue: jest.fn() },
         },
@@ -115,6 +128,7 @@ describe('AttachmentService', () => {
     service = module.get(AttachmentService);
     repository = module.get(AttachmentRepository);
     storageProvider = module.get(STORAGE_PROVIDER);
+    virusScanProvider = module.get(VIRUS_SCAN_PROVIDER);
     processingQueue = module.get(AttachmentProcessingQueueService);
     tenantContextService = module.get(TenantContextService);
     auditService = module.get(AuditService);
@@ -207,6 +221,7 @@ describe('AttachmentService', () => {
           AttachmentService,
           { provide: AttachmentRepository, useValue: repository },
           { provide: STORAGE_PROVIDER, useValue: storageProvider },
+          { provide: VIRUS_SCAN_PROVIDER, useValue: virusScanProvider },
           { provide: AttachmentProcessingQueueService, useValue: processingQueue },
           { provide: TenantContextService, useValue: tenantContextService },
           {
@@ -267,6 +282,156 @@ describe('AttachmentService', () => {
         expect.stringContaining('org-1/'),
         'upload-1',
       );
+    });
+  });
+
+  describe('upload availability gate (ClamAV optional)', () => {
+    async function buildService(options: { nodeEnv: string; virusScanProviderName: string }) {
+      const localStorageProvider = {
+        name: 'local',
+        upload: jest.fn().mockResolvedValue(undefined),
+        getReadStream: jest.fn(),
+        getSignedDownloadUrl: jest.fn(),
+        delete: jest.fn().mockResolvedValue(undefined),
+        initiateMultipartUpload: jest.fn().mockResolvedValue('upload-1'),
+        uploadPart: jest.fn(),
+        completeMultipartUpload: jest.fn(),
+        abortMultipartUpload: jest.fn().mockResolvedValue(undefined),
+      };
+      const localRepository = {
+        create: jest.fn().mockResolvedValue(attachmentEntity),
+        createUnscoped: jest.fn().mockResolvedValue(attachmentEntity),
+        findById: jest.fn(),
+        findByIdOrThrow: jest.fn(),
+        update: jest.fn(),
+        softDelete: jest.fn(),
+        addReference: jest.fn(),
+        addReferenceUnscoped: jest.fn(),
+        findByReference: jest.fn(),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AttachmentService,
+          { provide: AttachmentRepository, useValue: localRepository },
+          { provide: STORAGE_PROVIDER, useValue: localStorageProvider },
+          {
+            provide: VIRUS_SCAN_PROVIDER,
+            useValue: { name: options.virusScanProviderName, scan: jest.fn() },
+          },
+          { provide: AttachmentProcessingQueueService, useValue: { enqueue: jest.fn() } },
+          {
+            provide: TenantContextService,
+            useValue: {
+              getOrThrow: jest.fn().mockReturnValue({
+                organizationId: 'org-1',
+                userId: 'user-1',
+                membershipId: 'membership-1',
+                requestId: 'request-1',
+              }),
+            },
+          },
+          {
+            provide: AuditService,
+            useValue: { record: jest.fn(), recordWithExplicitActor: jest.fn() },
+          },
+          {
+            provide: UsageMeteringService,
+            useValue: { record: jest.fn().mockResolvedValue(undefined) },
+          },
+          {
+            provide: QuotaService,
+            useValue: {
+              checkQuota: jest.fn().mockResolvedValue({
+                allowed: true,
+                featureKey: 'storage',
+                limit: null,
+                currentUsage: 0,
+                remaining: null,
+              }),
+            },
+          },
+          {
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn((key: string, defaultValue?: unknown) => {
+                if (key === 'nodeEnv') return options.nodeEnv;
+                if (key === 'attachments.maxFileSizeBytes') return 25 * 1024 * 1024;
+                return defaultValue;
+              }),
+            },
+          },
+        ],
+      }).compile();
+
+      return {
+        service: module.get<AttachmentService>(AttachmentService),
+        storageProvider: localStorageProvider,
+      };
+    }
+
+    it('refuses a single-file upload with 503 in production when scanning is not configured', async () => {
+      const { service, storageProvider: localStorageProvider } = await buildService({
+        nodeEnv: 'production',
+        virusScanProviderName: 'noop',
+      });
+
+      await expect(
+        service.uploadSingle({
+          fileName: 'report.pdf',
+          mimeType: 'application/pdf',
+          buffer: Buffer.from('bytes'),
+        }),
+      ).rejects.toThrow(ServiceUnavailableException);
+
+      expect(localStorageProvider.upload).not.toHaveBeenCalled();
+    });
+
+    it('refuses a multipart initiate with 503 in production when scanning is not configured', async () => {
+      const { service, storageProvider: localStorageProvider } = await buildService({
+        nodeEnv: 'production',
+        virusScanProviderName: 'noop',
+      });
+
+      await expect(
+        service.initiateMultipartUpload('big.pdf', 'application/pdf', 1024),
+      ).rejects.toThrow(ServiceUnavailableException);
+
+      expect(localStorageProvider.initiateMultipartUpload).not.toHaveBeenCalled();
+    });
+
+    it('allows uploads in production when the real ClamAV scanner is configured', async () => {
+      const { service, storageProvider: localStorageProvider } = await buildService({
+        nodeEnv: 'production',
+        virusScanProviderName: 'clamav',
+      });
+
+      await expect(
+        service.uploadSingle({
+          fileName: 'report.pdf',
+          mimeType: 'application/pdf',
+          buffer: Buffer.from('bytes'),
+        }),
+      ).resolves.toBeDefined();
+
+      expect(localStorageProvider.upload).toHaveBeenCalled();
+    });
+
+    it('allows uploads outside production even when scanning is not configured (local dev convenience)', async () => {
+      const { service, storageProvider: localStorageProvider } = await buildService({
+        nodeEnv: 'development',
+        virusScanProviderName: 'noop',
+      });
+
+      await expect(
+        service.uploadSingle({
+          fileName: 'report.pdf',
+          mimeType: 'application/pdf',
+          buffer: Buffer.from('bytes'),
+        }),
+      ).resolves.toBeDefined();
+
+      expect(localStorageProvider.upload).toHaveBeenCalled();
     });
   });
 

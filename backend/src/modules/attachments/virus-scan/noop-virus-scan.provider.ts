@@ -2,10 +2,15 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { VirusScanProvider, VirusScanResult } from './virus-scan-provider.interface';
 
 /**
- * Explicit no-op used only when CLAMAV_HOST is unset — logs a warning on
+ * Explicit no-op used whenever CLAMAV_HOST is unset — logs a warning on
  * boot and marks every result `skipped: true` rather than silently
- * pretending files were scanned. Never select this in production;
- * configure CLAMAV_HOST to switch to ClamAvVirusScanProvider instead.
+ * pretending files were scanned. Selecting this provider never allows an
+ * unscanned upload through: outside production it's a local-dev
+ * convenience (there's nothing else uploading real user files), and in
+ * production `AttachmentService` checks `virusScanProvider.name` and
+ * refuses uploads with a 503 instead of ever calling `scan()` on this
+ * provider for a real file. Configure CLAMAV_HOST + CLAMAV_PORT to switch
+ * to ClamAvVirusScanProvider and re-enable uploads.
  */
 @Injectable()
 export class NoopVirusScanProvider implements VirusScanProvider, OnModuleInit {
@@ -14,7 +19,7 @@ export class NoopVirusScanProvider implements VirusScanProvider, OnModuleInit {
 
   onModuleInit(): void {
     this.logger.warn(
-      'CLAMAV_HOST is not set — attachment uploads will NOT be virus-scanned. Configure CLAMAV_HOST before accepting uploads in production.',
+      'CLAMAV_HOST is not set — attachment uploads will NOT be virus-scanned. In production, upload endpoints are disabled (503) until CLAMAV_HOST/CLAMAV_PORT are configured.',
     );
   }
 

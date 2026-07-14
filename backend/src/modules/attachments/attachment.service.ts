@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
@@ -16,7 +17,9 @@ import { AttachmentEntity, AttachmentReferenceType } from './entities/attachment
 import { AttachmentProcessingQueueService } from './processing/attachment-processing-queue.service';
 import { STORAGE_PROVIDER, StorageProvider } from './storage/storage-provider.interface';
 import { isSupportedMimeType } from './supported-mime-types';
+import { VIRUS_SCAN_PROVIDER, VirusScanProvider } from './virus-scan/virus-scan-provider.interface';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
+import { ERROR_CODES } from '../../common/errors/error-codes';
 import { AuditService } from '../audit/audit.service';
 import { UsageMeteringService } from '../billing/usage-metering.service';
 import { QuotaService } from '../billing/quota.service';
@@ -32,10 +35,12 @@ export interface UploadFileInput {
 @Injectable()
 export class AttachmentService {
   private readonly maxFileSizeBytes: number;
+  private readonly isProduction: boolean;
 
   constructor(
     private readonly attachmentRepository: AttachmentRepository,
     @Inject(STORAGE_PROVIDER) private readonly storageProvider: StorageProvider,
+    @Inject(VIRUS_SCAN_PROVIDER) private readonly virusScanProvider: VirusScanProvider,
     private readonly processingQueue: AttachmentProcessingQueueService,
     private readonly tenantContextService: TenantContextService,
     private readonly auditService: AuditService,
@@ -47,6 +52,7 @@ export class AttachmentService {
       'attachments.maxFileSizeBytes',
       25 * 1024 * 1024,
     );
+    this.isProduction = configService.get<string>('nodeEnv', '') === 'production';
   }
 
   private assertValid(mimeType: string, sizeBytes: number): void {
@@ -60,6 +66,25 @@ export class AttachmentService {
     }
     if (sizeBytes <= 0) {
       throw new BadRequestException('File is empty');
+    }
+  }
+
+  /**
+   * ClamAV is an optional dependency (see VirusScanModule) — when it
+   * isn't configured, VIRUS_SCAN_PROVIDER resolves to the no-op scanner
+   * instead of crashing app boot. Uploads must never be accepted
+   * unscanned, so in production the upload entry points refuse new
+   * files outright until CLAMAV_HOST/CLAMAV_PORT are set. Outside
+   * production the no-op scanner remains a local-dev convenience.
+   */
+  private assertUploadsAvailable(): void {
+    if (this.isProduction && this.virusScanProvider.name !== 'clamav') {
+      throw new ServiceUnavailableException({
+        code: ERROR_CODES.attachmentScanningUnavailable,
+        message:
+          'File uploads are unavailable because antivirus scanning is not configured. ' +
+          'Set CLAMAV_HOST and CLAMAV_PORT to enable uploads.',
+      });
     }
   }
 
@@ -80,6 +105,7 @@ export class AttachmentService {
     uploaderId: string,
     input: UploadFileInput,
   ): Promise<AttachmentEntity> {
+    this.assertUploadsAvailable();
     this.assertValid(input.mimeType, input.buffer.length);
 
     // Storage quota is checked here (against the real byte count) rather
@@ -154,6 +180,7 @@ export class AttachmentService {
     mimeType: string,
     sizeBytes: number,
   ): Promise<{ attachmentId: string; uploadId: string; partSizeBytes: number }> {
+    this.assertUploadsAvailable();
     this.assertValid(mimeType, sizeBytes);
     const tenant = this.tenantContextService.getOrThrow();
 
