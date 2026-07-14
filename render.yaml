@@ -1,0 +1,70 @@
+# Render Blueprint (Infrastructure as Code) for the Voltx backend API.
+#
+# Deploy model: this repo's .github/workflows/deploy.yml builds the backend's
+# production Docker image, pushes it to GHCR, runs `prisma migrate deploy` +
+# `prisma:seed` against the target database, and only THEN tells Render to
+# deploy that exact image — deliberately NOT relying on Render's own
+# build-from-Dockerfile or auto-deploy-on-push, for two reasons:
+#   1. The production image is pruned to prod-only dependencies (see
+#      backend/Dockerfile's final stage) and does not contain the Prisma
+#      CLI, so a Render "Pre-Deploy Command" running inside that image
+#      cannot run migrations itself — they have to run from a full
+#      checkout with devDependencies, which is what the GitHub Actions job
+#      already does.
+#   2. Auto-deploying on every push risks the app deploying before its own
+#      migration has run against the database. `autoDeploy: false` below
+#      makes deploys strictly CI-triggered, after migrations succeed.
+#
+# Owner action required to activate:
+#   1. In the Render dashboard: New -> Blueprint -> connect this repo. Render
+#      will read this file and create the service below.
+#   2. If the GHCR package is private, add registry credentials for
+#      ghcr.io on the service (Render dashboard -> service -> Settings ->
+#      Docker Registry Credentials).
+#   3. Fill in every envVar marked `sync: false` below with real values
+#      (see backend/.env.example for what each one does).
+#   4. Add DATABASE_URL (Neon pooled connection string) and DIRECT_URL
+#      (Neon direct/unpooled connection string) as Render env vars — both
+#      come from the Neon dashboard for the target database.
+#   5. Add these as GitHub Actions secrets so deploy.yml's migrate step and
+#      final Render-deploy trigger can reach the right database/service:
+#      DATABASE_URL, DIRECT_URL, RENDER_API_KEY, RENDER_SERVICE_ID (the
+#      latter two only needed once deploy.yml's placeholder Deploy step is
+#      wired to Render's Deploy API — see that file's inline comment).
+#   6. Point api.usevoltx.com's DNS at the Render service (Render dashboard
+#      -> service -> Settings -> Custom Domains gives the exact CNAME/A
+#      record to add at your DNS registrar).
+
+services:
+  - type: web
+    name: voltx-backend
+    runtime: image
+    image:
+      url: ghcr.io/kingabbey12/voltx-platform/backend:latest
+    plan: starter
+    region: oregon
+    healthCheckPath: /api/v1/health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: LOG_LEVEL
+        value: info
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://app.usevoltx.com
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: INTEGRATIONS_ENCRYPTION_KEY
+        generateValue: true
+      # Every other variable in backend/.env.example (AI provider keys,
+      # OAuth client credentials, Stripe keys, attachments storage, etc.)
+      # is optional at boot — each feature it gates degrades gracefully
+      # (e.g. a disabled AI provider, no-op error reporting) rather than
+      # crashing, so it isn't declared here. Add any you actually need in
+      # the Render dashboard once the service exists.
