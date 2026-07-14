@@ -40,12 +40,21 @@ describe('AuthService', () => {
   let verificationTokenService: jest.Mocked<VerificationTokenService>;
   let authContextRepository: jest.Mocked<AuthContextRepository>;
   let usersRepository: jest.Mocked<UsersRepository>;
+  let organizationRepository: jest.Mocked<OrganizationRepository>;
   let sessionRepository: jest.Mocked<SessionRepository>;
   let trustedDeviceRepository: jest.Mocked<TrustedDeviceRepository>;
   let auditService: jest.Mocked<AuditService>;
+  let billingAccountService: jest.Mocked<BillingAccountService>;
+  let planService: jest.Mocked<PlanService>;
   let jwtService: jest.Mocked<JwtService>;
   let configService: jest.Mocked<ConfigService>;
-  let prismaService: { system: { organization: { findUnique: jest.Mock } } };
+  let prismaService: {
+    system: {
+      organization: { findUnique: jest.Mock };
+      role: { findUniqueOrThrow: jest.Mock };
+      $transaction: jest.Mock;
+    };
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -121,6 +130,7 @@ describe('AuthService', () => {
             create: jest.fn().mockResolvedValue({ id: 'session-id' }),
             touchLastActiveAt: jest.fn(),
             revoke: jest.fn(),
+            findActiveById: jest.fn(),
           },
         },
         {
@@ -178,9 +188,12 @@ describe('AuthService', () => {
     verificationTokenService = module.get(VerificationTokenService);
     authContextRepository = module.get(AuthContextRepository);
     usersRepository = module.get(UsersRepository);
+    organizationRepository = module.get(OrganizationRepository);
     sessionRepository = module.get(SessionRepository);
     trustedDeviceRepository = module.get(TrustedDeviceRepository);
     auditService = module.get(AuditService);
+    billingAccountService = module.get(BillingAccountService);
+    planService = module.get(PlanService);
     jwtService = module.get(JwtService);
     configService = module.get(ConfigService);
     prismaService = module.get(PrismaService);
@@ -252,6 +265,13 @@ describe('AuthService', () => {
       'session-id',
     );
     expect(authRepository.updateLastLoginAt).toHaveBeenCalledWith('user-id');
+    expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.login_succeeded',
+        organizationId: 'org-id',
+        userId: 'user-id',
+      }),
+    );
   });
 
   it('returns an MFA challenge instead of tokens when the user has MFA enabled', async () => {
@@ -372,6 +392,13 @@ describe('AuthService', () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(sessionRepository.create).not.toHaveBeenCalled();
+    expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.login_blocked_mfa_required',
+        organizationId: 'org-id',
+        userId: 'user-id',
+      }),
+    );
   });
 
   describe('platform admin self-heal on login', () => {
@@ -507,6 +534,88 @@ describe('AuthService', () => {
     });
   });
 
+  it('audits successful registration', async () => {
+    jest.spyOn(passwordUtil, 'hashPassword').mockResolvedValue('hash');
+    jest.spyOn(refreshTokenUtil, 'generateRefreshToken').mockReturnValue('refresh-token');
+    jest.spyOn(refreshTokenUtil, 'hashRefreshToken').mockReturnValue('refresh-hash');
+    jest
+      .spyOn(refreshTokenUtil, 'getRefreshTokenExpiresAt')
+      .mockReturnValue(new Date('2026-08-01'));
+
+    authRepository.findUserByEmail.mockResolvedValue(null);
+    organizationRepository.isSlugTaken.mockResolvedValue(false);
+    prismaService.system.role.findUniqueOrThrow.mockResolvedValue({ id: 'owner-role-id' });
+    prismaService.system.$transaction.mockImplementation(
+      (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          organization: { create: jest.fn().mockResolvedValue({ id: 'org-id' }) },
+          user: {
+            create: jest.fn().mockResolvedValue({ id: 'user-id', email: 'jane.doe@example.com' }),
+          },
+          membership: { create: jest.fn().mockResolvedValue({}) },
+        }),
+    );
+    billingAccountService.createForOrganization.mockResolvedValue({
+      id: 'billing-account-id',
+      organizationId: 'org-id',
+      stripeCustomerId: null,
+      email: 'jane.doe@example.com',
+      defaultPaymentMethodId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    planService.getPlanByKeyOrThrow.mockResolvedValue({
+      id: 'plan-id',
+      key: 'professional',
+      name: 'Professional',
+      description: null,
+      stripeProductId: null,
+      stripePriceIdMonthly: null,
+      stripePriceIdYearly: null,
+      priceMonthlyUsd: null,
+      priceYearlyUsd: null,
+      isActive: true,
+      sortOrder: 0,
+      trialDays: 14,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    jwtService.signAsync.mockResolvedValue('access-token');
+    usersRepository.findById.mockResolvedValue({
+      id: 'user-id',
+      email: 'jane.doe@example.com',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      avatarUrl: null,
+      phoneNumber: null,
+      jobTitle: null,
+      status: UserStatus.ACTIVE,
+      isPlatformAdmin: false,
+      mfaEnabled: false,
+      lastLoginAt: null,
+      emailVerifiedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    });
+
+    await service.register({
+      email: 'jane.doe@example.com',
+      password: 'SecurePassword123!',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      organizationName: 'Acme Inc',
+    });
+
+    expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.register_succeeded',
+        organizationId: 'org-id',
+        userId: 'user-id',
+      }),
+    );
+  });
+
   it('rejects login with invalid credentials', async () => {
     authRepository.findUserByEmail.mockResolvedValue(null);
 
@@ -627,28 +736,160 @@ describe('AuthService', () => {
     expect(auditService.recordWithExplicitActor).not.toHaveBeenCalled();
   });
 
+  it('revokes the token and audits logout', async () => {
+    jest.spyOn(refreshTokenUtil, 'hashRefreshToken').mockReturnValue('refresh-hash');
+    refreshTokenRepository.findValidByTokenHash.mockResolvedValue({
+      id: 'token-id',
+      userId: 'user-id',
+      tokenHash: 'refresh-hash',
+      expiresAt: new Date('2026-08-01'),
+      revokedAt: null,
+      createdAt: new Date(),
+      sessionId: 'session-id',
+    });
+    sessionRepository.findActiveById.mockResolvedValue({
+      id: 'session-id',
+      userId: 'user-id',
+      organizationId: 'org-id',
+      deviceFingerprint: null,
+      ipAddress: null,
+      userAgent: null,
+      lastActiveAt: new Date(),
+      revokedAt: null,
+      createdAt: new Date(),
+    });
+
+    await service.logout('user-id', 'refresh-token');
+
+    expect(refreshTokenRepository.revokeById).toHaveBeenCalledWith('token-id');
+    expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.logout',
+        organizationId: 'org-id',
+        userId: 'user-id',
+      }),
+    );
+  });
+
+  it('audits switching organizations', async () => {
+    authContextRepository.findActiveMembershipContext.mockResolvedValue({
+      id: 'membership-id',
+      organizationId: 'new-org-id',
+      userId: 'user-id',
+      roleId: 'role-id',
+      roleKey: 'member',
+      roleName: 'Member',
+    });
+    jwtService.signAsync.mockResolvedValue('access-token');
+    usersRepository.findById.mockResolvedValue({
+      id: 'user-id',
+      email: 'jane.doe@example.com',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      avatarUrl: null,
+      phoneNumber: null,
+      jobTitle: null,
+      status: UserStatus.ACTIVE,
+      isPlatformAdmin: false,
+      mfaEnabled: false,
+      lastLoginAt: null,
+      emailVerifiedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    });
+
+    await service.switchOrganization(
+      {
+        id: 'user-id',
+        organizationId: 'old-org-id',
+        membershipId: 'old-membership-id',
+        roles: [],
+        permissions: [],
+      },
+      'new-org-id',
+    );
+
+    expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.organization_switched',
+        organizationId: 'new-org-id',
+        userId: 'user-id',
+        metadata: { fromOrganizationId: 'old-org-id' },
+      }),
+    );
+  });
+
   it('verifies email and marks emailVerifiedAt', async () => {
     verificationTokenService.consumeEmailVerificationToken.mockResolvedValue({ userId: 'user-id' });
     authRepository.markEmailVerified.mockResolvedValue(new Date('2026-07-03T00:00:00.000Z'));
+    authContextRepository.findActiveMembershipContext.mockResolvedValue({
+      id: 'membership-id',
+      organizationId: 'org-id',
+      userId: 'user-id',
+      roleId: 'role-id',
+      roleKey: 'admin',
+      roleName: 'Admin',
+    });
 
     const result = await service.verifyEmail('verify-token');
 
     expect(result.message).toBe('Email verified successfully');
     expect(result.emailVerifiedAt).toBe('2026-07-03T00:00:00.000Z');
+    expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.email_verified',
+        organizationId: 'org-id',
+        userId: 'user-id',
+      }),
+    );
   });
 
   it('returns generic message for password reset requests', async () => {
     authRepository.findUserIdByEmail.mockResolvedValue('user-id');
+    authContextRepository.findActiveMembershipContext.mockResolvedValue({
+      id: 'membership-id',
+      organizationId: 'org-id',
+      userId: 'user-id',
+      roleId: 'role-id',
+      roleKey: 'admin',
+      roleName: 'Admin',
+    });
 
     const result = await service.requestPasswordReset({ email: 'jane.doe@example.com' });
 
     expect(result.message).toBe('If the account exists, a password reset email has been sent.');
     expect(verificationTokenService.issuePasswordResetToken).toHaveBeenCalledWith('user-id');
+    expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.password_reset_requested',
+        organizationId: 'org-id',
+        userId: 'user-id',
+      }),
+    );
+  });
+
+  it('does not error or audit a password reset request for an unknown email', async () => {
+    authRepository.findUserIdByEmail.mockResolvedValue(null);
+
+    const result = await service.requestPasswordReset({ email: 'nobody@example.com' });
+
+    expect(result.message).toBe('If the account exists, a password reset email has been sent.');
+    expect(verificationTokenService.issuePasswordResetToken).not.toHaveBeenCalled();
+    expect(auditService.recordWithExplicitActor).not.toHaveBeenCalled();
   });
 
   it('resets password and revokes refresh tokens', async () => {
     jest.spyOn(passwordUtil, 'hashPassword').mockResolvedValue('new-hash');
     verificationTokenService.consumePasswordResetToken.mockResolvedValue({ userId: 'user-id' });
+    authContextRepository.findActiveMembershipContext.mockResolvedValue({
+      id: 'membership-id',
+      organizationId: 'org-id',
+      userId: 'user-id',
+      roleId: 'role-id',
+      roleKey: 'admin',
+      roleName: 'Admin',
+    });
 
     const result = await service.resetPassword({
       token: 'reset-token',
@@ -657,6 +898,13 @@ describe('AuthService', () => {
 
     expect(result.message).toBe('Password reset successfully');
     expect(authRepository.setPasswordHash).toHaveBeenCalledWith('user-id', 'new-hash');
+    expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.password_reset_completed',
+        organizationId: 'org-id',
+        userId: 'user-id',
+      }),
+    );
     expect(refreshTokenRepository.revokeAllByUserId).toHaveBeenCalledWith('user-id');
   });
 });

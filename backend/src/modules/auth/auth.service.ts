@@ -82,6 +82,13 @@ export class AuthService {
 
     const passwordValid = await verifyPassword(dto.password, user.passwordHash);
     if (!passwordValid) {
+      // Not audited here: dto.organizationId is client-supplied and not yet
+      // verified against a real membership at this point in the flow, and
+      // AuditLog rows are organization-scoped — writing one keyed off an
+      // unverified organizationId would let anyone with a valid email
+      // inject rows into an org's tamper-evident chain that they have no
+      // membership in. Failed attempts are still bounded by AUTH_THROTTLE;
+      // successful logins (below) are audited once membership is verified.
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -104,6 +111,13 @@ export class AuthService {
     // route around by simply never enrolling would be no policy at all.
     const mfaRequirement = await this.evaluateMfaRequirement(user, membership.organizationId);
     if (mfaRequirement === 'enrollment_required') {
+      await this.auditService.recordWithExplicitActor({
+        action: 'auth.login_blocked_mfa_required',
+        resource: 'user',
+        resourceId: user.id,
+        organizationId: membership.organizationId,
+        userId: user.id,
+      });
       throw new ForbiddenException(
         'Multi-factor authentication setup is required by your organization before you can sign in',
       );
@@ -127,6 +141,15 @@ export class AuthService {
       deviceFingerprint: dto.deviceFingerprint,
       ipAddress: requestMeta?.ipAddress,
       userAgent: requestMeta?.userAgent,
+    });
+
+    await this.auditService.recordWithExplicitActor({
+      action: 'auth.login_succeeded',
+      resource: 'session',
+      resourceId: session.id,
+      organizationId: membership.organizationId,
+      userId: user.id,
+      metadata: { ipAddress: requestMeta?.ipAddress },
     });
 
     return this.buildLoginResponse(user.id, membership.organizationId, session.id);
@@ -261,6 +284,13 @@ export class AuthService {
 
     await this.verificationTokenService.issueEmailVerificationToken(user.id);
     await this.startTrialSubscription(organization.id, user.id, user.email);
+    await this.auditService.recordWithExplicitActor({
+      action: 'auth.register_succeeded',
+      resource: 'organization',
+      resourceId: organization.id,
+      organizationId: organization.id,
+      userId: user.id,
+    });
     const tokens = await this.issueTokens(user.id, organization.id);
     const profile = await this.usersRepository.findById(user.id);
 
@@ -402,6 +432,20 @@ export class AuthService {
     }
 
     await this.refreshTokenRepository.revokeById(storedToken.id);
+
+    const organizationId = storedToken.sessionId
+      ? (await this.sessionRepository.findActiveById(storedToken.sessionId))?.organizationId
+      : (await this.authContextRepository.findActiveMembershipContext(userId))?.organizationId;
+
+    if (organizationId) {
+      await this.auditService.recordWithExplicitActor({
+        action: 'auth.logout',
+        resource: 'session',
+        resourceId: storedToken.sessionId ?? storedToken.id,
+        organizationId,
+        userId,
+      });
+    }
   }
 
   async getMe(currentUser: CurrentUser): Promise<AuthMeResponseDto> {
@@ -446,6 +490,15 @@ export class AuthService {
       throw new UnauthorizedException('Authenticated user not found');
     }
 
+    await this.auditService.recordWithExplicitActor({
+      action: 'auth.organization_switched',
+      resource: 'organization',
+      resourceId: membership.organizationId,
+      organizationId: membership.organizationId,
+      userId: currentUser.id,
+      metadata: { fromOrganizationId: currentUser.organizationId },
+    });
+
     return {
       ...tokens,
       user: UserResponseDto.fromEntity(profile),
@@ -455,6 +508,17 @@ export class AuthService {
   async verifyEmail(token: string): Promise<VerifyEmailResponseDto> {
     const { userId } = await this.verificationTokenService.consumeEmailVerificationToken(token);
     const emailVerifiedAt = await this.authRepository.markEmailVerified(userId);
+
+    const membership = await this.authContextRepository.findActiveMembershipContext(userId);
+    if (membership) {
+      await this.auditService.recordWithExplicitActor({
+        action: 'auth.email_verified',
+        resource: 'user',
+        resourceId: userId,
+        organizationId: membership.organizationId,
+        userId,
+      });
+    }
 
     return {
       message: 'Email verified successfully',
@@ -467,6 +531,17 @@ export class AuthService {
 
     if (userId) {
       await this.verificationTokenService.issuePasswordResetToken(userId);
+
+      const membership = await this.authContextRepository.findActiveMembershipContext(userId);
+      if (membership) {
+        await this.auditService.recordWithExplicitActor({
+          action: 'auth.password_reset_requested',
+          resource: 'user',
+          resourceId: userId,
+          organizationId: membership.organizationId,
+          userId,
+        });
+      }
     }
 
     return {
@@ -480,6 +555,17 @@ export class AuthService {
 
     await this.authRepository.setPasswordHash(userId, passwordHash);
     await this.refreshTokenRepository.revokeAllByUserId(userId);
+
+    const membership = await this.authContextRepository.findActiveMembershipContext(userId);
+    if (membership) {
+      await this.auditService.recordWithExplicitActor({
+        action: 'auth.password_reset_completed',
+        resource: 'user',
+        resourceId: userId,
+        organizationId: membership.organizationId,
+        userId,
+      });
+    }
 
     return {
       message: 'Password reset successfully',
