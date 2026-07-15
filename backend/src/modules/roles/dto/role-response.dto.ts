@@ -17,6 +17,13 @@ export class RoleResponseDto {
   @ApiProperty({ example: true })
   isSystem!: boolean;
 
+  @ApiPropertyOptional({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    nullable: true,
+    description: 'Null for system roles, shared across every organization.',
+  })
+  organizationId!: string | null;
+
   @ApiProperty({ example: ['organization.read', 'user.read'], type: [String] })
   permissions!: string[];
 
@@ -33,6 +40,7 @@ export class RoleResponseDto {
     dto.name = entity.name;
     dto.description = entity.description;
     dto.isSystem = entity.isSystem;
+    dto.organizationId = entity.organizationId;
     dto.permissions = entity.permissionKeys;
     dto.createdAt = entity.createdAt.toISOString();
     dto.updatedAt = entity.updatedAt.toISOString();

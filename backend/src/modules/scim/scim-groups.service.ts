@@ -28,7 +28,7 @@ export class ScimGroupsService {
   ) {}
 
   async list(organizationId: string): Promise<ScimListResponse<ScimGroupResource>> {
-    const roles = await this.roleRepository.findAll();
+    const roles = await this.roleRepository.findAllForOrganization(organizationId);
     const resources = await Promise.all(
       roles.map((role) =>
         this.toScimGroupResource(

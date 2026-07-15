@@ -7,7 +7,20 @@ export interface Role {
   name: string;
   description: string | null;
   isSystem: boolean;
+  organizationId: string | null;
   permissions: string[];
+}
+
+export interface CreateRoleInput {
+  name: string;
+  description?: string;
+  permissionKeys: string[];
+}
+
+export interface UpdateRoleInput {
+  name?: string;
+  description?: string;
+  permissionKeys?: string[];
 }
 
 export type InvitationStatus = "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
@@ -23,6 +36,10 @@ export interface Invitation {
 
 export const rolesApi = {
   list: () => apiClient.get<{ items: Role[] }>("/roles"),
+  get: (id: string) => apiClient.get<Role>(`/roles/${id}`),
+  create: (input: CreateRoleInput) => apiClient.post<Role>("/roles", input),
+  update: (id: string, input: UpdateRoleInput) => apiClient.patch<Role>(`/roles/${id}`, input),
+  delete: (id: string) => apiClient.delete<void>(`/roles/${id}`),
 };
 
 export const invitationsApi = {

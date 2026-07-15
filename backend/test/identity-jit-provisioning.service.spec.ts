@@ -118,6 +118,7 @@ describe('JitProvisioningService', () => {
       name: 'Member',
       description: null,
       isSystem: true,
+      organizationId: null,
       permissionKeys: [],
       createdAt: new Date(),
       updatedAt: new Date(),

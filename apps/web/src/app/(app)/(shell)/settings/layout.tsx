@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { label: "General", href: "/settings" },
   { label: "Team", href: "/settings/team" },
+  { label: "Roles", href: "/settings/roles" },
   { label: "Profile", href: "/settings/profile" },
   { label: "Communications", href: "/settings/communications" },
   { label: "AI Memory", href: "/settings/memory" },

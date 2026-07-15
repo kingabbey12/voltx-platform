@@ -202,6 +202,7 @@ model Organization {
   workflows               Workflow[]
   integrationConnections  IntegrationConnection[]
   invitations             Invitation[]
+  roles                   Role[]
   commsChannelConnections CommsChannelConnection[]
   commsConversations      CommsConversation[]
   commsConversationLabels ConversationLabel[]
@@ -657,6 +658,15 @@ model Role {
   name            String
   description     String?
   isSystem        Boolean          @default(false) @map("is_system")
+  /// Null for system roles (seeded, shared across every organization,
+  /// immutable via the API). Set for a custom role created by a specific
+  /// organization — `key` stays globally unique across every org (see
+  /// generateUniqueRoleKey.util.ts) rather than being scoped per-org, so
+  /// this column can stay a plain FK instead of needing a composite unique
+  /// constraint that Postgres's NULL-is-distinct semantics would make
+  /// unreliable for system roles anyway.
+  organizationId  String?          @map("organization_id") @db.Uuid
+  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
   memberships     Membership[]
@@ -664,6 +674,7 @@ model Role {
   invitations     Invitation[]
 
   @@index([isSystem])
+  @@index([organizationId])
   @@map("roles")
 }
 

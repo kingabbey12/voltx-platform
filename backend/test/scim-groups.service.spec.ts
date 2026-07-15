@@ -13,6 +13,7 @@ function makeRole(overrides: Partial<{ id: string; key: string; name: string }> 
     name: 'Admin',
     description: null,
     isSystem: true,
+    organizationId: null,
     permissionKeys: [],
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -43,7 +44,11 @@ describe('ScimGroupsService', () => {
         { provide: PrismaService, useValue: prisma },
         {
           provide: RoleRepository,
-          useValue: { findById: jest.fn(), findByKeyOrThrow: jest.fn(), findAll: jest.fn() },
+          useValue: {
+            findById: jest.fn(),
+            findByKeyOrThrow: jest.fn(),
+            findAllForOrganization: jest.fn(),
+          },
         },
         { provide: ScimProvisionJobRepository, useValue: { record: jest.fn() } },
       ],

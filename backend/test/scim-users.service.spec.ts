@@ -16,6 +16,7 @@ function makeRole(overrides: Partial<{ id: string; key: string }> = {}) {
     name: 'Member',
     description: null,
     isSystem: true,
+    organizationId: null,
     permissionKeys: [],
     createdAt: new Date(),
     updatedAt: new Date(),

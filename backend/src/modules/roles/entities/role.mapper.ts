@@ -12,6 +12,7 @@ export function toRoleEntity(record: RoleWithPermissions): RoleEntity {
   entity.name = record.name;
   entity.description = record.description;
   entity.isSystem = record.isSystem;
+  entity.organizationId = record.organizationId;
   entity.permissionKeys = record.rolePermissions
     .map((item) => item.permission.key)
     .sort((a, b) => a.localeCompare(b));
@@ -27,6 +28,7 @@ export function toRoleEntityWithoutPermissions(record: Role): RoleEntity {
   entity.name = record.name;
   entity.description = record.description;
   entity.isSystem = record.isSystem;
+  entity.organizationId = record.organizationId;
   entity.permissionKeys = [];
   entity.createdAt = record.createdAt;
   entity.updatedAt = record.updatedAt;
