@@ -29,3 +29,10 @@ export const opportunitySchema = z.object({
   amount: z.coerce.number().min(0).optional(),
 });
 export type OpportunityFormValues = z.infer<typeof opportunitySchema>;
+
+export const activitySchema = z.object({
+  type: z.enum(["CALL", "EMAIL", "MEETING", "TASK", "NOTE"]),
+  subject: z.string().trim().min(1, "Subject is required").max(200),
+  description: z.string().trim().max(5000).optional().or(z.literal("")),
+});
+export type ActivityFormValues = z.infer<typeof activitySchema>;

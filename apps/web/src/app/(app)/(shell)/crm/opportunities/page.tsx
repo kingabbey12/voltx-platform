@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Plus, TrendingUp } from "lucide-react";
@@ -102,7 +103,12 @@ export default function OpportunitiesPage() {
                   [1, 2].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl bg-secondary/60" />)}
                 {byStage(stage.key).map((opportunity) => (
                   <Card key={opportunity.id} className="p-3">
-                    <p className="text-sm font-medium leading-snug">{opportunity.title}</p>
+                    <Link
+                      href={`/crm/opportunities/${opportunity.id}`}
+                      className="text-sm font-medium leading-snug hover:text-primary"
+                    >
+                      {opportunity.title}
+                    </Link>
                     {opportunity.amount != null && (
                       <p className="mt-1 text-sm text-primary">
                         {formatCurrency(opportunity.amount, opportunity.currency)}

@@ -5,10 +5,13 @@ import {
   contactsApi,
   leadsApi,
   opportunitiesApi,
+  type Activity,
+  type ActivityType,
   type Company,
   type Contact,
   type Lead,
   type Opportunity,
+  type SalesAiActionInput,
 } from "@/lib/api/sales";
 
 export function useActivities(query: Parameters<typeof activitiesApi.list>[0] = {}) {
@@ -110,5 +113,65 @@ export function useDeleteOpportunity() {
   return useMutation({
     mutationFn: (id: string) => opportunitiesApi.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales", "opportunities"] }),
+  });
+}
+
+/** Persists onto the Opportunity (see opportunitiesApi.insights) — refetch
+ * both the list and this opportunity's own detail query on success rather
+ * than relying on the mutation's own response, so the displayed value
+ * always matches what the backend actually stored. */
+export function useOpportunityInsights() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input?: SalesAiActionInput }) =>
+      opportunitiesApi.insights(id, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales", "opportunities"] }),
+  });
+}
+
+export function useOpportunityNextBestAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input?: SalesAiActionInput }) =>
+      opportunitiesApi.nextBestAction(id, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales", "opportunities"] }),
+  });
+}
+
+/** Not persisted on the Contact (see contactsApi.draftEmail) — the drafted
+ * email only ever exists as this mutation's own response, so callers must
+ * read `data`/`onSuccess` directly rather than expecting a refetch to
+ * surface it. No cache invalidation needed as a result. */
+export function useDraftContactEmail() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input?: SalesAiActionInput }) =>
+      contactsApi.draftEmail(id, input),
+  });
+}
+
+export function useCreateActivity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Partial<Activity> & { type: ActivityType; subject: string }) =>
+      activitiesApi.create(input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales", "activities"] }),
+  });
+}
+
+export function useDeleteActivity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => activitiesApi.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales", "activities"] }),
+  });
+}
+
+/** Persists onto the Activity (see activitiesApi.meetingSummary). */
+export function useActivityMeetingSummary() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input?: SalesAiActionInput }) =>
+      activitiesApi.meetingSummary(id, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales", "activities"] }),
   });
 }

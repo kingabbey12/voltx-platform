@@ -92,6 +92,22 @@ interface PageQuery {
   search?: string;
 }
 
+/** Optional extra guidance for a sales AI action — mirrors the backend's
+ * SalesAiActionDto exactly (`prompt`/`workspaceContext`, not `context`). */
+export interface SalesAiActionInput {
+  prompt?: string;
+  workspaceContext?: string[];
+}
+
+/** Mirrors SalesAiActionResponseDto. `assistantMessage`/`toolMessages` are
+ * intentionally left untyped here — no CRM screen needs the raw
+ * conversation transcript, only the generated text. */
+export interface SalesAiActionResult {
+  conversationId: string;
+  agentRunId: string;
+  outputText: string;
+}
+
 export const companiesApi = {
   list: (query: PageQuery & { status?: CompanyStatus } = {}) =>
     apiClient.get<PaginatedResult<Company>>("/sales/companies", { query: { page: 1, limit: 20, ...query } }),
@@ -109,8 +125,8 @@ export const contactsApi = {
     apiClient.post<Contact>("/sales/contacts", input),
   update: (id: string, input: Partial<Contact>) => apiClient.patch<Contact>(`/sales/contacts/${id}`, input),
   delete: (id: string) => apiClient.delete<void>(`/sales/contacts/${id}`),
-  draftEmail: (id: string, context?: string) =>
-    apiClient.post<{ subject: string; body: string }>(`/sales/contacts/${id}/draft-email`, { context }),
+  draftEmail: (id: string, input: SalesAiActionInput = {}) =>
+    apiClient.post<SalesAiActionResult>(`/sales/contacts/${id}/draft-email`, input),
 };
 
 export const leadsApi = {
@@ -120,7 +136,8 @@ export const leadsApi = {
   create: (input: Partial<Lead> & { title: string }) => apiClient.post<Lead>("/sales/leads", input),
   update: (id: string, input: Partial<Lead>) => apiClient.patch<Lead>(`/sales/leads/${id}`, input),
   delete: (id: string) => apiClient.delete<void>(`/sales/leads/${id}`),
-  qualify: (id: string) => apiClient.post<Lead>(`/sales/leads/${id}/qualify`),
+  qualify: (id: string, input: SalesAiActionInput = {}) =>
+    apiClient.post<SalesAiActionResult>(`/sales/leads/${id}/qualify`, input),
 };
 
 export const opportunitiesApi = {
@@ -134,17 +151,27 @@ export const opportunitiesApi = {
   update: (id: string, input: Partial<Opportunity>) =>
     apiClient.patch<Opportunity>(`/sales/opportunities/${id}`, input),
   delete: (id: string) => apiClient.delete<void>(`/sales/opportunities/${id}`),
-  insights: (id: string) => apiClient.post<{ insights: string }>(`/sales/opportunities/${id}/insights`),
-  nextBestAction: (id: string) =>
-    apiClient.post<{ nextBestAction: string }>(`/sales/opportunities/${id}/next-best-action`),
+  insights: (id: string, input: SalesAiActionInput = {}) =>
+    apiClient.post<SalesAiActionResult>(`/sales/opportunities/${id}/insights`, input),
+  nextBestAction: (id: string, input: SalesAiActionInput = {}) =>
+    apiClient.post<SalesAiActionResult>(`/sales/opportunities/${id}/next-best-action`, input),
 };
 
 export const activitiesApi = {
-  list: (query: PageQuery & { companyId?: string; contactId?: string; leadId?: string; opportunityId?: string } = {}) =>
-    apiClient.get<PaginatedResult<Activity>>("/sales/activities", { query: { page: 1, limit: 20, ...query } }),
+  list: (
+    query: PageQuery & {
+      companyId?: string;
+      contactId?: string;
+      leadId?: string;
+      opportunityId?: string;
+      type?: ActivityType;
+    } = {},
+  ) => apiClient.get<PaginatedResult<Activity>>("/sales/activities", { query: { page: 1, limit: 20, ...query } }),
   get: (id: string) => apiClient.get<Activity>(`/sales/activities/${id}`),
   create: (input: Partial<Activity> & { type: ActivityType; subject: string }) =>
     apiClient.post<Activity>("/sales/activities", input),
   update: (id: string, input: Partial<Activity>) => apiClient.patch<Activity>(`/sales/activities/${id}`, input),
   delete: (id: string) => apiClient.delete<void>(`/sales/activities/${id}`),
+  meetingSummary: (id: string, input: SalesAiActionInput = {}) =>
+    apiClient.post<SalesAiActionResult>(`/sales/activities/${id}/meeting-summary`, input),
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { MoreHorizontal, Plus, Trash2, Users } from "lucide-react";
@@ -110,7 +111,9 @@ export default function ContactsPage() {
               {data.items.map((contact) => (
                 <TableRow key={contact.id}>
                   <TableCell className="font-medium">
-                    {contact.firstName} {contact.lastName}
+                    <Link href={`/crm/contacts/${contact.id}`} className="hover:text-primary">
+                      {contact.firstName} {contact.lastName}
+                    </Link>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{contact.email ?? "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{contact.jobTitle ?? "—"}</TableCell>

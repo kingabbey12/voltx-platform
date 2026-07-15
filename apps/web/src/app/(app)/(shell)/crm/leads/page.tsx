@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { MoreHorizontal, Plus, Sparkles, Target, Trash2 } from "lucide-react";
@@ -124,7 +125,11 @@ export default function LeadsPage() {
             <TableBody>
               {data.items.map((lead) => (
                 <TableRow key={lead.id}>
-                  <TableCell className="font-medium">{lead.title}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link href={`/crm/leads/${lead.id}`} className="hover:text-primary">
+                      {lead.title}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{lead.source ?? "—"}</TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[lead.status]}>{lead.status}</Badge>
