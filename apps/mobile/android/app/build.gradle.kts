@@ -18,7 +18,12 @@ if (hasReleaseKeystore) {
 
 android {
     namespace = "com.voltx.voltx_mobile"
-    compileSdk = flutter.compileSdkVersion
+    // Pinned above Flutter's own default (35 as of Flutter 3.44) —
+    // flutter_plugin_android_lifecycle (a transitive dependency of
+    // file_picker) requires compiling against API 36 or later; leaving
+    // this at the Flutter-provided default fails the release build's AAR
+    // metadata check regardless of any other setting.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -62,6 +67,12 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 

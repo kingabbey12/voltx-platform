@@ -42,3 +42,14 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+# file_picker 8.3.7's own android/build.gradle hardcodes compileSdk 34, but
+# its transitive dependency flutter_plugin_android_lifecycle 2.0.35
+# requires compileSdk 36+ — an upstream incompatibility that breaks every
+# Android release build regardless of any setting in this app's own
+# build.gradle.kts. Pinned back to the last version known not to require
+# compileSdk 36 until file_picker ships a fix. Remove this override (and
+# re-verify `flutter build appbundle --release`) the next time file_picker
+# or its android/build.gradle is upgraded.
+dependency_overrides:
+  flutter_plugin_android_lifecycle: 2.0.24
