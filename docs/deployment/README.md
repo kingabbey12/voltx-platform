@@ -60,6 +60,13 @@ database (local dev, CI) they're just the same value.
 1. Render dashboard → New → Blueprint → connect this repo (reads `render.yaml`).
 2. If the GHCR package is private, add `ghcr.io` registry credentials on the service.
 3. Fill in the `sync: false` env vars in the Render dashboard (see `backend/.env.example`).
+   Two of these are **hard production-boot requirements**, not optional — the API
+   exits at startup without them (verified by booting the production build):
+   - `REDIS_URL` — a managed Redis, e.g. Upstash's `rediss://` URL
+     (`REDIS_ENABLED=true` is already set in render.yaml; the boot check in
+     `src/bootstrap/redis-requirement.check.ts` refuses production without it).
+   - `ATTACHMENTS_S3_*` — bucket/region/keys for attachment storage
+     (`storage.module.ts` refuses local-disk storage in production).
 4. Add `DATABASE_URL` (pooled) and `DIRECT_URL` (direct) from the Neon dashboard.
 5. Add `DATABASE_URL`, `DIRECT_URL`, `RENDER_API_KEY`, `RENDER_SERVICE_ID` as
    GitHub Actions secrets on this repo's `staging`/`production` environments.

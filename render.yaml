@@ -62,9 +62,33 @@ services:
         generateValue: true
       - key: INTEGRATIONS_ENCRYPTION_KEY
         generateValue: true
+      # NOT optional in production. src/bootstrap/redis-requirement.check.ts
+      # refuses to boot with NODE_ENV=production unless REDIS_ENABLED=true —
+      # comms AI processing, attachment processing, and agent-run resume all
+      # need a real queue. Point REDIS_URL at a managed Redis (e.g. Upstash's
+      # rediss:// URL, from the Upstash console).
+      - key: REDIS_ENABLED
+        value: 'true'
+      - key: REDIS_URL
+        sync: false
+      # NOT optional in production. storage.module.ts refuses local-disk
+      # attachment storage in production (files would vanish on every
+      # container restart). Fill the S3 credentials for the real bucket
+      # (any S3-compatible store works; set ATTACHMENTS_S3_ENDPOINT +
+      # ATTACHMENTS_S3_FORCE_PATH_STYLE=true for non-AWS providers).
+      - key: ATTACHMENTS_STORAGE_PROVIDER
+        value: s3
+      - key: ATTACHMENTS_S3_BUCKET
+        sync: false
+      - key: ATTACHMENTS_S3_REGION
+        sync: false
+      - key: ATTACHMENTS_S3_ACCESS_KEY_ID
+        sync: false
+      - key: ATTACHMENTS_S3_SECRET_ACCESS_KEY
+        sync: false
       # Every other variable in backend/.env.example (AI provider keys,
-      # OAuth client credentials, Stripe keys, attachments storage, etc.)
-      # is optional at boot — each feature it gates degrades gracefully
-      # (e.g. a disabled AI provider, no-op error reporting) rather than
-      # crashing, so it isn't declared here. Add any you actually need in
-      # the Render dashboard once the service exists.
+      # OAuth client credentials, Stripe keys, etc.) is optional at boot —
+      # each feature it gates degrades gracefully (e.g. a disabled AI
+      # provider, no-op error reporting) rather than crashing, so it isn't
+      # declared here. Add any you actually need in the Render dashboard
+      # once the service exists.
