@@ -17,7 +17,8 @@ apps/marketing, as two separate Vercel projects), **Neon** (Postgres).
 Source of truth: `render.yaml` (repo root, a Render Blueprint) and
 `.github/workflows/deploy.yml`.
 
-**Deploy flow** (`deploy.yml`, runs on push to `main` under `backend/**`, or
+**Deploy flow** (`deploy.yml`, runs after `ci.yml` completes successfully on
+`main` — via `workflow_run`, so a commit whose CI failed never deploys — or
 manually via `workflow_dispatch`):
 
 1. **Build & push** — builds `backend/Dockerfile`'s `production` target,
@@ -114,7 +115,7 @@ target each gives you.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every push to `main` and every PR, four
+`.github/workflows/ci.yml` runs on every push to `main` and every PR, eight
 independent jobs:
 
 - **backend** — `pnpm lint` → `pnpm test` (unit) → materializes a gitignored
@@ -123,11 +124,21 @@ independent jobs:
 - **web** — `pnpm lint` → `pnpm build` (with a dummy but validation-passing
   `NEXT_PUBLIC_API_BASE_URL`, since CI never actually calls the API).
 - **marketing** — `npm run lint` → `npm run build`.
-- **mobile** — `flutter analyze` → `flutter test` → `flutter build macos --release`.
+- **mobile** — `flutter analyze` → `flutter test` → `flutter build macos --release
+  -t lib/main_production.dart` (the production flavor entrypoint, not the
+  default `lib/main.dart` — that one resolves its API URL via `--dart-define`
+  at runtime and falls back to `localhost`, so building it wouldn't validate
+  what a real release actually ships).
+- **sdk-typescript** — `npm run lint` (typecheck) → `npm run build` → `npm test`.
+- **cli** — builds `packages/sdk-typescript` first (its local `@voltx/sdk`
+  dependency), then the same lint/build/test sequence.
+- **sdk-python** — `pip install -e ".[dev]"` → `pytest`.
+- **sdk-flutter** — `flutter analyze` → `flutter test`.
 
 Before web/marketing CI jobs existed, a broken `apps/web` or
 `apps/marketing` build was only ever caught when Vercel's own deploy
-failed — these two jobs close that gap.
+failed — these two jobs close that gap. The four `packages/*` jobs close a
+similar gap: those packages had real tests but nothing ran them in CI.
 
 ## Environment variables
 
