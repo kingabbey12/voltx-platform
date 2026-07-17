@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import { seedBillingPlans, billingPlansSeedClient } from './seed-billing-plans';
+import { seedWorkflowTemplates, workflowTemplatesSeedClient } from './seed-workflow-templates';
 
 const prisma = new PrismaClient();
 
@@ -363,18 +365,45 @@ export async function seedRbac(client: PrismaClient = prisma): Promise<void> {
   }
 }
 
+/**
+ * The single seed entrypoint the deploy pipeline runs (`pnpm prisma:seed`,
+ * invoked by deploy.yml after `prisma migrate deploy`). It must produce a
+ * database a fresh production deployment can actually operate on, which
+ * means all three catalogs — not just RBAC:
+ *
+ * - RBAC permissions/roles: requests 403 without them.
+ * - Billing plans/features: registration *hard-fails* without them —
+ *   auth.service's startTrialSubscription looks up the "professional"
+ *   plan for every new organization. (Found in the v1.0.0-rc1 staging
+ *   smoke test: dev/test databases had hand-seeded plans, so nothing in
+ *   CI ever noticed the pipeline seed didn't create them.)
+ * - Workflow templates: the template gallery is empty without them
+ *   (degrades, but ships half a feature).
+ *
+ * All three are idempotent upserts — safe to re-run on every deploy.
+ */
 async function main(): Promise<void> {
   await seedRbac();
+  await seedBillingPlans();
+  await seedWorkflowTemplates();
 }
 
 if (require.main === module) {
   main()
     .then(async () => {
-      await prisma.$disconnect();
+      await Promise.all([
+        prisma.$disconnect(),
+        billingPlansSeedClient.$disconnect(),
+        workflowTemplatesSeedClient.$disconnect(),
+      ]);
     })
     .catch(async (error: unknown) => {
       console.error(error);
-      await prisma.$disconnect();
+      await Promise.all([
+        prisma.$disconnect(),
+        billingPlansSeedClient.$disconnect(),
+        workflowTemplatesSeedClient.$disconnect(),
+      ]);
       process.exit(1);
     });
 }

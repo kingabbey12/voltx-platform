@@ -230,4 +230,4 @@ if (require.main === module) {
     });
 }
 
-export { seedBillingPlans, PLAN_SEEDS, FEATURE_SEEDS };
+export { seedBillingPlans, PLAN_SEEDS, FEATURE_SEEDS, prisma as billingPlansSeedClient };

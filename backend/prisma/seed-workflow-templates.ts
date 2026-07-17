@@ -482,4 +482,4 @@ if (require.main === module) {
     });
 }
 
-export { seedWorkflowTemplates, TEMPLATE_SEEDS };
+export { seedWorkflowTemplates, TEMPLATE_SEEDS, prisma as workflowTemplatesSeedClient };
