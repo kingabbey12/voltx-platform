@@ -59,6 +59,7 @@
     "compression": "^1.8.1",
     "country-state-city": "^3.2.1",
     "cron": "^4.4.0",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "fast-xml-parser": "^5.10.0",
     "helmet": "^8.2.0",
@@ -80,8 +81,7 @@
     "sharp": "^0.35.3",
     "socket.io": "^4.8.3",
     "stripe": "^22.3.1",
-    "tesseract.js": "^7.0.0",
-    "xlsx": "^0.18.5"
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.28.0",
@@ -138,5 +138,11 @@
     "roots": [
       "<rootDir>/test"
     ]
+  },
+  "pnpm": {
+    "overrides": {
+      "multer": ">=2.2.0",
+      "uuid": "^11.1.1"
+    }
   }
 }

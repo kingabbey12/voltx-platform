@@ -1,4 +1,5 @@
-import * as XLSX from 'xlsx';
+import { Workbook } from 'exceljs';
+import { BadRequestException } from '@nestjs/common';
 import { DocxTextExtractor } from '../src/modules/knowledge/extraction/docx-text-extractor';
 import { PdfTextExtractor } from '../src/modules/knowledge/extraction/pdf-text-extractor';
 import { PlainTextExtractor } from '../src/modules/knowledge/extraction/plain-text-extractor';
@@ -49,16 +50,15 @@ describe('DocxTextExtractor', () => {
 
 describe('XlsxTextExtractor', () => {
   it('extracts every sheet as CSV from a real workbook buffer', async () => {
-    const workbook = XLSX.utils.book_new();
-    const sheet1 = XLSX.utils.aoa_to_sheet([
-      ['Name', 'Stage'],
-      ['Acme Corp', 'Negotiation'],
-    ]);
-    const sheet2 = XLSX.utils.aoa_to_sheet([['Note'], ['Follow up next week']]);
-    XLSX.utils.book_append_sheet(workbook, sheet1, 'Deals');
-    XLSX.utils.book_append_sheet(workbook, sheet2, 'Notes');
+    const workbook = new Workbook();
+    const deals = workbook.addWorksheet('Deals');
+    deals.addRow(['Name', 'Stage']);
+    deals.addRow(['Acme Corp', 'Negotiation']);
+    const notes = workbook.addWorksheet('Notes');
+    notes.addRow(['Note']);
+    notes.addRow(['Follow up next week']);
 
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
 
     const extractor = new XlsxTextExtractor();
     const text = await extractor.extract({ contentType: 'xlsx', buffer });
@@ -68,6 +68,35 @@ describe('XlsxTextExtractor', () => {
     expect(text).toContain('Negotiation');
     expect(text).toContain('Sheet: Notes');
     expect(text).toContain('Follow up next week');
+  });
+
+  it('escapes cells containing commas and quotes CSV-style', async () => {
+    const workbook = new Workbook();
+    const sheet = workbook.addWorksheet('Data');
+    sheet.addRow(['Widgets, "premium"', 'plain']);
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+
+    const extractor = new XlsxTextExtractor();
+    const text = await extractor.extract({ contentType: 'xlsx', buffer });
+
+    expect(text).toContain('"Widgets, ""premium""",plain');
+  });
+
+  it('returns CSV uploads as decoded text without spreadsheet parsing', async () => {
+    const extractor = new XlsxTextExtractor();
+    const text = await extractor.extract({
+      contentType: 'csv',
+      buffer: Buffer.from('name,stage\nAcme Corp,Negotiation\n', 'utf-8'),
+    });
+
+    expect(text).toBe('name,stage\nAcme Corp,Negotiation');
+  });
+
+  it('rejects a corrupt xlsx buffer with a 400, not a crash', async () => {
+    const extractor = new XlsxTextExtractor();
+    await expect(
+      extractor.extract({ contentType: 'xlsx', buffer: Buffer.from('not-a-zip-archive') }),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('rejects when no buffer is provided', async () => {

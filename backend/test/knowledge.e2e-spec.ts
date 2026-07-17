@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import * as XLSX from 'xlsx';
+import { Workbook } from 'exceljs';
 import { ApiSuccessResponse } from '../src/common/interceptors/response.interceptor';
 import { AIRuntimeService } from '../src/modules/ai/runtime/ai-runtime.service';
 import { AIEmbeddingRequest, AIEmbeddingResponse } from '../src/modules/ai/models/ai-model.types';
@@ -165,19 +165,15 @@ describe('Knowledge Graph & RAG Platform (e2e)', () => {
     expect(document.status).toBe('INDEXED');
   });
 
-  it('ingests a real XLSX file (base64) using the real SheetJS extractor', async () => {
+  it('ingests a real XLSX file (base64) using the real extractor', async () => {
     const { accessToken } = await authenticateContext(app, prisma, usersRepository);
     const source = await createSource(accessToken, 'Uploaded Files');
 
-    const workbook = XLSX.utils.book_new();
-    const sheet = XLSX.utils.aoa_to_sheet([
-      ['Company', 'Stage'],
-      ['Acme Corp', 'Negotiation'],
-    ]);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Deals');
-    const xlsxBase64 = (
-      XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer
-    ).toString('base64');
+    const workbook = new Workbook();
+    const sheet = workbook.addWorksheet('Deals');
+    sheet.addRow(['Company', 'Stage']);
+    sheet.addRow(['Acme Corp', 'Negotiation']);
+    const xlsxBase64 = Buffer.from(await workbook.xlsx.writeBuffer()).toString('base64');
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/knowledge/sources/${source.id}/documents`)
