@@ -28,11 +28,18 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- No android:host here (deliberately, unlike the single-host
+                 version this replaced) — omitting it makes Android match
+                 every host under the voltx:// scheme, since
+                 DeepLinkService now routes on several
+                 (invitations/notifications/sales/marketplace/billing/
+                 security/settings/ai), not just "invitations". iOS has no
+                 equivalent host-level restriction to begin with. -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="voltx" android:host="invitations"/>
+                <data android:scheme="voltx"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

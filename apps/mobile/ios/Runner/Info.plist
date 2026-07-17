@@ -74,7 +74,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>io.voltx.mobile.invitations</string>
+			<string>io.voltx.mobile.deeplinks</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>voltx</string>
