@@ -1,0 +1,7 @@
+# macOS filesystem metadata — never belongs in the repository.
+.DS_Store
+
+# Claude Code local state (per-machine settings and worktrees).
+.claude/settings.local.json
+.claude/worktrees/
+.claude/launch.json
