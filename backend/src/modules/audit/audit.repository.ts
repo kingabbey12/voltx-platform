@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { AuditLog, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
@@ -111,12 +111,58 @@ export class AuditRepository {
     });
   }
 
-  /** Org-scoped read for the Compliance Center's audit export — inclusive date range. */
+  private static readonly EXPORT_BATCH_SIZE = 1000;
+  /** Safety cap so a huge/mistaken date range can't load unbounded rows into memory. */
+  private static readonly EXPORT_MAX_ROWS = 250_000;
+
+  /**
+   * Org-scoped read for the Compliance Center's audit export — inclusive date
+   * range. Fetched in keyset-paginated batches (rather than one unbounded
+   * findMany) so a single query never has to scan/return an arbitrarily large
+   * result set; the caller still gets the full range back as one array.
+   */
   async findByDateRange(organizationId: string, fromDate: Date, toDate: Date): Promise<AuditLog[]> {
-    return this.prisma.auditLog.findMany({
-      where: { organizationId, createdAt: { gte: fromDate, lte: toDate } },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-    });
+    const rows: AuditLog[] = [];
+    let cursor: { createdAt: Date; id: string } | undefined;
+
+    for (;;) {
+      const batch = await this.prisma.auditLog.findMany({
+        where: {
+          organizationId,
+          createdAt: { gte: fromDate, lte: toDate },
+          ...(cursor
+            ? {
+                OR: [
+                  { createdAt: { gt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+                ],
+              }
+            : {}),
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: AuditRepository.EXPORT_BATCH_SIZE,
+      });
+
+      if (batch.length === 0) {
+        break;
+      }
+
+      rows.push(...batch);
+      if (rows.length > AuditRepository.EXPORT_MAX_ROWS) {
+        throw new BadRequestException(
+          `Audit export range contains more than ${AuditRepository.EXPORT_MAX_ROWS} rows; narrow the date range and try again.`,
+        );
+      }
+
+      const last = batch[batch.length - 1];
+      cursor = { createdAt: last.createdAt, id: last.id };
+
+      if (batch.length < AuditRepository.EXPORT_BATCH_SIZE) {
+        break;
+      }
+    }
+
+    return rows;
   }
 
   /**

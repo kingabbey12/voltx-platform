@@ -28,15 +28,18 @@ export class PlatformOrganizationService {
       search: query.search,
     });
 
-    const memberCounts = await Promise.all(
-      result.items.map((org) =>
-        this.prisma.system.membership.count({ where: { organizationId: org.id } }),
-      ),
+    const memberCountsByOrg = await this.prisma.system.membership.groupBy({
+      by: ['organizationId'],
+      where: { organizationId: { in: result.items.map((org) => org.id) } },
+      _count: { _all: true },
+    });
+    const memberCountByOrgId = new Map(
+      memberCountsByOrg.map((row) => [row.organizationId, row._count._all]),
     );
 
     return {
-      items: result.items.map((org, index) =>
-        PlatformOrganizationSummaryDto.fromEntity(org, memberCounts[index]),
+      items: result.items.map((org) =>
+        PlatformOrganizationSummaryDto.fromEntity(org, memberCountByOrgId.get(org.id) ?? 0),
       ),
       total: result.total,
       page: result.page,

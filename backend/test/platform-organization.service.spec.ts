@@ -41,14 +41,17 @@ describe('PlatformOrganizationService', () => {
   let service: PlatformOrganizationService;
   let organizationRepository: jest.Mocked<OrganizationRepository>;
   let prisma: {
-    system: { organization: { findFirst: jest.Mock }; membership: { count: jest.Mock } };
+    system: {
+      organization: { findFirst: jest.Mock };
+      membership: { count: jest.Mock; groupBy: jest.Mock };
+    };
   };
 
   beforeEach(async () => {
     prisma = {
       system: {
         organization: { findFirst: jest.fn() },
-        membership: { count: jest.fn() },
+        membership: { count: jest.fn(), groupBy: jest.fn() },
       },
     };
 
@@ -72,13 +75,36 @@ describe('PlatformOrganizationService', () => {
       limit: 20,
       totalPages: 1,
     });
-    prisma.system.membership.count.mockResolvedValueOnce(5).mockResolvedValueOnce(2);
+    prisma.system.membership.groupBy.mockResolvedValue([
+      { organizationId: 'org-1', _count: { _all: 5 } },
+      { organizationId: 'org-2', _count: { _all: 2 } },
+    ]);
 
     const result = await service.search({ page: 1, limit: 20 });
 
+    expect(prisma.system.membership.groupBy).toHaveBeenCalledWith({
+      by: ['organizationId'],
+      where: { organizationId: { in: ['org-1', 'org-2'] } },
+      _count: { _all: true },
+    });
     expect(result.items).toHaveLength(2);
     expect(result.items[0].memberCount).toBe(5);
     expect(result.items[1].memberCount).toBe(2);
+  });
+
+  it('defaults member count to 0 for an organization missing from the groupBy result', async () => {
+    organizationRepository.searchUnscoped.mockResolvedValue({
+      items: [makeOrganizationEntity({ id: 'org-3' })],
+      total: 1,
+      page: 1,
+      limit: 20,
+      totalPages: 1,
+    });
+    prisma.system.membership.groupBy.mockResolvedValue([]);
+
+    const result = await service.search({ page: 1, limit: 20 });
+
+    expect(result.items[0].memberCount).toBe(0);
   });
 
   it('throws NotFoundException for an unknown organization id', async () => {
