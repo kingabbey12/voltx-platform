@@ -53,7 +53,9 @@ export class AiProcessQueueService {
           // a duplicate enqueue (e.g. several inbound messages arriving in
           // quick succession) collides instead of stacking up redundant
           // summarization jobs for the same conversation.
-          jobId: `summarize:${conversationId}`,
+          // "-" not ":" — BullMQ reserves ":" and rejects custom ids
+          // containing it (caught live in the v1.0.0-rc1 staging smoke).
+          jobId: `summarize-${conversationId}`,
           attempts: 3,
           backoff: { type: 'exponential', delay: 2000 },
         },

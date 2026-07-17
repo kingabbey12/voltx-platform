@@ -55,7 +55,9 @@ export class AttachmentProcessingQueueService {
           // duplicate enqueue for the same attachment (e.g. a retried
           // upload-completion callback) collides in BullMQ instead of
           // running the pipeline twice concurrently.
-          jobId: `process:${attachmentId}`,
+          // "-" not ":" — BullMQ reserves ":" and rejects custom ids
+          // containing it (caught live in the v1.0.0-rc1 staging smoke).
+          jobId: `process-${attachmentId}`,
           attempts: 3,
           backoff: { type: 'exponential', delay: 2000 },
         },

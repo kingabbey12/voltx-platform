@@ -45,8 +45,26 @@ describe('WorkflowRunQueueService', () => {
       expect(queue.add).toHaveBeenCalledWith(
         'execute_run',
         { workflowRunId: 'run-1', grantedPermissions: ['workflow.run'], organizationId: 'org-1' },
-        expect.objectContaining({ jobId: 'run:run-1:3' }),
+        expect.objectContaining({ jobId: 'run-run-1-v3' }),
       );
+    });
+
+    it('never puts ":" in a custom jobId — BullMQ reserves it and rejects the enqueue', async () => {
+      // The mock queue accepts anything, so this contract has to be
+      // asserted explicitly: real BullMQ throws "Custom Id cannot contain :"
+      // and the job is silently never enqueued (caught live in the
+      // v1.0.0-rc1 staging smoke, where every production enqueue failed).
+      const queue = { add: jest.fn().mockResolvedValue(undefined) };
+      const service = new WorkflowRunQueueService(
+        queue as never,
+        workflowEngineService as never,
+        usageMeteringService,
+      );
+
+      await service.enqueueRun('run-1', 3, [], 'org-1');
+
+      const [, , opts] = queue.add.mock.calls[0] as [string, unknown, { jobId: string }];
+      expect(opts.jobId).not.toContain(':');
     });
 
     it('uses a different jobId for a later re-entry into the same run (a different version)', async () => {
@@ -63,7 +81,7 @@ describe('WorkflowRunQueueService', () => {
       const jobIds = queue.add.mock.calls.map(
         (call: unknown[]) => (call[2] as { jobId: string }).jobId,
       );
-      expect(jobIds).toEqual(['run:run-1:0', 'run:run-1:1']);
+      expect(jobIds).toEqual(['run-run-1-v0', 'run-run-1-v1']);
     });
   });
 

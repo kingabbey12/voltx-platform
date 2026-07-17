@@ -48,8 +48,8 @@ export class WorkflowRunQueueService {
   /**
    * `version` is WorkflowRun's existing optimistic-concurrency counter
    * (bumped on every state transition — pause/resume/retry/approval-
-   * decide all move it). Using `run:<id>:<version>` as the deterministic
-   * jobId — not a bare `run:<id>` — matters: a run is legitimately
+   * decide all move it). Using `run-<id>-v<version>` as the deterministic
+   * jobId — not a bare `run-<id>` — matters: a run is legitimately
    * re-entered many times over its life (initial run, resume, retry,
    * post-approval re-drive), and BullMQ does not remove completed jobs by
    * default, so a jobId reused across separate re-entries would silently
@@ -80,7 +80,12 @@ export class WorkflowRunQueueService {
       'execute_run',
       { workflowRunId, grantedPermissions, organizationId },
       {
-        jobId: `run:${workflowRunId}:${version}`,
+        // BullMQ reserves ":" in job ids (its own key delimiter) and
+        // rejects custom ids containing it — found live in the v1.0.0-rc1
+        // staging smoke, where every enqueue failed. Tests never see this:
+        // they run with REDIS_ENABLED=false, which takes the synchronous
+        // fallback above.
+        jobId: `run-${workflowRunId}-v${version}`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 2000 },
       },

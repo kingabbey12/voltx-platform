@@ -56,7 +56,9 @@ export class AgentTaskQueueService {
           // instead of creating a second job — the atomic claim in
           // AgentRunResumeService is the actual double-execution guard,
           // this just avoids doing unnecessary duplicate work.
-          jobId: `resume:${approvalId}`,
+          // "-" not ":" — BullMQ reserves ":" and rejects custom ids
+          // containing it (caught live in the v1.0.0-rc1 staging smoke).
+          jobId: `resume-${approvalId}`,
           attempts: 3,
           backoff: { type: 'exponential', delay: 2000 },
         },
