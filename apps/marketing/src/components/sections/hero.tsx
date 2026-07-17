@@ -122,9 +122,9 @@ export function Hero() {
             </a>
           </Button>
           <Button size="lg" variant="secondary" asChild>
-            <a href="/contact">
+            <a href="#tour">
               <Play className="h-4 w-4" fill="currentColor" />
-              Watch 2-Minute Demo
+              See the product tour
             </a>
           </Button>
         </motion.div>

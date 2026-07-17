@@ -108,6 +108,14 @@
     @apply border border-primary/20 bg-white/[0.03] backdrop-blur-xl;
   }
 
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   .shimmer-border {
     position: relative;
   }
