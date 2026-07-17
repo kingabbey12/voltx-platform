@@ -58,7 +58,8 @@ describe('RolesController custom roles (e2e)', () => {
       .set(bearerAuthHeaders(owner.accessToken))
       .expect(200);
 
-    const roles = (listResponse.body as ApiSuccessResponse<{ items: RoleResponseDto[] }>).data.items;
+    const roles = (listResponse.body as ApiSuccessResponse<{ items: RoleResponseDto[] }>).data
+      .items;
     expect(roles.some((role) => role.key === 'sales-manager')).toBe(true);
     expect(roles.some((role) => role.key === 'owner' && role.isSystem)).toBe(true);
   });
@@ -149,7 +150,7 @@ describe('RolesController custom roles (e2e)', () => {
       .expect(409);
   });
 
-  it('never exposes another organization\'s custom role', async () => {
+  it("never exposes another organization's custom role", async () => {
     const orgA = await authenticateContext(app, prisma, usersRepository, 'owner');
     const orgB = await authenticateContext(app, prisma, usersRepository, 'owner', {
       email: 'owner-b@example.com',
@@ -171,7 +172,8 @@ describe('RolesController custom roles (e2e)', () => {
       .get('/api/v1/roles')
       .set(bearerAuthHeaders(orgB.accessToken))
       .expect(200);
-    const roles = (listResponse.body as ApiSuccessResponse<{ items: RoleResponseDto[] }>).data.items;
+    const roles = (listResponse.body as ApiSuccessResponse<{ items: RoleResponseDto[] }>).data
+      .items;
     expect(roles.some((role) => role.id === roleId)).toBe(false);
 
     await request(app.getHttpServer())
