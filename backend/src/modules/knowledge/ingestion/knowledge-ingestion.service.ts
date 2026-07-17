@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AIProviderName } from '../../ai/models/ai-model.types';
 import { AIGatewayService } from '../../ai/gateway/ai-gateway.service';
@@ -89,19 +94,29 @@ export class KnowledgeIngestionService {
         characterCount: extractedText.length,
       };
 
+      // Persist the extracted text before embedding, not after: if any
+      // later stage fails, the document stays reindexable from rawText
+      // instead of needing the original binary again.
+      await this.knowledgeDocumentRepository.update(document.id, { rawText: extractedText });
+
       const result = yield* this.chunkEmbedAndStore(document.id, extractedText, signal);
 
       await this.knowledgeDocumentRepository.update(document.id, {
         status: 'INDEXED',
-        rawText: extractedText,
         indexedAt: new Date(),
+        embeddingsPendingAt: result.embeddingsSkipped ? new Date() : null,
         error: null,
       });
       await this.knowledgeSourceRepository.markIndexed(input.sourceId);
 
       yield { type: 'indexing_completed', documentId: document.id, chunkCount: result.chunkCount };
 
-      return { documentId: document.id, status: 'INDEXED', chunkCount: result.chunkCount };
+      return {
+        documentId: document.id,
+        status: 'INDEXED',
+        chunkCount: result.chunkCount,
+        embeddingsSkipped: result.embeddingsSkipped,
+      };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Knowledge ingestion failed';
       this.logger.error({ err: error, documentId: document.id }, 'Knowledge ingestion failed');
@@ -155,13 +170,19 @@ export class KnowledgeIngestionService {
       await this.knowledgeDocumentRepository.update(document.id, {
         status: 'INDEXED',
         indexedAt: new Date(),
+        embeddingsPendingAt: result.embeddingsSkipped ? new Date() : null,
         error: null,
       });
       await this.knowledgeSourceRepository.markIndexed(document.sourceId);
 
       yield { type: 'indexing_completed', documentId: document.id, chunkCount: result.chunkCount };
 
-      return { documentId: document.id, status: 'INDEXED', chunkCount: result.chunkCount };
+      return {
+        documentId: document.id,
+        status: 'INDEXED',
+        chunkCount: result.chunkCount,
+        embeddingsSkipped: result.embeddingsSkipped,
+      };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Knowledge reindexing failed';
       this.logger.error({ err: error, documentId }, 'Knowledge reindexing failed');
@@ -196,30 +217,95 @@ export class KnowledgeIngestionService {
     documentId: string,
     text: string,
     signal?: AbortSignal,
-  ): AsyncGenerator<KnowledgeIngestionStreamEvent, { chunkCount: number }> {
+  ): AsyncGenerator<
+    KnowledgeIngestionStreamEvent,
+    { chunkCount: number; embeddingsSkipped: boolean }
+  > {
     await this.knowledgeChunkRepository.deleteByDocument(documentId);
 
     const chunks = this.textChunkerService.chunk(text);
     yield { type: 'chunking_completed', documentId, chunkCount: chunks.length };
 
     if (chunks.length === 0) {
-      return { chunkCount: 0 };
+      return { chunkCount: 0, embeddingsSkipped: false };
     }
 
     yield { type: 'embedding_started', documentId, chunkCount: chunks.length };
     const embeddingStartedAt = Date.now();
 
-    const batches = chunkArray(chunks, this.embeddingBatchSize);
+    const embeddings = await this.tryEmbed(
+      documentId,
+      chunks.map((chunk) => chunk.content),
+      signal,
+    );
+
+    await this.knowledgeChunkRepository.createMany(
+      chunks.map((chunk, index) => ({
+        documentId,
+        chunkIndex: chunk.index,
+        content: chunk.content,
+        tokenCount: chunk.tokenCount,
+        embedding: embeddings ? (embeddings[index] ?? null) : null,
+      })),
+    );
+
+    if (embeddings) {
+      yield {
+        type: 'embedding_completed',
+        documentId,
+        chunkCount: chunks.length,
+        durationMs: Date.now() - embeddingStartedAt,
+      };
+      return { chunkCount: chunks.length, embeddingsSkipped: false };
+    }
+
+    yield {
+      type: 'embedding_skipped',
+      documentId,
+      chunkCount: chunks.length,
+      reason: 'No AI provider available for embeddings',
+    };
+    return { chunkCount: chunks.length, embeddingsSkipped: true };
+  }
+
+  /**
+   * Embeds every chunk, or returns null when — and only when — no AI
+   * provider is available (ServiceUnavailableException from the model
+   * registry). An unavailable provider must not fail a user's import:
+   * chunks are stored without vectors, lexical search still works, and
+   * the backfill cron re-embeds once a provider is configured. Every
+   * other embedding failure (bad key, rate limit, network) still throws:
+   * those are transient or operator-actionable, and silently indexing
+   * without vectors would mask them.
+   */
+  private async tryEmbed(
+    documentId: string,
+    contents: string[],
+    signal?: AbortSignal,
+  ): Promise<number[][] | null> {
+    const batches = chunkArray(contents, this.embeddingBatchSize);
     const embeddings: number[][] = [];
 
     for (const batch of batches) {
-      const response = await this.aiGatewayService.embeddings({
-        provider: this.embeddingProvider,
-        model: this.embeddingModel,
-        input: batch.map((chunk) => chunk.content),
-        documentId,
-        signal,
-      });
+      let response;
+      try {
+        response = await this.aiGatewayService.embeddings({
+          provider: this.embeddingProvider,
+          model: this.embeddingModel,
+          input: batch,
+          documentId,
+          signal,
+        });
+      } catch (error) {
+        if (error instanceof ServiceUnavailableException) {
+          this.logger.warn(
+            { documentId, reason: error.message },
+            'Embeddings unavailable — indexing without vectors (lexical search only) and flagging for backfill',
+          );
+          return null;
+        }
+        throw error;
+      }
 
       for (const vector of response.vectors) {
         if (vector.length !== this.embeddingDimensions) {
@@ -232,24 +318,7 @@ export class KnowledgeIngestionService {
       embeddings.push(...response.vectors);
     }
 
-    await this.knowledgeChunkRepository.createMany(
-      chunks.map((chunk, index) => ({
-        documentId,
-        chunkIndex: chunk.index,
-        content: chunk.content,
-        tokenCount: chunk.tokenCount,
-        embedding: embeddings[index],
-      })),
-    );
-
-    yield {
-      type: 'embedding_completed',
-      documentId,
-      chunkCount: chunks.length,
-      durationMs: Date.now() - embeddingStartedAt,
-    };
-
-    return { chunkCount: chunks.length };
+    return embeddings;
   }
 
   private async findOrCreateDocument(input: IngestDocumentInput) {

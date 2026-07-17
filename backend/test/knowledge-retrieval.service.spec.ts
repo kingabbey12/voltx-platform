@@ -198,4 +198,28 @@ describe('KnowledgeRetrievalService', () => {
       expect.objectContaining({ query: 'Acme deal status', resultCount: 1 }),
     );
   });
+
+  it('falls back to keyword-only search when no AI provider is available for query embedding', async () => {
+    const { ServiceUnavailableException } = await import('@nestjs/common');
+    aiGatewayService.embeddings.mockRejectedValue(
+      new ServiceUnavailableException('No AI providers are enabled'),
+    );
+    chunkRepository.keywordSearch.mockResolvedValue([{ ...buildHit(), rank: 0.9 }]);
+
+    const service = buildService();
+    const results = await service.search('Acme deal status');
+
+    // Search still returns the lexical hit instead of throwing…
+    expect(results).toHaveLength(1);
+    expect(results[0].content).toContain('Acme Corp');
+    // …and the semantic leg was skipped entirely (no vector to search with).
+    expect(chunkRepository.semanticSearch).not.toHaveBeenCalled();
+  });
+
+  it('still throws for non-availability embedding failures', async () => {
+    aiGatewayService.embeddings.mockRejectedValue(new Error('rate limited'));
+
+    const service = buildService();
+    await expect(service.search('Acme deal status')).rejects.toThrow('rate limited');
+  });
 });

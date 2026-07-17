@@ -22,6 +22,7 @@ export interface UpdateKnowledgeDocumentData {
   metadata?: Record<string, unknown>;
   status?: KnowledgeDocumentStatus;
   indexedAt?: Date | null;
+  embeddingsPendingAt?: Date | null;
   error?: string | null;
 }
 
@@ -51,6 +52,7 @@ interface KnowledgeDocumentRecord {
   metadata: Prisma.JsonValue;
   status: KnowledgeDocumentStatus;
   indexedAt: Date | null;
+  embeddingsPendingAt: Date | null;
   error: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -109,6 +111,24 @@ export class KnowledgeDocumentRepository {
     });
 
     return record ? toEntity(record) : null;
+  }
+
+  /**
+   * Cross-tenant by design: the embedding backfill cron runs with no
+   * request context and dispatches per-organization work from this list
+   * (each document is then reprocessed *inside* a tenant context for that
+   * organization). Returns oldest-pending first so a long backlog drains
+   * fairly across ticks.
+   */
+  async listEmbeddingsPendingSystem(
+    limit: number,
+  ): Promise<Array<{ id: string; organizationId: string }>> {
+    const records = await this.client().findMany({
+      where: { embeddingsPendingAt: { not: null }, deletedAt: null, status: 'INDEXED' },
+      take: limit,
+      orderBy: [{ embeddingsPendingAt: 'asc' }],
+    });
+    return records.map((record) => ({ id: record.id, organizationId: record.organizationId }));
   }
 
   /** Used to decide create-vs-update-in-place when re-ingesting the same upstream record. */
@@ -174,6 +194,9 @@ export class KnowledgeDocumentRepository {
         ...(data.metadata !== undefined ? { metadata: toJsonValue(data.metadata) ?? {} } : {}),
         ...(data.status !== undefined ? { status: data.status } : {}),
         ...(data.indexedAt !== undefined ? { indexedAt: data.indexedAt } : {}),
+        ...(data.embeddingsPendingAt !== undefined
+          ? { embeddingsPendingAt: data.embeddingsPendingAt }
+          : {}),
         ...(data.error !== undefined ? { error: data.error } : {}),
       },
     });
@@ -232,6 +255,7 @@ function toEntity(record: KnowledgeDocumentRecord): KnowledgeDocumentEntity {
     metadata: toObject(record.metadata),
     status: record.status,
     indexedAt: record.indexedAt,
+    embeddingsPendingAt: record.embeddingsPendingAt,
     error: record.error,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,

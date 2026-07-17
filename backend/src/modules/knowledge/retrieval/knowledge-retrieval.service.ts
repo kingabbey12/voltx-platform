@@ -1,4 +1,10 @@
-import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AIProviderName } from '../../ai/models/ai-model.types';
 import { AIGatewayService } from '../../ai/gateway/ai-gateway.service';
@@ -79,13 +85,15 @@ export class KnowledgeRetrievalService {
     const topK = Math.min(options.topK ?? this.defaultTopK, this.maxTopK);
     const minConfidence = options.minConfidence ?? this.minConfidence;
 
-    const { vector: queryEmbedding, cacheHit } = await this.resolveQueryEmbedding(
+    const { vector: queryEmbedding, cacheHit } = await this.safeResolveQueryEmbedding(
       normalizedQuery,
       signal,
     );
 
     const [semanticHits, keywordHits] = await Promise.all([
-      this.knowledgeChunkRepository.semanticSearch(queryEmbedding, topK * 3, options.filters),
+      queryEmbedding
+        ? this.knowledgeChunkRepository.semanticSearch(queryEmbedding, topK * 3, options.filters)
+        : Promise.resolve([]),
       this.safeKeywordSearch(normalizedQuery, topK * 3, options.filters),
     ]);
 
@@ -99,6 +107,31 @@ export class KnowledgeRetrievalService {
     void this.logSearch(normalizedQuery, compressed, Date.now() - startedAt, cacheHit);
 
     return compressed;
+  }
+
+  /**
+   * Query embedding with the same degradation contract as the keyword
+   * leg: if no AI provider is available (ServiceUnavailableException),
+   * search continues keyword-only instead of failing outright — the
+   * mirror image of safeKeywordSearch, and the query-time counterpart of
+   * ingestion's embedding_skipped path.
+   */
+  private async safeResolveQueryEmbedding(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<{ vector: number[] | null; cacheHit: boolean }> {
+    try {
+      return await this.resolveQueryEmbedding(query, signal);
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) {
+        this.logger.warn(
+          { reason: error.message },
+          'Query embedding unavailable — continuing with keyword-only search',
+        );
+        return { vector: null, cacheHit: false };
+      }
+      throw error;
+    }
   }
 
   private async resolveQueryEmbedding(

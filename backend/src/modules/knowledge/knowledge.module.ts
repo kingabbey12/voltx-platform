@@ -12,6 +12,7 @@ import { TextExtractorRegistry } from './extraction/text-extractor.registry';
 import { XlsxTextExtractor } from './extraction/xlsx-text-extractor';
 import { KnowledgeGraphRepository } from './graph/knowledge-graph.repository';
 import { KnowledgeGraphService } from './graph/knowledge-graph.service';
+import { KnowledgeEmbeddingBackfillService } from './ingestion/knowledge-embedding-backfill.service';
 import { KnowledgeIngestionService } from './ingestion/knowledge-ingestion.service';
 import { KnowledgeController } from './knowledge.controller';
 import { KnowledgeService } from './knowledge.service';
@@ -40,6 +41,7 @@ import { KnowledgeSourceRepository } from './sources/knowledge-source.repository
     TextExtractorRegistry,
     TextChunkerService,
     KnowledgeIngestionService,
+    KnowledgeEmbeddingBackfillService,
     embeddingCacheProvider,
     KnowledgeRetrievalService,
     KnowledgeContextBuilderService,

@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { KnowledgeIngestionService } from '../src/modules/knowledge/ingestion/knowledge-ingestion.service';
 
 function configServiceWithDefaults(overrides: Record<string, unknown> = {}) {
@@ -114,7 +115,12 @@ describe('KnowledgeIngestionService', () => {
       }),
     );
 
-    expect(result).toEqual({ documentId: 'doc-1', status: 'INDEXED', chunkCount: 2 });
+    expect(result).toEqual({
+      documentId: 'doc-1',
+      status: 'INDEXED',
+      chunkCount: 2,
+      embeddingsSkipped: false,
+    });
     expect(events.map((e) => e.type)).toEqual([
       'indexing_started',
       'text_extracted',
@@ -262,7 +268,12 @@ describe('KnowledgeIngestionService', () => {
       service.ingestDocument({ sourceId: 'source-1', title: 'Doc', contentType: 'text', text: '' }),
     );
 
-    expect(result).toEqual({ documentId: 'doc-1', status: 'INDEXED', chunkCount: 0 });
+    expect(result).toEqual({
+      documentId: 'doc-1',
+      status: 'INDEXED',
+      chunkCount: 0,
+      embeddingsSkipped: false,
+    });
     expect(aiGatewayService.embeddings).not.toHaveBeenCalled();
   });
 
@@ -270,7 +281,12 @@ describe('KnowledgeIngestionService', () => {
     const service = buildService();
     const { result } = await drain(service.reindexDocument('doc-1'));
 
-    expect(result).toEqual({ documentId: 'doc-1', status: 'INDEXED', chunkCount: 2 });
+    expect(result).toEqual({
+      documentId: 'doc-1',
+      status: 'INDEXED',
+      chunkCount: 2,
+      embeddingsSkipped: false,
+    });
     expect(textExtractorRegistry.extract).not.toHaveBeenCalled();
     expect(textChunkerService.chunk).toHaveBeenCalledWith('stored extracted text');
   });
@@ -306,5 +322,103 @@ describe('KnowledgeIngestionService', () => {
 
     expect(result).toHaveLength(3);
     expect(result.map((r) => r.status)).toEqual(['INDEXED', 'FAILED', 'INDEXED']);
+  });
+
+  describe('degraded ingestion when no AI provider is available', () => {
+    beforeEach(() => {
+      aiGatewayService.embeddings.mockRejectedValue(
+        new ServiceUnavailableException('No AI providers are enabled'),
+      );
+    });
+
+    it('still indexes the document: chunks stored without vectors, flagged for backfill', async () => {
+      const service = buildService();
+      const { events, result } = await drain(
+        service.ingestDocument({
+          sourceId: 'source-1',
+          title: 'Doc',
+          contentType: 'text',
+          text: 'raw',
+        }),
+      );
+
+      expect(result).toEqual({
+        documentId: 'doc-1',
+        status: 'INDEXED',
+        chunkCount: 2,
+        embeddingsSkipped: true,
+      });
+      expect(events.map((e) => e.type)).toEqual([
+        'indexing_started',
+        'text_extracted',
+        'chunking_completed',
+        'embedding_started',
+        'embedding_skipped',
+        'indexing_completed',
+      ]);
+      expect(chunkRepository.createMany).toHaveBeenCalledWith([
+        expect.objectContaining({ chunkIndex: 0, embedding: null }),
+        expect.objectContaining({ chunkIndex: 1, embedding: null }),
+      ]);
+      const finalUpdate = documentRepository.update.mock.calls.at(-1) as [
+        string,
+        { status: string; embeddingsPendingAt: Date | null },
+      ];
+      expect(finalUpdate[0]).toBe('doc-1');
+      expect(finalUpdate[1].status).toBe('INDEXED');
+      expect(finalUpdate[1].embeddingsPendingAt).toBeInstanceOf(Date);
+    });
+
+    it('persists extracted rawText before the embedding stage, so the document stays reindexable', async () => {
+      const service = buildService();
+      await drain(
+        service.ingestDocument({
+          sourceId: 'source-1',
+          title: 'Doc',
+          contentType: 'text',
+          text: 'raw',
+        }),
+      );
+
+      expect(documentRepository.update).toHaveBeenCalledWith('doc-1', {
+        rawText: 'Extracted plain text content.',
+      });
+    });
+
+    it('clears the pending flag when a later reindex succeeds with a provider available', async () => {
+      aiGatewayService.embeddings.mockResolvedValue({
+        provider: 'openai',
+        model: 'text-embedding-3-small',
+        vectors: [
+          [0.1, 0.2, 0.3],
+          [0.4, 0.5, 0.6],
+        ],
+      });
+      const service = buildService();
+      const { result } = await drain(service.reindexDocument('doc-1'));
+
+      expect(result.status).toBe('INDEXED');
+      expect(result.embeddingsSkipped).toBe(false);
+      expect(documentRepository.update).toHaveBeenCalledWith(
+        'doc-1',
+        expect.objectContaining({ status: 'INDEXED', embeddingsPendingAt: null }),
+      );
+    });
+
+    it('still fails the document for non-availability embedding errors', async () => {
+      aiGatewayService.embeddings.mockRejectedValue(new Error('rate limited'));
+      const service = buildService();
+      const { result } = await drain(
+        service.ingestDocument({
+          sourceId: 'source-1',
+          title: 'Doc',
+          contentType: 'text',
+          text: 'raw',
+        }),
+      );
+
+      expect(result.status).toBe('FAILED');
+      expect(result.error).toBe('rate limited');
+    });
   });
 });

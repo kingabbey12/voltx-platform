@@ -86,6 +86,15 @@ services:
         sync: false
       - key: ATTACHMENTS_S3_SECRET_ACCESS_KEY
         sync: false
+      # Required for file uploads to function (not for boot): in production
+      # the upload endpoints return 503 until a reachable ClamAV daemon is
+      # configured (attachment.service.ts assertUploadsAvailable). Point
+      # these at a clamd instance — e.g. a Render private service running
+      # clamav/clamav-debian.
+      - key: CLAMAV_HOST
+        sync: false
+      - key: CLAMAV_PORT
+        value: '3310'
       # Every other variable in backend/.env.example (AI provider keys,
       # OAuth client credentials, Stripe keys, etc.) is optional at boot —
       # each feature it gates degrades gracefully (e.g. a disabled AI

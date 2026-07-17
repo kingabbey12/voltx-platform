@@ -1021,6 +1021,11 @@ model KnowledgeDocument {
   metadata       Json                    @default("{}")
   status         KnowledgeDocumentStatus @default(PENDING)
   indexedAt      DateTime?               @map("indexed_at")
+  /// Set when the document was indexed without embeddings because no AI
+  /// provider was available (chunks stored with NULL vectors, lexical
+  /// search only). The embedding backfill cron re-embeds and clears this
+  /// once a provider is configured. Null = embeddings are current.
+  embeddingsPendingAt DateTime?          @map("embeddings_pending_at")
   error          String?
   createdAt      DateTime                @default(now()) @map("created_at")
   updatedAt      DateTime                @updatedAt @map("updated_at")
@@ -1033,6 +1038,7 @@ model KnowledgeDocument {
   @@index([externalId])
   @@index([status])
   @@index([deletedAt])
+  @@index([embeddingsPendingAt])
   @@map("knowledge_documents")
 }
 

@@ -28,7 +28,7 @@ describe('Queue idempotency (deterministic jobId)', () => {
       expect(queue.add).toHaveBeenCalledWith(
         'process',
         { attachmentId: 'attachment-1', organizationId: 'org-1' },
-        expect.objectContaining({ jobId: 'process:attachment-1' }),
+        expect.objectContaining({ jobId: 'process-attachment-1' }),
       );
     });
 
@@ -57,7 +57,7 @@ describe('Queue idempotency (deterministic jobId)', () => {
       expect(queue.add).toHaveBeenCalledWith(
         'summarize',
         { conversationId: 'conversation-1', organizationId: 'org-1' },
-        expect.objectContaining({ jobId: 'summarize:conversation-1' }),
+        expect.objectContaining({ jobId: 'summarize-conversation-1' }),
       );
     });
 

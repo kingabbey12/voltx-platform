@@ -14,7 +14,10 @@ export interface CreateKnowledgeChunkInput {
   chunkIndex: number;
   content: string;
   tokenCount: number;
-  embedding: number[];
+  /** Null when ingestion ran without an available AI provider — the chunk
+   * is lexically searchable immediately and re-embedded by the backfill
+   * cron once a provider is configured. */
+  embedding: number[] | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -106,7 +109,7 @@ export class KnowledgeChunkRepository {
           ${chunk.chunkIndex},
           ${chunk.content},
           ${chunk.tokenCount},
-          ${toVectorLiteral(chunk.embedding)}::vector,
+          ${chunk.embedding ? toVectorLiteral(chunk.embedding) : null}::vector,
           ${JSON.stringify(chunk.metadata ?? {})}::jsonb,
           ${now}
         )`,
