@@ -1,5 +1,23 @@
 # Known Issues (as of VT-030)
 
+> A later full-repo production audit (2026-07-17) fixed several gaps this
+> file used to list and refreshed the stale test counts in
+> `production-checklist.md` (that doc's "last run, this session" section
+> was still showing VT-030's 348/119 numbers well after the suite had grown
+> past 1200 backend tests). See "Resolved in the 2026-07-17 production
+> audit" below — everything else in this file is unchanged from VT-030 and
+> wasn't re-verified on that date.
+
+## Resolved in the 2026-07-17 production audit
+- **Notifications preferences endpoint was completely broken**: `UpdateNotificationPreferencesDto.preferences` had no `class-validator` decorator, so the global `whitelist`+`forbidNonWhitelisted` `ValidationPipe` stripped/rejected it — `PATCH /notifications/preferences` returned 400 for every real caller. Found via writing the module's first tests (it had zero before this). Fixed: `backend/src/modules/notifications/dto/notification.dto.ts`.
+- **Notification list ordering was nondeterministic** for rows created in the same millisecond (`orderBy` had no tiebreak after `createdAt`). Added an `id` tiebreak, matching the pattern already used in `audit.repository.ts`.
+- **CI never ran `packages/cli` or the 3 SDKs' test suites** despite each having real tests. Added 4 CI jobs; a regression in any of them is no longer invisible.
+- **`deploy.yml` raced `ci.yml`** — both triggered off the same `push` event with no ordering guarantee, so a commit whose CI failed could still deploy. Switched to `workflow_run`, gated on `ci.yml`'s `conclusion == 'success'`.
+- **CI's mobile build never validated the actual production entrypoint** — `flutter build macos --release` built the default `lib/main.dart`, which resolves its API URL via `--dart-define` and falls back to `localhost`, not the `main_production.dart` flavor a real release ships. Fixed with `-t lib/main_production.dart`.
+- **N+1 query** on the platform-admin organization list (`platform-organization.service.ts`) and an **unbounded query** on the Compliance Center's audit export (`audit.repository.ts`) — both fixed (single `groupBy`; keyset-paginated batches with a safety cap, respectively).
+- **6 mobile features had zero tests** despite real repository/provider logic: compliance, security, integrations, knowledge, notifications, organizations. Added model-parsing and error-mapping coverage for each (`apps/mobile/test/{compliance,security,integrations,knowledge,notifications,organizations}/`).
+- **2 backend modules had zero tests**: `notifications` and `reference-data` (the latter is where the notification preferences bug and ordering bug above were caught).
+
 ## Resolved this cycle (VT-030) — the two biggest gaps from VT-029 are now closed
 - **Team invitation system**: fully built and live-tested. Invite by email + role, preview, accept (new account or existing account), expire (7 days), revoke, resend, RBAC (`organization.invite` permission, owner role excluded from grant), audit logs. Backend: `backend/src/modules/organization/invitations/`. Mobile: `apps/mobile/lib/features/organizations/`.
 - **Organization switcher**: fully built. Switch active org without logging out (`POST /auth/switch-organization`), list memberships (`GET /auth/my-organizations`), and every organization-scoped Riverpod provider (sales, AI, knowledge, workflows, integrations, dashboard) is invalidated and refetched on switch via `invalidateOrganizationScopedProviders`.

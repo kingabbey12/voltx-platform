@@ -1,6 +1,11 @@
 # Production Readiness Checklist
 
-Status as of VT-030 (beta blocker remediation pass). Check items are verified working as of this date; unchecked items are known gaps — see `known-issues.md` for detail.
+Status as of VT-030 (beta blocker remediation pass), with the CI/CD and
+Validation sections refreshed during a later full-repo production audit
+(2026-07-17) — see the note on each for what was actually re-verified then
+versus what remains true from VT-030 and wasn't re-checked. Check items are
+verified working as of the date noted; unchecked items are known gaps — see
+`known-issues.md` for detail.
 
 ## Authentication & Session
 - [x] Register / login / logout / password reset — verified live end-to-end against a running backend
@@ -31,10 +36,15 @@ Status as of VT-030 (beta blocker remediation pass). Check items are verified wo
 - [x] Grafana dashboard — imported into a real Grafana+Prometheus stack in VT-030 and confirmed all 7 panels return real data
 - [x] Backup script — executed against the live dev database in VT-030 (`pg_dump`), then actually restored into a fresh database and row counts verified
 
-## CI/CD
-- [x] `ci.yml`: lint + unit test + e2e test (with Postgres service container) + build, on every push/PR
-- [x] `deploy.yml`: builds and pushes a Docker image to GHCR, runs `prisma migrate deploy` against the target environment
-- [ ] The actual deploy step (pushing the built image to a live host) is an intentional placeholder — no hosting target has been chosen yet
+## CI/CD (updated 2026-07-17 — the hosting-target gap below is closed)
+- [x] `ci.yml`: 8 jobs — backend (lint/unit/e2e/build), web, marketing, mobile
+  (analyze/test/build, now against the `main_production.dart` flavor
+  entrypoint rather than the default one), and one each for
+  `packages/sdk-typescript`, `packages/cli`, `packages/sdk-python`,
+  `packages/sdk-flutter` (previously untested in CI despite having real
+  test suites)
+- [x] `deploy.yml`: builds and pushes a Docker image to GHCR, runs `prisma migrate deploy`, then deploys to Render via its API — hosting target (Render + Vercel + Neon) was chosen; see `docs/deployment/README.md`
+- [x] `deploy.yml` now triggers via `workflow_run` off `ci.yml`'s completion (gated on `conclusion == 'success'`) instead of racing the same `push` event with no ordering guarantee, so a commit whose CI fails can no longer deploy
 
 ## Database
 - [x] Prisma migrations tracked and applied via `prisma:migrate:deploy` (22 migrations, including the new `invitations` table)
@@ -47,13 +57,17 @@ Status as of VT-030 (beta blocker remediation pass). Check items are verified wo
 - [x] iOS — unflavored release build succeeds; runtime-verified on a real simulator including the full deep-link → invitation-accept flow. Flavored builds need real Xcode schemes (not yet created — see known-issues.md)
 - [x] Deep linking (`voltx://`) — registered on all 3 platforms, live-verified on iOS simulator (cold start + warm start)
 
-## Validation (last run, this session)
+## Validation (last full run: 2026-07-17 production audit)
 - `pnpm lint` — clean
-- `pnpm test` — 348/348
-- `pnpm test:e2e` — 119/119
+- `pnpm test` — 1215/1215 (172 suites)
+- `pnpm test:e2e` — 341/341 (53 suites, real Postgres)
 - `pnpm build` — clean
 - `flutter analyze` — no issues
-- `flutter test` — 58/58
-- `flutter build macos --release` — succeeds
-- `flutter build apk --release --flavor production` — succeeds (61.1MB)
-- `flutter build ios --release --no-codesign` — succeeds (23.8MB)
+- `flutter test` — 183/183
+- web (`pnpm lint` / `pnpm build`) — clean
+- marketing (`npm run lint` / `npm run build`) — clean
+- `flutter build macos` — not verifiable in the audit sandbox (Xcode CLT only,
+  no `xcodebuild`); last verified in VT-030, and CI now builds the
+  `main_production.dart` flavor on every push
+- `flutter build apk --release --flavor production` — succeeds (61.1MB, VT-030)
+- `flutter build ios --release --no-codesign` — succeeds (23.8MB, VT-030)
