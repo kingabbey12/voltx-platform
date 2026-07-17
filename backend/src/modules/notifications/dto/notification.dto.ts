@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsOptional, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsObject, IsOptional, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ApiSuccessResponseDto } from '../../../common/dto/api-response.dto';
 import { NotificationEntity } from '../entities/notification.entity';
@@ -74,6 +74,7 @@ export class NotificationPreferencesDto {
 
 export class UpdateNotificationPreferencesDto {
   @ApiProperty({ type: 'object', additionalProperties: { type: 'boolean' } })
+  @IsObject()
   preferences!: Record<string, boolean>;
 }
 

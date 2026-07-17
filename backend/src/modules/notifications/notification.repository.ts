@@ -56,7 +56,7 @@ interface NotificationClient {
     where: Record<string, unknown>;
     skip?: number;
     take?: number;
-    orderBy?: Record<string, 'asc' | 'desc'>;
+    orderBy?: Array<Record<string, 'asc' | 'desc'>>;
   }): Promise<NotificationRecord[]>;
   count(args: { where: Record<string, unknown> }): Promise<number>;
   findFirst(args: { where: Record<string, unknown> }): Promise<NotificationRecord | null>;
@@ -122,7 +122,12 @@ export class NotificationRepository {
     };
 
     const [records, total] = await Promise.all([
-      this.client().findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } }),
+      this.client().findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
       this.client().count({ where }),
     ]);
 
