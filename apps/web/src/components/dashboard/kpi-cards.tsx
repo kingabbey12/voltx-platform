@@ -3,13 +3,15 @@
 import { Bot, Building2, TrendingUp, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { CountUpValue } from "@/components/dashboard/count-up-value";
 import { useCompanies, useLeads, useOpportunities } from "@/hooks/use-sales";
 import { useConversations } from "@/hooks/use-ai";
-import { formatCurrency } from "@/lib/format";
+import { formatCount, formatCurrency } from "@/lib/format";
 
 interface Kpi {
   label: string;
-  value: string;
+  value: number;
+  format: (current: number) => string;
   icon: LucideIcon;
   isLoading: boolean;
 }
@@ -25,28 +27,34 @@ export function KpiCards() {
       .filter((o) => o.stage !== "CLOSED_LOST" && o.stage !== "CLOSED_WON")
       .reduce((sum, o) => sum + (o.amount ?? 0), 0) ?? 0;
 
+  const formatWholeCount = (current: number) => formatCount(Math.round(current));
+
   const kpis: Kpi[] = [
     {
       label: "Pipeline value",
-      value: formatCurrency(pipelineValue),
+      value: pipelineValue,
+      format: (current) => formatCurrency(current),
       icon: TrendingUp,
       isLoading: loadingOpps,
     },
     {
       label: "Companies",
-      value: String(companies?.total ?? 0),
+      value: companies?.total ?? 0,
+      format: formatWholeCount,
       icon: Building2,
       isLoading: loadingCompanies,
     },
     {
       label: "Qualified leads",
-      value: String(leads?.total ?? 0),
+      value: leads?.total ?? 0,
+      format: formatWholeCount,
       icon: Users,
       isLoading: loadingLeads,
     },
     {
       label: "AI conversations",
-      value: String(conversations?.total ?? 0),
+      value: conversations?.total ?? 0,
+      format: formatWholeCount,
       icon: Bot,
       isLoading: loadingConversations,
     },
@@ -66,7 +74,7 @@ export function KpiCards() {
                 <div className="mt-1 h-6 w-16 animate-pulse rounded bg-secondary" />
               ) : (
                 <p className="truncate font-mono text-xl font-semibold tabular-nums tracking-tight">
-                  {kpi.value}
+                  <CountUpValue value={kpi.value} format={kpi.format} />
                 </p>
               )}
             </div>
