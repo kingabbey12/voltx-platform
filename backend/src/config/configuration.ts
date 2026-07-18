@@ -16,6 +16,11 @@ export default () => ({
     // coverage. Wiring specific read-heavy repositories to actually use it
     // is future work, not claimed as done by this readiness pass.
     replicaUrl: process.env.DATABASE_REPLICA_URL ?? undefined,
+    // Boot-time seed-integrity auto-repair (DatabaseSeedBootstrapService).
+    // Default on so production/staging self-heal missing RBAC/plan/template
+    // reference data; the e2e suite disables it (`.env.test`) because the
+    // test harness seeds deterministically itself.
+    seedOnBootstrap: process.env.DATABASE_SEED_ON_BOOTSTRAP !== 'false',
   },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET,
