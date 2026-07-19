@@ -1,6 +1,7 @@
 import { Workbook } from 'exceljs';
 import { BadRequestException } from '@nestjs/common';
 import { DocxTextExtractor } from '../src/modules/knowledge/extraction/docx-text-extractor';
+import { HtmlTextExtractor } from '../src/modules/knowledge/extraction/html-text-extractor';
 import { PdfTextExtractor } from '../src/modules/knowledge/extraction/pdf-text-extractor';
 import { PlainTextExtractor } from '../src/modules/knowledge/extraction/plain-text-extractor';
 import { PptxTextExtractor } from '../src/modules/knowledge/extraction/pptx-text-extractor';
@@ -138,6 +139,7 @@ describe('TextExtractorRegistry', () => {
       new DocxTextExtractor(),
       new XlsxTextExtractor(),
       new PptxTextExtractor(),
+      new HtmlTextExtractor(),
       new PlainTextExtractor(),
     );
   }

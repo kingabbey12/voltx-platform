@@ -2,9 +2,13 @@ import { KnowledgeStatsService } from '../src/modules/knowledge/observability/kn
 
 describe('KnowledgeStatsService', () => {
   let sourceRepository: { countForOrganization: jest.Mock };
-  let documentRepository: { countForOrganization: jest.Mock };
+  let documentRepository: {
+    countForOrganization: jest.Mock;
+    countByStatusForOrganization: jest.Mock;
+  };
   let chunkRepository: { countForOrganization: jest.Mock };
   let graphService: { stats: jest.Mock };
+  let retrievalService: { getEmbeddingCacheMetrics: jest.Mock };
   let searchLogRepository: { summarize: jest.Mock };
   let aiUsageService: { summarizeByRequestType: jest.Mock };
   let tenantContextService: { getOrThrow: jest.Mock };
@@ -15,6 +19,7 @@ describe('KnowledgeStatsService', () => {
       documentRepository as never,
       chunkRepository as never,
       graphService as never,
+      retrievalService as never,
       searchLogRepository as never,
       aiUsageService as never,
       tenantContextService as never,
@@ -23,9 +28,28 @@ describe('KnowledgeStatsService', () => {
 
   beforeEach(() => {
     sourceRepository = { countForOrganization: jest.fn().mockResolvedValue(2) };
-    documentRepository = { countForOrganization: jest.fn().mockResolvedValue(10) };
+    documentRepository = {
+      countForOrganization: jest.fn().mockResolvedValue(10),
+      countByStatusForOrganization: jest.fn().mockImplementation((status: string) => {
+        if (status === 'INDEXED') {
+          return Promise.resolve(8);
+        }
+        if (status === 'PENDING') {
+          return Promise.resolve(1);
+        }
+        if (status === 'FAILED') {
+          return Promise.resolve(1);
+        }
+        return Promise.resolve(0);
+      }),
+    };
     chunkRepository = { countForOrganization: jest.fn().mockResolvedValue(100) };
     graphService = { stats: jest.fn().mockResolvedValue({ entityCount: 5, relationshipCount: 8 }) };
+    retrievalService = {
+      getEmbeddingCacheMetrics: jest
+        .fn()
+        .mockResolvedValue({ hits: 4, misses: 6, writes: 3, invalidations: 1 }),
+    };
     searchLogRepository = {
       summarize: jest.fn().mockResolvedValue({
         searchCount: 20,
@@ -53,6 +77,9 @@ describe('KnowledgeStatsService', () => {
     expect(stats.indexSize).toEqual({
       sourceCount: 2,
       documentCount: 10,
+      indexedDocumentCount: 8,
+      pendingDocumentCount: 1,
+      failedDocumentCount: 1,
       chunkCount: 100,
       entityCount: 5,
       relationshipCount: 8,
@@ -65,6 +92,7 @@ describe('KnowledgeStatsService', () => {
       cacheHitRate: 0.25,
       averageConfidence: 0.7,
     });
+    expect(stats.cache).toEqual({ hits: 4, misses: 6, writes: 3, invalidations: 1 });
     expect(aiUsageService.summarizeByRequestType).toHaveBeenCalledWith(
       'org-1',
       'KNOWLEDGE_EMBEDDING',

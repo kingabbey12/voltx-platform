@@ -3,8 +3,10 @@ import { AttachmentService } from '../../attachments/attachment.service';
 import { AuditService } from '../../audit/audit.service';
 import { AIGatewayService } from '../gateway/ai-gateway.service';
 import { AiGatewayStreamEvent } from '../gateway/ai-gateway-stream-event.types';
+import { KnowledgeRetrieverService } from '../gateway/knowledge-retriever.service';
 import { MemoryService } from '../memory/memory.service';
 import { AIMessage, AIProviderName } from '../models/ai-model.types';
+import { KnowledgeCitation } from '../../knowledge/retrieval/knowledge-retrieval.types';
 import { ModelRegistryService } from '../models/model-registry.service';
 import { drainToReturnValue, isAbortError } from '../streaming/drain-generator';
 import {
@@ -33,6 +35,7 @@ export class ConversationService {
     private readonly conversationRepository: ConversationRepository,
     private readonly modelRegistryService: ModelRegistryService,
     private readonly aiGatewayService: AIGatewayService,
+    private readonly knowledgeRetrieverService: KnowledgeRetrieverService,
     private readonly memoryService: MemoryService,
     private readonly auditService: AuditService,
     private readonly attachmentService: AttachmentService,
@@ -191,6 +194,27 @@ export class ConversationService {
     let tokenUsage: Record<string, unknown> = {};
     let providerUsed = conversation.provider;
     let modelUsed = conversation.model;
+    const retriever = this.knowledgeRetrieverService as unknown as {
+      retrieveWithCitations(request: {
+        organizationId: string;
+        query: string;
+        limit?: number;
+      }): Promise<{
+        contextStrings: string[];
+        citations: KnowledgeCitation[];
+        confidence: number;
+      }>;
+    };
+
+    const knowledge: {
+      contextStrings: string[];
+      citations: KnowledgeCitation[];
+      confidence: number;
+    } = await retriever.retrieveWithCitations({
+      organizationId: conversation.organizationId,
+      query: dto.content,
+    });
+    const mergedWorkspaceContext = [...(dto.workspaceContext ?? []), ...knowledge.contextStrings];
 
     yield { type: 'status', status: 'streaming' };
 
@@ -204,10 +228,11 @@ export class ConversationService {
         userPrompt: dto.content,
         attachmentIds: dto.attachmentIds,
         systemPrompt: dto.systemPrompt,
-        workspaceContext: dto.workspaceContext,
+        workspaceContext: mergedWorkspaceContext,
         toolResults: dto.toolResults,
         temperature: dto.temperature,
         maxOutputTokens: dto.maxOutputTokens,
+        knowledgeContextProvided: true,
         signal,
       })) {
         providerUsed = event.provider;
@@ -241,6 +266,7 @@ export class ConversationService {
             provider: providerUsed,
             model: modelUsed,
             ...(finishReason ? { finishReason } : {}),
+            citations: knowledge.citations,
           },
           tokenUsage,
         })
@@ -269,6 +295,10 @@ export class ConversationService {
           model: modelUsed,
         },
       });
+    }
+
+    if (knowledge.citations.length > 0) {
+      yield { type: 'citations', citations: knowledge.citations };
     }
 
     yield { type: 'status', status: 'completed' };

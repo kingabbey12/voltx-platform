@@ -56,6 +56,10 @@ export class KnowledgeCitationDto {
   @ApiProperty() sourceName!: string;
   @ApiProperty() documentId!: string;
   @ApiProperty() documentTitle!: string;
+  @ApiProperty() chunkId!: string;
+  @ApiPropertyOptional() pageNumber!: number | null;
+  @ApiProperty() confidence!: number;
+  @ApiProperty() createdAt!: string;
   @ApiPropertyOptional() externalId!: string | null;
 }
 

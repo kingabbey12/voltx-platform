@@ -53,10 +53,12 @@ export class AIGatewayService {
     this.rateLimiterService.assertWithinLimit(tenant.organizationId);
 
     const startedAt = Date.now();
-    const knowledgeContext = await this.knowledgeRetrieverService.retrieve({
-      organizationId: tenant.organizationId,
-      query: input.userPrompt,
-    });
+    const knowledgeContext = input.knowledgeContextProvided
+      ? []
+      : await this.knowledgeRetrieverService.retrieve({
+          organizationId: tenant.organizationId,
+          query: input.userPrompt,
+        });
     const mergedWorkspaceContext = [...(input.workspaceContext ?? []), ...knowledgeContext];
 
     let resolvedProvider = input.provider;

@@ -1,5 +1,6 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { KnowledgeContextBuilderService } from '../../knowledge/context/knowledge-context-builder.service';
+import { KnowledgeCitation } from '../../knowledge/retrieval/knowledge-retrieval.types';
 
 export interface KnowledgeRetrievalRequest {
   organizationId: string;
@@ -13,6 +14,11 @@ export interface KnowledgeRetrievalRequest {
  */
 export interface KnowledgeRetriever {
   retrieve(request: KnowledgeRetrievalRequest): Promise<string[]>;
+  retrieveWithCitations(request: KnowledgeRetrievalRequest): Promise<{
+    contextStrings: string[];
+    citations: KnowledgeCitation[];
+    confidence: number;
+  }>;
 }
 
 /**
@@ -38,6 +44,15 @@ export class KnowledgeRetrieverService implements KnowledgeRetriever {
   ) {}
 
   async retrieve(request: KnowledgeRetrievalRequest): Promise<string[]> {
+    const result = await this.retrieveWithCitations(request);
+    return result.contextStrings;
+  }
+
+  async retrieveWithCitations(request: KnowledgeRetrievalRequest): Promise<{
+    contextStrings: string[];
+    citations: KnowledgeCitation[];
+    confidence: number;
+  }> {
     try {
       const generator = this.knowledgeContextBuilderService.buildContext(request.query, {
         topK: request.limit,
@@ -48,10 +63,10 @@ export class KnowledgeRetrieverService implements KnowledgeRetriever {
         step = await generator.next();
       }
 
-      return step.value.contextStrings;
+      return step.value;
     } catch (error) {
       this.logger.warn({ err: error }, 'Knowledge retrieval failed; continuing without context');
-      return [];
+      return { contextStrings: [], citations: [], confidence: 0 };
     }
   }
 }

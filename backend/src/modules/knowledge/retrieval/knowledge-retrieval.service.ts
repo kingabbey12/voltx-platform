@@ -13,6 +13,7 @@ import { KnowledgeChunkRepository } from '../chunks/knowledge-chunk.repository';
 import { SemanticSearchHit, KeywordSearchHit } from '../entities/knowledge-chunk.entity';
 import { KnowledgeSearchLogRepository } from '../observability/knowledge-search-log.repository';
 import { EMBEDDING_CACHE, EmbeddingCache } from './embedding-cache';
+import { KnowledgeRerankerService } from './knowledge-reranker.service';
 import { KnowledgeSearchOptions, KnowledgeSearchResult } from './knowledge-retrieval.types';
 
 const RRF_K = 60;
@@ -41,6 +42,7 @@ export class KnowledgeRetrievalService {
   private readonly minConfidence: number;
   private readonly contextTokenBudget: number;
   private readonly cacheTtlMs: number;
+  private readonly rerankerTopK: number;
 
   constructor(
     private readonly knowledgeChunkRepository: KnowledgeChunkRepository,
@@ -49,6 +51,7 @@ export class KnowledgeRetrievalService {
     private readonly knowledgeSearchLogRepository: KnowledgeSearchLogRepository,
     @Inject(EMBEDDING_CACHE)
     private readonly embeddingCache: EmbeddingCache,
+    private readonly knowledgeRerankerService: KnowledgeRerankerService,
     configService: ConfigService,
   ) {
     this.embeddingProvider = configService.get<AIProviderName>(
@@ -69,6 +72,7 @@ export class KnowledgeRetrievalService {
       2000,
     );
     this.cacheTtlMs = configService.get<number>('knowledge.retrieval.cacheTtlMs', 30000);
+    this.rerankerTopK = configService.get<number>('knowledge.reranker.topK', 8);
   }
 
   async search(
@@ -101,12 +105,37 @@ export class KnowledgeRetrievalService {
     const deduped = dedupeByContent(fused);
     const filtered = deduped.filter((result) => result.confidence >= minConfidence);
     filtered.sort((a, b) => b.confidence - a.confidence);
-    const top = filtered.slice(0, topK);
+    const preRerank = filtered.slice(0, Math.max(topK, this.rerankerTopK));
+    const rerank = await this.knowledgeRerankerService.rerank(
+      normalizedQuery,
+      preRerank,
+      Math.max(topK, this.rerankerTopK),
+    );
+    const top = rerank.results.slice(0, topK);
     const compressed = this.compress(top, options.contextTokenBudget ?? this.contextTokenBudget);
 
-    void this.logSearch(normalizedQuery, compressed, Date.now() - startedAt, cacheHit);
+    void this.logSearch(
+      normalizedQuery,
+      compressed,
+      Date.now() - startedAt,
+      cacheHit,
+      rerank.latencyMs,
+    );
 
     return compressed;
+  }
+
+  async invalidateEmbeddingCache(): Promise<void> {
+    await this.embeddingCache.invalidateAll();
+  }
+
+  async getEmbeddingCacheMetrics(): Promise<{
+    hits: number;
+    misses: number;
+    writes: number;
+    invalidations: number;
+  }> {
+    return this.embeddingCache.getMetrics();
   }
 
   /**
@@ -232,6 +261,10 @@ export class KnowledgeRetrievalService {
         documentId: hit.documentId,
         documentTitle: hit.documentTitle,
         externalId: hit.externalId,
+        chunkId: hit.id,
+        pageNumber: toPageNumber(hit.metadata),
+        confidence: Math.min(1, Math.max(0, fused / maxPossibleScore)),
+        createdAt: hit.createdAt.toISOString(),
       },
     }));
   }
@@ -276,6 +309,7 @@ export class KnowledgeRetrievalService {
     results: KnowledgeSearchResult[],
     latencyMs: number,
     cacheHit: boolean,
+    rerankLatencyMs: number,
   ): Promise<void> {
     try {
       const confidences = results.map((result) => result.confidence);
@@ -293,12 +327,25 @@ export class KnowledgeRetrievalService {
             ? confidences.reduce((sum, c) => sum + c, 0) / confidences.length
             : null,
         latencyMs,
+        rerankLatencyMs,
         cacheHit,
       });
     } catch (error) {
       this.logger.error({ err: error }, 'Failed to log knowledge search');
     }
   }
+}
+
+function toPageNumber(metadata: Record<string, unknown>): number | null {
+  const candidate = metadata.pageNumber;
+  if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+    return Math.floor(candidate);
+  }
+  if (typeof candidate === 'string' && candidate.trim().length > 0) {
+    const parsed = Number.parseInt(candidate, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function rrf(rank: number): number {

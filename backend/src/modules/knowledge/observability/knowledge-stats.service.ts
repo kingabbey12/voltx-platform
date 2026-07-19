@@ -4,6 +4,7 @@ import { AiUsageService } from '../../ai/gateway/ai-usage.service';
 import { KnowledgeChunkRepository } from '../chunks/knowledge-chunk.repository';
 import { KnowledgeDocumentRepository } from '../documents/knowledge-document.repository';
 import { KnowledgeGraphService } from '../graph/knowledge-graph.service';
+import { KnowledgeRetrievalService } from '../retrieval/knowledge-retrieval.service';
 import { KnowledgeSourceRepository } from '../sources/knowledge-source.repository';
 import { KnowledgeSearchLogRepository } from './knowledge-search-log.repository';
 
@@ -11,6 +12,9 @@ export interface KnowledgeStats {
   indexSize: {
     sourceCount: number;
     documentCount: number;
+    indexedDocumentCount: number;
+    pendingDocumentCount: number;
+    failedDocumentCount: number;
     chunkCount: number;
     entityCount: number;
     relationshipCount: number;
@@ -26,6 +30,12 @@ export interface KnowledgeStats {
     hitRate: number;
     cacheHitRate: number;
     averageConfidence: number;
+  };
+  cache: {
+    hits: number;
+    misses: number;
+    writes: number;
+    invalidations: number;
   };
 }
 
@@ -44,6 +54,7 @@ export class KnowledgeStatsService {
     private readonly knowledgeDocumentRepository: KnowledgeDocumentRepository,
     private readonly knowledgeChunkRepository: KnowledgeChunkRepository,
     private readonly knowledgeGraphService: KnowledgeGraphService,
+    private readonly knowledgeRetrievalService: KnowledgeRetrievalService,
     private readonly knowledgeSearchLogRepository: KnowledgeSearchLogRepository,
     private readonly aiUsageService: AiUsageService,
     private readonly tenantContextService: TenantContextService,
@@ -52,24 +63,41 @@ export class KnowledgeStatsService {
   async getStats(windowMs: number = DEFAULT_WINDOW_MS): Promise<KnowledgeStats> {
     const tenant = this.tenantContextService.getOrThrow();
 
-    const [sourceCount, documentCount, chunkCount, graphStats, searchSummary, embeddingSummary] =
-      await Promise.all([
-        this.knowledgeSourceRepository.countForOrganization(),
-        this.knowledgeDocumentRepository.countForOrganization(),
-        this.knowledgeChunkRepository.countForOrganization(),
-        this.knowledgeGraphService.stats(),
-        this.knowledgeSearchLogRepository.summarize(windowMs),
-        this.aiUsageService.summarizeByRequestType(
-          tenant.organizationId,
-          'KNOWLEDGE_EMBEDDING',
-          windowMs,
-        ),
-      ]);
+    const [
+      sourceCount,
+      documentCount,
+      indexedDocumentCount,
+      pendingDocumentCount,
+      failedDocumentCount,
+      chunkCount,
+      graphStats,
+      searchSummary,
+      embeddingSummary,
+      cacheMetrics,
+    ] = await Promise.all([
+      this.knowledgeSourceRepository.countForOrganization(),
+      this.knowledgeDocumentRepository.countForOrganization(),
+      this.knowledgeDocumentRepository.countByStatusForOrganization('INDEXED'),
+      this.knowledgeDocumentRepository.countByStatusForOrganization('PENDING'),
+      this.knowledgeDocumentRepository.countByStatusForOrganization('FAILED'),
+      this.knowledgeChunkRepository.countForOrganization(),
+      this.knowledgeGraphService.stats(),
+      this.knowledgeSearchLogRepository.summarize(windowMs),
+      this.aiUsageService.summarizeByRequestType(
+        tenant.organizationId,
+        'KNOWLEDGE_EMBEDDING',
+        windowMs,
+      ),
+      this.knowledgeRetrievalService.getEmbeddingCacheMetrics(),
+    ]);
 
     return {
       indexSize: {
         sourceCount,
         documentCount,
+        indexedDocumentCount,
+        pendingDocumentCount,
+        failedDocumentCount,
         chunkCount,
         entityCount: graphStats.entityCount,
         relationshipCount: graphStats.relationshipCount,
@@ -89,6 +117,7 @@ export class KnowledgeStatsService {
         cacheHitRate: searchSummary.cacheHitRate,
         averageConfidence: searchSummary.averageConfidence,
       },
+      cache: cacheMetrics,
     };
   }
 

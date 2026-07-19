@@ -237,6 +237,13 @@ export class KnowledgeDocumentRepository {
     });
   }
 
+  async countByStatusForOrganization(status: KnowledgeDocumentStatus): Promise<number> {
+    const tenant = this.tenantContextService.getOrThrow();
+    return this.client().count({
+      where: { organizationId: tenant.organizationId, deletedAt: null, status },
+    });
+  }
+
   private client(): KnowledgeDocumentClient {
     return (this.prisma.system as unknown as { knowledgeDocument: KnowledgeDocumentClient })
       .knowledgeDocument;

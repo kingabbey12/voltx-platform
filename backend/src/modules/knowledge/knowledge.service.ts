@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { AuditService } from '../audit/audit.service';
 import { KnowledgeChunkRepository } from './chunks/knowledge-chunk.repository';
 import {
@@ -20,10 +22,24 @@ import {
   KnowledgeIngestionService,
 } from './ingestion/knowledge-ingestion.service';
 import {
+  KnowledgeIngestionJobRepository,
+  PaginatedKnowledgeIngestionJobs,
+} from './ingestion/knowledge-ingestion-job.repository';
+import { KnowledgeIngestionRuntimeService } from './ingestion/knowledge-ingestion-runtime.service';
+import {
   KnowledgeIngestionResult,
   KnowledgeIngestionStreamEvent,
 } from './ingestion/knowledge-ingestion-stream-event.types';
 import { KnowledgeStats, KnowledgeStatsService } from './observability/knowledge-stats.service';
+import {
+  KnowledgeEvaluationCase,
+  KnowledgeEvaluationResult,
+  KnowledgeEvaluationService,
+} from './observability/knowledge-evaluation.service';
+import {
+  KnowledgeSearchLogEntity,
+  KnowledgeSearchLogRepository,
+} from './observability/knowledge-search-log.repository';
 import { KnowledgeRetrievalService } from './retrieval/knowledge-retrieval.service';
 import {
   KnowledgeSearchOptions,
@@ -47,6 +63,8 @@ export interface IngestDocumentRequest {
   metadata?: Record<string, unknown>;
 }
 
+export type IngestDocumentJobPayload = IngestDocumentRequest;
+
 const BINARY_CONTENT_TYPES = new Set(['pdf', 'docx', 'xlsx', 'csv']);
 
 /**
@@ -58,13 +76,18 @@ const BINARY_CONTENT_TYPES = new Set(['pdf', 'docx', 'xlsx', 'csv']);
 @Injectable()
 export class KnowledgeService {
   constructor(
+    private readonly tenantContextService: TenantContextService,
     private readonly knowledgeSourceRepository: KnowledgeSourceRepository,
     private readonly knowledgeDocumentRepository: KnowledgeDocumentRepository,
     private readonly knowledgeChunkRepository: KnowledgeChunkRepository,
+    private readonly knowledgeIngestionJobRepository: KnowledgeIngestionJobRepository,
     private readonly knowledgeIngestionService: KnowledgeIngestionService,
+    private readonly knowledgeIngestionRuntimeService: KnowledgeIngestionRuntimeService,
     private readonly knowledgeRetrievalService: KnowledgeRetrievalService,
     private readonly knowledgeContextBuilderService: KnowledgeContextBuilderService,
+    private readonly knowledgeSearchLogRepository: KnowledgeSearchLogRepository,
     private readonly knowledgeStatsService: KnowledgeStatsService,
+    private readonly knowledgeEvaluationService: KnowledgeEvaluationService,
     private readonly knowledgeGraphService: KnowledgeGraphService,
     private readonly auditService: AuditService,
   ) {}
@@ -146,6 +169,8 @@ export class KnowledgeService {
       },
     });
 
+    await this.knowledgeRetrievalService.invalidateEmbeddingCache();
+
     return result;
   }
 
@@ -186,6 +211,7 @@ export class KnowledgeService {
       resourceId: id,
       metadata: { title: deleted.title },
     });
+    await this.knowledgeRetrievalService.invalidateEmbeddingCache();
     return deleted;
   }
 
@@ -195,6 +221,7 @@ export class KnowledgeService {
     while (!step.done) {
       step = await generator.next();
     }
+    await this.knowledgeRetrievalService.invalidateEmbeddingCache();
     return step.value;
   }
 
@@ -212,7 +239,123 @@ export class KnowledgeService {
     while (!step.done) {
       step = await generator.next();
     }
+    await this.knowledgeRetrievalService.invalidateEmbeddingCache();
     return step.value;
+  }
+
+  async listIngestionJobs(params: {
+    page: number;
+    limit: number;
+    status?: import('./entities/knowledge-ingestion-job.entity').KnowledgeIngestionJobStatus;
+  }): Promise<PaginatedKnowledgeIngestionJobs> {
+    return this.knowledgeIngestionJobRepository.listForCurrentOrganization(params);
+  }
+
+  async listFailures(page: number, limit: number): Promise<PaginatedKnowledgeIngestionJobs> {
+    return this.knowledgeIngestionJobRepository.listFailuresForCurrentOrganization(page, limit);
+  }
+
+  async listSearches(
+    page: number,
+    limit: number,
+  ): Promise<{
+    items: KnowledgeSearchLogEntity[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    return this.knowledgeSearchLogRepository.list(page, limit);
+  }
+
+  async listChunks(params: { page: number; limit: number; documentId?: string }): Promise<{
+    items: import('./entities/knowledge-chunk.entity').KnowledgeChunkWithContext[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    return this.knowledgeChunkRepository.findAllWithContext(params);
+  }
+
+  async processQueuedIngestionJob(
+    trackingJobId: string,
+    attemptsMade = 1,
+  ): Promise<KnowledgeIngestionResult> {
+    const tracking = await this.knowledgeIngestionJobRepository.findByIdSystem(trackingJobId);
+    if (!tracking) {
+      throw new NotFoundException(`Knowledge ingestion job with id "${trackingJobId}" not found`);
+    }
+
+    const payload = tracking.payload as unknown as IngestDocumentJobPayload;
+    const signal = this.knowledgeIngestionRuntimeService.register(trackingJobId);
+
+    try {
+      await this.knowledgeIngestionJobRepository.updateSystem(trackingJobId, {
+        status: 'EXTRACTING',
+        progressPercent: 10,
+        attemptsMade,
+        startedAt: new Date(),
+      });
+
+      const result = await this.tenantContextService.run(
+        {
+          organizationId: tracking.organizationId,
+          userId: tracking.requestedByUserId,
+          membershipId: tracking.requestedByMembershipId,
+          requestId: randomUUID(),
+        },
+        async () => {
+          const generator = this.knowledgeIngestionService.ingestDocument(
+            this.toIngestionInput(payload),
+            signal,
+          );
+
+          let step = await generator.next();
+          while (!step.done) {
+            await this.syncJobProgressFromEvent(trackingJobId, step.value);
+            await this.throwIfCancellationRequested(trackingJobId);
+            step = await generator.next();
+          }
+
+          return step.value;
+        },
+      );
+
+      await this.knowledgeIngestionJobRepository.updateSystem(trackingJobId, {
+        status: result.status === 'INDEXED' ? 'READY' : 'FAILED',
+        progressPercent: 100,
+        completedAt: new Date(),
+        documentId: result.documentId,
+        lastError: result.error ?? null,
+      });
+
+      await this.knowledgeRetrievalService.invalidateEmbeddingCache();
+
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Knowledge ingestion job failed';
+      const cancelled = await this.isCancellationRequested(trackingJobId);
+      await this.knowledgeIngestionJobRepository.updateSystem(trackingJobId, {
+        status: cancelled ? 'CANCELLED' : 'FAILED',
+        progressPercent: 100,
+        completedAt: new Date(),
+        lastError: message,
+      });
+
+      if (cancelled) {
+        return {
+          documentId: tracking.documentId ?? '',
+          status: 'FAILED',
+          chunkCount: 0,
+          error: 'Job cancelled',
+        };
+      }
+
+      throw error;
+    } finally {
+      this.knowledgeIngestionRuntimeService.unregister(trackingJobId);
+    }
   }
 
   reindexSourceStream(
@@ -251,6 +394,10 @@ export class KnowledgeService {
     return this.knowledgeStatsService.getHealth();
   }
 
+  async evaluateRag(cases: KnowledgeEvaluationCase[]): Promise<KnowledgeEvaluationResult> {
+    return this.knowledgeEvaluationService.evaluate(cases);
+  }
+
   async linkGraphEntities(input: LinkEntitiesInput): Promise<void> {
     await this.knowledgeGraphService.linkEntities(input);
     await this.auditService.record({
@@ -274,8 +421,10 @@ export class KnowledgeService {
     if (isBinary && !request.fileBase64) {
       throw new BadRequestException(`Content type "${request.contentType}" requires fileBase64`);
     }
-    if (!isBinary && !request.text) {
-      throw new BadRequestException(`Content type "${request.contentType}" requires text`);
+    if (!isBinary && !request.text && !request.fileBase64) {
+      throw new BadRequestException(
+        `Content type "${request.contentType}" requires text or fileBase64`,
+      );
     }
 
     return {
@@ -287,6 +436,79 @@ export class KnowledgeService {
       text: request.text,
       metadata: request.metadata,
     };
+  }
+
+  private async syncJobProgressFromEvent(
+    trackingJobId: string,
+    event: KnowledgeIngestionStreamEvent,
+  ): Promise<void> {
+    switch (event.type) {
+      case 'indexing_started':
+        await this.knowledgeIngestionJobRepository.updateSystem(trackingJobId, {
+          status: 'EXTRACTING',
+          progressPercent: 15,
+          documentId: event.documentId,
+        });
+        break;
+      case 'text_extracted':
+        await this.knowledgeIngestionJobRepository.updateSystem(trackingJobId, {
+          status: 'CHUNKING',
+          progressPercent: 35,
+          documentId: event.documentId,
+        });
+        break;
+      case 'chunking_completed':
+        await this.knowledgeIngestionJobRepository.updateSystem(trackingJobId, {
+          status: 'EMBEDDING',
+          progressPercent: 60,
+          documentId: event.documentId,
+        });
+        break;
+      case 'embedding_started':
+        await this.knowledgeIngestionJobRepository.updateSystem(trackingJobId, {
+          status: 'EMBEDDING',
+          progressPercent: 70,
+          documentId: event.documentId,
+        });
+        break;
+      case 'embedding_completed':
+      case 'embedding_skipped':
+        await this.knowledgeIngestionJobRepository.updateSystem(trackingJobId, {
+          status: 'INDEXING',
+          progressPercent: 85,
+          documentId: event.documentId,
+        });
+        break;
+      case 'indexing_completed':
+        await this.knowledgeIngestionJobRepository.updateSystem(trackingJobId, {
+          status: 'READY',
+          progressPercent: 100,
+          documentId: event.documentId,
+        });
+        break;
+      case 'indexing_failed':
+        await this.knowledgeIngestionJobRepository.updateSystem(trackingJobId, {
+          status: 'FAILED',
+          progressPercent: 100,
+          documentId: event.documentId,
+          lastError: event.error,
+        });
+        break;
+      default:
+        break;
+    }
+  }
+
+  private async throwIfCancellationRequested(jobId: string): Promise<void> {
+    if (await this.isCancellationRequested(jobId)) {
+      this.knowledgeIngestionRuntimeService.cancel(jobId);
+      throw new Error('Knowledge ingestion job was cancelled');
+    }
+  }
+
+  private async isCancellationRequested(jobId: string): Promise<boolean> {
+    const latest = await this.knowledgeIngestionJobRepository.findByIdSystem(jobId);
+    return Boolean(latest?.cancellationRequestedAt);
   }
 }
 

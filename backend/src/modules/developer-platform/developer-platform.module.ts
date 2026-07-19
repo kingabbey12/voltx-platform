@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { PermissionsModule } from '../permissions/permissions.module';
 import { RolesModule } from '../roles/roles.module';
+import { SecurityModule } from '../security/security.module';
+import { DeveloperApiKeyController } from './developer-api-key.controller';
+import { DeveloperPortalController } from './developer-portal.controller';
 import { PersonalAccessTokenAuthController } from './personal-access-token-auth.controller';
 import { PersonalAccessTokenController } from './personal-access-token.controller';
 import { PersonalAccessTokenRepository } from './personal-access-token.repository';
@@ -22,8 +25,10 @@ import { JwtOrPersonalAccessTokenGuard } from './guards/jwt-or-personal-access-t
  * no parallel RBAC implementation.
  */
 @Module({
-  imports: [PermissionsModule, RolesModule],
+  imports: [PermissionsModule, RolesModule, SecurityModule],
   controllers: [
+    DeveloperPortalController,
+    DeveloperApiKeyController,
     PersonalAccessTokenController,
     PersonalAccessTokenAuthController,
     ServiceAccountController,

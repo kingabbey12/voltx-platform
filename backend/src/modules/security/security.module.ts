@@ -48,6 +48,6 @@ import { TrustedDevicesService } from './trusted-devices.service';
     ApiKeyGuard,
     IpAllowlistGuard,
   ],
-  exports: [ApiKeyGuard, IpAllowlistGuard],
+  exports: [ApiKeysService, ApiKeyGuard, IpAllowlistGuard],
 })
 export class SecurityModule {}

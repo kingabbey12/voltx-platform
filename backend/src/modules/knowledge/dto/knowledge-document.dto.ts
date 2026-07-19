@@ -24,7 +24,17 @@ const KNOWLEDGE_DOCUMENT_STATUSES: KnowledgeDocumentStatus[] = [
   'FAILED',
 ];
 
-const KNOWLEDGE_CONTENT_TYPES = ['pdf', 'docx', 'xlsx', 'csv', 'markdown', 'text', 'structured'];
+const KNOWLEDGE_CONTENT_TYPES = [
+  'pdf',
+  'docx',
+  'xlsx',
+  'csv',
+  'markdown',
+  'text',
+  'txt',
+  'html',
+  'structured',
+];
 
 export class IngestKnowledgeDocumentDto {
   @ApiPropertyOptional({

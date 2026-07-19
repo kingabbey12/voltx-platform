@@ -1,6 +1,7 @@
 /// Official Dart/Flutter SDK for the Voltx public API.
 library voltx_sdk;
 
+export 'src/generated/schema.dart';
 export 'src/models/oauth_application.dart';
 export 'src/models/oauth_token_response.dart';
 export 'src/models/personal_access_token.dart';

@@ -27,6 +27,14 @@ export interface KnowledgeSearchFilters {
   documentIds?: string[];
 }
 
+export interface PaginatedKnowledgeChunksWithContext {
+  items: Array<ReturnType<typeof toContextEntity>>;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 interface RawChunkRow {
   id: string;
   organization_id: string;
@@ -218,6 +226,51 @@ export class KnowledgeChunkRepository {
     `;
 
     return rows.map((row) => ({ ...toContextEntity(row), rank: Number(row.rank) }));
+  }
+
+  async findAllWithContext(params: {
+    page: number;
+    limit: number;
+    documentId?: string;
+  }): Promise<PaginatedKnowledgeChunksWithContext> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const offset = (params.page - 1) * params.limit;
+    const documentFilter = params.documentId
+      ? Prisma.sql`AND d.id = ${params.documentId}::uuid`
+      : Prisma.sql``;
+
+    const [rows, totalRows] = await Promise.all([
+      this.prisma.system.$queryRaw<RawChunkRow[]>`
+        SELECT ${CHUNK_CONTEXT_COLUMNS}
+        ${CHUNK_CONTEXT_JOIN}
+        WHERE c.organization_id = ${tenant.organizationId}::uuid
+          AND c.deleted_at IS NULL
+          AND d.deleted_at IS NULL
+          AND s.deleted_at IS NULL
+          ${documentFilter}
+        ORDER BY c.created_at DESC
+        LIMIT ${params.limit}
+        OFFSET ${offset}
+      `,
+      this.prisma.system.$queryRaw<Array<{ total: bigint }>>`
+        SELECT COUNT(*)::bigint AS total
+        ${CHUNK_CONTEXT_JOIN}
+        WHERE c.organization_id = ${tenant.organizationId}::uuid
+          AND c.deleted_at IS NULL
+          AND d.deleted_at IS NULL
+          AND s.deleted_at IS NULL
+          ${documentFilter}
+      `,
+    ]);
+
+    const total = Number(totalRows[0]?.total ?? 0n);
+    return {
+      items: rows.map(toContextEntity),
+      total,
+      page: params.page,
+      limit: params.limit,
+      totalPages: total === 0 ? 0 : Math.ceil(total / params.limit),
+    };
   }
 }
 

@@ -5,6 +5,7 @@ import { AuditService } from '../src/modules/audit/audit.service';
 import { ConversationRepository } from '../src/modules/ai/conversations/conversation.repository';
 import { ConversationService } from '../src/modules/ai/conversations/conversation.service';
 import { AIGatewayService } from '../src/modules/ai/gateway/ai-gateway.service';
+import { KnowledgeRetrieverService } from '../src/modules/ai/gateway/knowledge-retriever.service';
 import { MemoryService } from '../src/modules/ai/memory/memory.service';
 import { ModelRegistryService } from '../src/modules/ai/models/model-registry.service';
 
@@ -12,6 +13,7 @@ describe('ConversationService', () => {
   let service: ConversationService;
   let repository: jest.Mocked<ConversationRepository>;
   let aiGatewayService: jest.Mocked<AIGatewayService>;
+  let knowledgeRetrieverService: jest.Mocked<KnowledgeRetrieverService>;
   let modelRegistryService: jest.Mocked<ModelRegistryService>;
   let memoryService: jest.Mocked<MemoryService>;
 
@@ -45,6 +47,30 @@ describe('ConversationService', () => {
           },
         },
         {
+          provide: KnowledgeRetrieverService,
+          useValue: {
+            retrieve: jest.fn().mockResolvedValue(['RAG context line']),
+            retrieveWithCitations: jest.fn().mockResolvedValue({
+              contextStrings: ['RAG context line'],
+              citations: [
+                {
+                  sourceId: 'source-1',
+                  sourceType: 'DOCUMENT',
+                  sourceName: 'Knowledge Base',
+                  documentId: 'doc-1',
+                  documentTitle: 'Incident Runbook',
+                  externalId: null,
+                  chunkId: 'chunk-1',
+                  pageNumber: 1,
+                  confidence: 0.9,
+                  createdAt: '2026-07-04T00:00:00.000Z',
+                },
+              ],
+              confidence: 0.9,
+            }),
+          },
+        },
+        {
           provide: MemoryService,
           useValue: {
             captureConversationMemories: jest.fn().mockResolvedValue([]),
@@ -68,6 +94,7 @@ describe('ConversationService', () => {
     service = module.get(ConversationService);
     repository = module.get(ConversationRepository);
     aiGatewayService = module.get(AIGatewayService);
+    knowledgeRetrieverService = module.get(KnowledgeRetrieverService);
     modelRegistryService = module.get(ModelRegistryService);
     memoryService = module.get(MemoryService);
   });
@@ -171,6 +198,17 @@ describe('ConversationService', () => {
     const result = await service.createMessage('conversation-1', {
       content: 'Summarize the incident mitigation plan',
     });
+
+    expect(knowledgeRetrieverService.retrieveWithCitations).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      query: 'Summarize the incident mitigation plan',
+    });
+    expect(aiGatewayService.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceContext: ['RAG context line'],
+        knowledgeContextProvided: true,
+      }),
+    );
 
     expect(repository.updateConversation).toHaveBeenCalledWith('conversation-1', {
       title: 'Summarize the incident mitigation plan',

@@ -172,6 +172,10 @@ export default () => ({
     },
   },
   knowledge: {
+    ingestion: {
+      maxAttempts: parseInt(process.env.KNOWLEDGE_INGESTION_MAX_ATTEMPTS ?? '5', 10),
+      baseBackoffMs: parseInt(process.env.KNOWLEDGE_INGESTION_BASE_BACKOFF_MS ?? '2000', 10),
+    },
     embeddingProvider: process.env.KNOWLEDGE_EMBEDDING_PROVIDER ?? 'openai',
     embeddingModel: process.env.KNOWLEDGE_EMBEDDING_MODEL ?? 'text-embedding-3-small',
     embeddingDimensions: parseInt(process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS ?? '1536', 10),
@@ -192,6 +196,9 @@ export default () => ({
       ),
       graphExpansionHops: parseInt(process.env.KNOWLEDGE_RETRIEVAL_GRAPH_HOPS ?? '1', 10),
       cacheTtlMs: parseInt(process.env.KNOWLEDGE_RETRIEVAL_CACHE_TTL_MS ?? '30000', 10),
+    },
+    reranker: {
+      topK: parseInt(process.env.KNOWLEDGE_RERANK_TOP_K ?? '8', 10),
     },
   },
   invitations: {

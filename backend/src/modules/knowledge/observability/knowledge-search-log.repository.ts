@@ -9,7 +9,21 @@ export interface CreateKnowledgeSearchLogData {
   topConfidence: number | null;
   averageConfidence: number | null;
   latencyMs: number;
+  rerankLatencyMs: number | null;
   cacheHit: boolean;
+}
+
+export interface KnowledgeSearchLogEntity {
+  id: string;
+  query: string;
+  resultCount: number;
+  citedResultCount: number;
+  topConfidence: number | null;
+  averageConfidence: number | null;
+  latencyMs: number;
+  rerankLatencyMs: number | null;
+  cacheHit: boolean;
+  createdAt: Date;
 }
 
 export interface KnowledgeSearchStatsSummary {
@@ -21,7 +35,13 @@ export interface KnowledgeSearchStatsSummary {
 }
 
 interface KnowledgeSearchLogClient {
-  create(args: { data: Record<string, unknown> }): Promise<unknown>;
+  create(args: { data: Record<string, unknown> }): Promise<KnowledgeSearchLogEntity>;
+  findMany(args: {
+    where: Record<string, unknown>;
+    skip?: number;
+    take?: number;
+    orderBy: Array<Record<string, 'asc' | 'desc'>>;
+  }): Promise<KnowledgeSearchLogEntity[]>;
   aggregate(args: Record<string, unknown>): Promise<{
     _count: { _all: number };
     _avg: { latencyMs: number | null; averageConfidence: number | null };
@@ -54,6 +74,7 @@ export class KnowledgeSearchLogRepository {
           topConfidence: data.topConfidence,
           averageConfidence: data.averageConfidence,
           latencyMs: data.latencyMs,
+          rerankLatencyMs: data.rerankLatencyMs,
           cacheHit: data.cacheHit,
         },
       });
@@ -85,6 +106,34 @@ export class KnowledgeSearchLogRepository {
       cacheHitRate: searchCount === 0 ? 0 : cacheHitCount / searchCount,
       averageConfidence: aggregate._avg.averageConfidence ?? 0,
       hitRate: searchCount === 0 ? 0 : (searchCount - zeroResultCount) / searchCount,
+    };
+  }
+
+  async list(
+    page: number,
+    limit: number,
+  ): Promise<{
+    items: KnowledgeSearchLogEntity[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const where = { organizationId: tenant.organizationId };
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.client().findMany({ where, skip, take: limit, orderBy: [{ createdAt: 'desc' }] }),
+      this.client().count({ where }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
     };
   }
 

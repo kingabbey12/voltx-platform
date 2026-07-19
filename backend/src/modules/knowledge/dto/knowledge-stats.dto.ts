@@ -5,6 +5,9 @@ import { KnowledgeStats } from '../observability/knowledge-stats.service';
 export class KnowledgeIndexSizeDto {
   @ApiProperty() sourceCount!: number;
   @ApiProperty() documentCount!: number;
+  @ApiProperty() indexedDocumentCount!: number;
+  @ApiProperty() pendingDocumentCount!: number;
+  @ApiProperty() failedDocumentCount!: number;
   @ApiProperty() chunkCount!: number;
   @ApiProperty() entityCount!: number;
   @ApiProperty() relationshipCount!: number;
@@ -24,16 +27,25 @@ export class KnowledgeRetrievalStatsDto {
   @ApiProperty() averageConfidence!: number;
 }
 
+export class KnowledgeCacheStatsDto {
+  @ApiProperty() hits!: number;
+  @ApiProperty() misses!: number;
+  @ApiProperty() writes!: number;
+  @ApiProperty() invalidations!: number;
+}
+
 export class KnowledgeStatsDto {
   @ApiProperty({ type: KnowledgeIndexSizeDto }) indexSize!: KnowledgeIndexSizeDto;
   @ApiProperty({ type: KnowledgeEmbeddingStatsDto }) embedding!: KnowledgeEmbeddingStatsDto;
   @ApiProperty({ type: KnowledgeRetrievalStatsDto }) retrieval!: KnowledgeRetrievalStatsDto;
+  @ApiProperty({ type: KnowledgeCacheStatsDto }) cache!: KnowledgeCacheStatsDto;
 
   static fromStats(stats: KnowledgeStats): KnowledgeStatsDto {
     const dto = new KnowledgeStatsDto();
     dto.indexSize = stats.indexSize;
     dto.embedding = stats.embedding;
     dto.retrieval = stats.retrieval;
+    dto.cache = stats.cache;
     return dto;
   }
 }

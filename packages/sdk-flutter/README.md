@@ -45,11 +45,11 @@ final isValid = verifyWebhookSignature(endpointSecret, rawRequestBody, request.h
 
 ```bash
 dart pub get
+dart run tool/generate_models.dart   # regenerate lib/src/generated/schema.dart against a running local backend
 dart analyze
 dart test
 ```
 
-This package is hand-written, not code-generated — unlike the TypeScript and Python SDKs, Dart has
-no mature `openapi-generator` target that matches this codebase's conventions well. It mirrors
-`apps/mobile/lib/core/network/api_client.dart`'s envelope-unwrapping/Dio-based pattern as a
-standalone package other Flutter/Dart apps can depend on.
+This package keeps a hand-written transport/resource layer while generating request DTO models from
+the backend's live OpenAPI 3.1 document (`GET /api-json`) via
+`tool/generate_models.dart`. Regenerate and review the diff whenever the public API changes.

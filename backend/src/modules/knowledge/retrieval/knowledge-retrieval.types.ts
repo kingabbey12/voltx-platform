@@ -7,6 +7,10 @@ export interface KnowledgeCitation {
   documentId: string;
   documentTitle: string;
   externalId: string | null;
+  chunkId: string;
+  pageNumber: number | null;
+  confidence: number;
+  createdAt: string;
 }
 
 export interface KnowledgeSearchResult {

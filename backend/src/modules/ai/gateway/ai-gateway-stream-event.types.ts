@@ -1,4 +1,5 @@
 import { AIStreamEvent } from '../models/ai-model.types';
+import { KnowledgeCitation } from '../../knowledge/retrieval/knowledge-retrieval.types';
 
 /**
  * Coarse lifecycle status of a streamed AI turn (conversation message or
@@ -43,4 +44,5 @@ export type AiGatewayStreamEvent =
   | { type: 'step_started'; stepNumber: number }
   | { type: 'decision'; stepNumber: number; decision: AiAgentDecisionKind; toolName?: string }
   | { type: 'next_step'; stepNumber: number }
-  | { type: 'run_paused_for_approval'; approvalId: string; toolName: string };
+  | { type: 'run_paused_for_approval'; approvalId: string; toolName: string }
+  | { type: 'citations'; citations: KnowledgeCitation[] };

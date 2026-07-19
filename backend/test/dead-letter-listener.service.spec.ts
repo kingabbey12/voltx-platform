@@ -33,6 +33,7 @@ import { BackgroundJobFailureRepository } from '../src/modules/background-jobs/b
 import { AuthContextRepository } from '../src/modules/auth/auth-context.repository';
 import { NotificationService } from '../src/modules/notifications/notification.service';
 import { AGENT_TASK_QUEUE } from '../src/modules/ai/agents/jobs/agent-task-queue.constants';
+import { KNOWLEDGE_INGESTION_QUEUE } from '../src/modules/knowledge/ingestion/knowledge-ingestion-queue.constants';
 
 describe('DeadLetterListenerService', () => {
   let repository: jest.Mocked<BackgroundJobFailureRepository>;
@@ -80,7 +81,8 @@ describe('DeadLetterListenerService', () => {
     service.onModuleInit();
 
     expect(failedHandlers.has(AGENT_TASK_QUEUE)).toBe(true);
-    expect(failedHandlers.size).toBe(5);
+    expect(failedHandlers.has(KNOWLEDGE_INGESTION_QUEUE)).toBe(true);
+    expect(failedHandlers.size).toBe(6);
   });
 
   it('ignores a failure while retries remain', async () => {

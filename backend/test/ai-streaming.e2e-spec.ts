@@ -190,7 +190,8 @@ describe('AI Streaming (e2e)', () => {
     expect(statuses).toEqual(['queued', 'processing', 'streaming', 'completed']);
     expect(
       frames.some(
-        (frame) => frame.event === 'content_delta' && frame.data.delta === 'Chat endpoint response.',
+        (frame) =>
+          frame.event === 'content_delta' && frame.data.delta === 'Chat endpoint response.',
       ),
     ).toBe(true);
     expect(frames.some((frame) => frame.event === 'message_end')).toBe(true);

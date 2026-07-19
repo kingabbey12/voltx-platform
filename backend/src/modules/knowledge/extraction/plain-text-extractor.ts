@@ -9,7 +9,7 @@ import { ExtractTextInput, TextExtractor } from './text-extractor.interface';
  */
 @Injectable()
 export class PlainTextExtractor implements TextExtractor {
-  readonly supportedContentTypes = ['markdown', 'text', 'structured', 'json'];
+  readonly supportedContentTypes = ['markdown', 'text', 'txt', 'structured', 'json'];
 
   // eslint-disable-next-line @typescript-eslint/require-await -- async is intentional: keeps the throw below a promise rejection, matching the TextExtractor interface contract.
   async extract(input: ExtractTextInput): Promise<string> {

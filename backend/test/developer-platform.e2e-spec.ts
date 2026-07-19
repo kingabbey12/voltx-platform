@@ -26,6 +26,11 @@ interface CreateServiceAccountTokenResponse {
   token: string;
 }
 
+interface CreateApiKeyResponse {
+  id: string;
+  apiKey: string;
+}
+
 async function getRoleId(
   app: INestApplication<App>,
   accessToken: string,
@@ -59,6 +64,82 @@ describe('Developer Platform — Personal Access Tokens & Service Accounts (e2e)
   afterAll(async () => {
     await resetAndSeedAuthTestData(prisma);
     await app.close();
+  });
+
+  describe('Developer Portal Discovery', () => {
+    it('returns public developer platform metadata', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/developer/portal')
+        .expect(200);
+      const data = (
+        response.body as ApiSuccessResponse<{
+          apiVersion: string;
+          openApiDocumentPath: string;
+          authMethods: { key: string; header: string }[];
+          webhookEventCatalog: { key: string; description: string }[];
+          sdks: { language: string; package: string; generationCommand: string }[];
+        }>
+      ).data;
+
+      expect(data.apiVersion).toBe('v1');
+      expect(data.openApiDocumentPath).toBe('/api-json');
+      expect(data.authMethods.map((method) => method.key)).toEqual(
+        expect.arrayContaining([
+          'api-key',
+          'personal-access-token',
+          'service-account-token',
+          'oauth2-bearer',
+        ]),
+      );
+      expect(data.webhookEventCatalog.map((event) => event.key)).toEqual(
+        expect.arrayContaining([
+          'sales.lead.created',
+          'workflow.run.completed',
+          'workflow.run.failed',
+          'oauth_application.authorized',
+        ]),
+      );
+      expect(data.sdks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ language: 'typescript', package: '@voltx/sdk' }),
+          expect.objectContaining({ language: 'python', package: 'voltx-sdk' }),
+          expect.objectContaining({ language: 'flutter', package: 'voltx_sdk' }),
+        ]),
+      );
+    });
+  });
+
+  describe('Developer API Key Management', () => {
+    it('runs lifecycle via developer alias endpoints: create, list, revoke', async () => {
+      const admin = await authenticateContext(app, prisma, usersRepository, 'admin', {
+        email: `developer-api-key-${Date.now()}@example.com`,
+      });
+
+      const createResponse = await request(app.getHttpServer())
+        .post('/api/v1/developer/api-keys')
+        .set('Authorization', `Bearer ${admin.accessToken}`)
+        .send({
+          name: 'Developer Portal CI key',
+          scopedPermissions: ['organization.read'],
+        })
+        .expect(201);
+
+      const created = (createResponse.body as ApiSuccessResponse<CreateApiKeyResponse>).data;
+      expect(created.apiKey).toMatch(/^vk_/);
+
+      const listResponse = await request(app.getHttpServer())
+        .get('/api/v1/developer/api-keys')
+        .set('Authorization', `Bearer ${admin.accessToken}`)
+        .expect(200);
+
+      const listed = (listResponse.body as ApiSuccessResponse<Array<{ id: string }>>).data;
+      expect(listed.some((key) => key.id === created.id)).toBe(true);
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/developer/api-keys/${created.id}`)
+        .set('Authorization', `Bearer ${admin.accessToken}`)
+        .expect(200);
+    });
   });
 
   describe('Personal Access Tokens', () => {

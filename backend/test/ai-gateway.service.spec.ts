@@ -285,6 +285,32 @@ describe('AIGatewayService', () => {
         collect(service.streamChat({ requestType: 'CHAT', userPrompt: 'Hi' })),
       ).resolves.toHaveLength(1);
     });
+
+    it('skips knowledge retrieval when context is already injected by the caller', async () => {
+      aiRuntimeService.streamChat.mockImplementation(async function* stream() {
+        await Promise.resolve();
+        yield {
+          type: 'message_end',
+          provider: 'openai',
+          model: 'gpt-5-mini',
+          outputText: 'Done',
+        };
+      });
+
+      await collect(
+        service.streamChat({
+          requestType: 'CONVERSATION_MESSAGE',
+          userPrompt: 'Hi',
+          workspaceContext: ['injected context'],
+          knowledgeContextProvided: true,
+        }),
+      );
+
+      expect(knowledgeRetrieverService.retrieve).not.toHaveBeenCalled();
+      expect(aiRuntimeService.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({ workspaceContext: ['injected context'] }),
+      );
+    });
   });
 
   describe('executeTool', () => {

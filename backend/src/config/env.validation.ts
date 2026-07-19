@@ -365,6 +365,16 @@ class EnvironmentVariables {
   @IsOptional()
   @IsInt()
   @Min(1)
+  KNOWLEDGE_INGESTION_MAX_ATTEMPTS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  KNOWLEDGE_INGESTION_BASE_BACKOFF_MS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   KNOWLEDGE_EMBEDDING_DIMENSIONS?: number;
 
   @IsOptional()
@@ -424,6 +434,11 @@ class EnvironmentVariables {
   @IsInt()
   @Min(0)
   KNOWLEDGE_RETRIEVAL_CACHE_TTL_MS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  KNOWLEDGE_RERANK_TOP_K?: number;
 
   @IsOptional()
   @IsString()

@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -38,6 +39,12 @@ import {
   PaginatedKnowledgeDocumentsResponseDto,
 } from './dto/knowledge-document.dto';
 import {
+  KnowledgeIngestionJobResponseDto,
+  KnowledgeIngestionJobSuccessResponseDto,
+  ListKnowledgeJobsQueryDto,
+  PaginatedKnowledgeIngestionJobsSuccessResponseDto,
+} from './dto/knowledge-job.dto';
+import {
   KnowledgeGraphNodeDto,
   KnowledgeGraphNodesSuccessResponseDto,
   LinkKnowledgeEntitiesDto,
@@ -49,6 +56,19 @@ import {
   KnowledgeSearchResultsSuccessResponseDto,
   SearchKnowledgeDto,
 } from './dto/knowledge-search.dto';
+import {
+  KnowledgeEvaluationResultDto,
+  KnowledgeEvaluationSuccessResponseDto,
+  RunKnowledgeEvaluationDto,
+} from './dto/knowledge-evaluation.dto';
+import {
+  KnowledgePaginationQueryDto,
+  ListKnowledgeChunksQueryDto,
+  KnowledgeChunkResponseDto,
+  KnowledgeSearchLogResponseDto,
+  PaginatedKnowledgeChunksSuccessResponseDto,
+  PaginatedKnowledgeSearchLogsSuccessResponseDto,
+} from './dto/knowledge-observability.dto';
 import {
   CreateKnowledgeSourceDto,
   KnowledgeSourceResponseDto,
@@ -63,12 +83,16 @@ import {
   KnowledgeStatsSuccessResponseDto,
 } from './dto/knowledge-stats.dto';
 import { KnowledgeService } from './knowledge.service';
+import { KnowledgeIngestionQueueService } from './ingestion/knowledge-ingestion-queue.service';
 
 @ApiTags('Knowledge')
 @ApiBearerAuth('JWT')
 @Controller('knowledge')
 export class KnowledgeController {
-  constructor(private readonly knowledgeService: KnowledgeService) {}
+  constructor(
+    private readonly knowledgeService: KnowledgeService,
+    private readonly knowledgeIngestionQueueService: KnowledgeIngestionQueueService,
+  ) {}
 
   @Post('sources')
   @UseGuards(...AUTH_GUARDS, PermissionGuard)
@@ -142,7 +166,7 @@ export class KnowledgeController {
   @ApiOperation({ summary: 'Re-chunk and re-embed every document under a source' })
   @ApiCreatedResponse({ type: KnowledgeIngestionResultsSuccessResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
-  async reindexSource(@Param('id') id: string): Promise<KnowledgeIngestionResultDto[]> {
+  async reindexSource(@Param('id') id: string) {
     return this.knowledgeService.reindexSource(id);
   }
 
@@ -244,6 +268,53 @@ export class KnowledgeController {
     return this.knowledgeService.refreshDocument(id);
   }
 
+  @Get('jobs')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('knowledge.admin')
+  @ApiOperation({ summary: 'List ingestion jobs with progress, status, retries, and resumability' })
+  @ApiOkResponse({ type: PaginatedKnowledgeIngestionJobsSuccessResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
+  async listJobs(@Query() query: ListKnowledgeJobsQueryDto) {
+    const result = await this.knowledgeService.listIngestionJobs({
+      page: query.page ?? 1,
+      limit: query.limit ?? 20,
+      status: query.status,
+    });
+
+    return {
+      ...result,
+      items: result.items.map((item) => KnowledgeIngestionJobResponseDto.fromEntity(item)),
+    };
+  }
+
+  @Post('jobs/:id/cancel')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('knowledge.admin')
+  @ApiOperation({ summary: 'Request cancellation for an ingestion job' })
+  @ApiCreatedResponse({ type: KnowledgeIngestionJobSuccessResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
+  async cancelJob(@Param('id') id: string): Promise<KnowledgeIngestionJobResponseDto> {
+    const job = await this.knowledgeIngestionQueueService.requestCancellation(id);
+    if (!job) {
+      throw new NotFoundException(`Knowledge ingestion job with id "${id}" not found`);
+    }
+    return KnowledgeIngestionJobResponseDto.fromEntity(job);
+  }
+
+  @Post('jobs/:id/resume')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('knowledge.admin')
+  @ApiOperation({ summary: 'Resume a failed or cancelled ingestion job' })
+  @ApiCreatedResponse({ type: KnowledgeIngestionJobSuccessResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
+  async resumeJob(@Param('id') id: string): Promise<KnowledgeIngestionJobResponseDto> {
+    const job = await this.knowledgeIngestionQueueService.resume(id);
+    if (!job) {
+      throw new NotFoundException(`Knowledge ingestion job with id "${id}" not found`);
+    }
+    return KnowledgeIngestionJobResponseDto.fromEntity(job);
+  }
+
   @Post('documents/:id/refresh/stream')
   @HttpCode(HttpStatus.OK)
   @UseGuards(...AUTH_GUARDS, PermissionGuard)
@@ -277,6 +348,65 @@ export class KnowledgeController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
   async getHealth() {
     return this.knowledgeService.getHealth();
+  }
+
+  @Get('searches')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('knowledge.admin')
+  @ApiOperation({ summary: 'List historical retrieval/search runs and latency metrics' })
+  @ApiOkResponse({ type: PaginatedKnowledgeSearchLogsSuccessResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
+  async listSearches(@Query() query: KnowledgePaginationQueryDto) {
+    const result = await this.knowledgeService.listSearches(query.page ?? 1, query.limit ?? 20);
+    return {
+      ...result,
+      items: result.items.map((item) => KnowledgeSearchLogResponseDto.fromEntity(item)),
+    };
+  }
+
+  @Post('evaluation/run')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('knowledge.admin')
+  @ApiOperation({ summary: 'Run RAG quality evaluation over a labeled query dataset' })
+  @ApiCreatedResponse({ type: KnowledgeEvaluationSuccessResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
+  async runEvaluation(
+    @Body() dto: RunKnowledgeEvaluationDto,
+  ): Promise<KnowledgeEvaluationResultDto> {
+    const result = await this.knowledgeService.evaluateRag(dto.cases);
+    return KnowledgeEvaluationResultDto.fromResult(result);
+  }
+
+  @Get('chunks')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('knowledge.document.read')
+  @ApiOperation({ summary: 'List indexed chunks and their source/document context' })
+  @ApiOkResponse({ type: PaginatedKnowledgeChunksSuccessResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
+  async listChunks(@Query() query: ListKnowledgeChunksQueryDto) {
+    const result = await this.knowledgeService.listChunks({
+      page: query.page ?? 1,
+      limit: query.limit ?? 20,
+      documentId: query.documentId,
+    });
+    return {
+      ...result,
+      items: result.items.map((item) => KnowledgeChunkResponseDto.fromEntity(item)),
+    };
+  }
+
+  @Get('failures')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('knowledge.admin')
+  @ApiOperation({ summary: 'List failed and cancelled ingestion jobs' })
+  @ApiOkResponse({ type: PaginatedKnowledgeIngestionJobsSuccessResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
+  async listFailures(@Query() query: KnowledgePaginationQueryDto) {
+    const result = await this.knowledgeService.listFailures(query.page ?? 1, query.limit ?? 20);
+    return {
+      ...result,
+      items: result.items.map((item) => KnowledgeIngestionJobResponseDto.fromEntity(item)),
+    };
   }
 
   @Post('graph/link')

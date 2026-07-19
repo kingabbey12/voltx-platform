@@ -40,7 +40,9 @@ export class DatabaseSeedBootstrapService implements OnApplicationBootstrap {
 
   private async runBootstrapSeedIntegrity(): Promise<void> {
     if (!this.configService.get<boolean>('database.seedOnBootstrap', true)) {
-      this.logger.log('Boot seed bootstrap disabled by configuration (database.seedOnBootstrap=false)');
+      this.logger.log(
+        'Boot seed bootstrap disabled by configuration (database.seedOnBootstrap=false)',
+      );
       return;
     }
 

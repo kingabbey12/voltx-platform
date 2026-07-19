@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { DocxTextExtractor } from './docx-text-extractor';
+import { HtmlTextExtractor } from './html-text-extractor';
 import { PdfTextExtractor } from './pdf-text-extractor';
 import { PlainTextExtractor } from './plain-text-extractor';
 import { PptxTextExtractor } from './pptx-text-extractor';
@@ -15,6 +16,7 @@ export class TextExtractorRegistry {
     docxTextExtractor: DocxTextExtractor,
     xlsxTextExtractor: XlsxTextExtractor,
     pptxTextExtractor: PptxTextExtractor,
+    htmlTextExtractor: HtmlTextExtractor,
     plainTextExtractor: PlainTextExtractor,
   ) {
     this.extractors = [
@@ -22,6 +24,7 @@ export class TextExtractorRegistry {
       docxTextExtractor,
       xlsxTextExtractor,
       pptxTextExtractor,
+      htmlTextExtractor,
       plainTextExtractor,
     ];
   }

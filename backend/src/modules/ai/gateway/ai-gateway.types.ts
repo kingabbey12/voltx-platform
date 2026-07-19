@@ -30,6 +30,8 @@ export interface AiGatewayChatInput {
   }>;
   temperature?: number;
   maxOutputTokens?: number;
+  /** True when caller already merged knowledge context into workspaceContext. */
+  knowledgeContextProvided?: boolean;
   signal?: AbortSignal;
 }
 

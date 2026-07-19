@@ -953,6 +953,17 @@ enum KnowledgeDocumentStatus {
   FAILED
 }
 
+enum KnowledgeIngestionJobStatus {
+  QUEUED
+  EXTRACTING
+  CHUNKING
+  EMBEDDING
+  INDEXING
+  READY
+  FAILED
+  CANCELLED
+}
+
 enum KnowledgeEntityType {
   PERSON
   COMPANY
@@ -998,6 +1009,7 @@ model KnowledgeSource {
   deletedAt      DateTime?             @map("deleted_at")
   organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   documents      KnowledgeDocument[]
+  ingestionJobs  KnowledgeIngestionJob[]
 
   @@index([organizationId])
   @@index([type])
@@ -1032,6 +1044,7 @@ model KnowledgeDocument {
   deletedAt      DateTime?               @map("deleted_at")
   source         KnowledgeSource         @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   chunks         KnowledgeChunk[]
+  ingestionJobs  KnowledgeIngestionJob[]
 
   @@index([organizationId])
   @@index([sourceId])
@@ -1040,6 +1053,40 @@ model KnowledgeDocument {
   @@index([deletedAt])
   @@index([embeddingsPendingAt])
   @@map("knowledge_documents")
+}
+
+/// Tracks async ingestion lifecycle for one submitted knowledge document
+/// import/reindex request, including progress, retry attempts, and
+/// cancellation intent.
+model KnowledgeIngestionJob {
+  id                      String                      @id @default(uuid()) @db.Uuid
+  organizationId          String                      @map("organization_id") @db.Uuid
+  sourceId                String                      @map("source_id") @db.Uuid
+  documentId              String?                     @map("document_id") @db.Uuid
+  requestedByUserId       String                      @map("requested_by_user_id") @db.Uuid
+  requestedByMembershipId String                      @map("requested_by_membership_id") @db.Uuid
+  status                  KnowledgeIngestionJobStatus @default(QUEUED)
+  progressPercent         Int                         @default(0) @map("progress_percent")
+  attemptsMade            Int                         @default(0) @map("attempts_made")
+  maxAttempts             Int                         @default(5) @map("max_attempts")
+  payload                 Json                        @default("{}")
+  resumeFromJobId         String?                     @map("resume_from_job_id") @db.Uuid
+  cancellationRequestedAt DateTime?                   @map("cancellation_requested_at")
+  startedAt               DateTime?                   @map("started_at")
+  completedAt             DateTime?                   @map("completed_at")
+  lastError               String?                     @map("last_error")
+  createdAt               DateTime                    @default(now()) @map("created_at")
+  updatedAt               DateTime                    @updatedAt @map("updated_at")
+  source                  KnowledgeSource             @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  document                KnowledgeDocument?          @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([sourceId])
+  @@index([documentId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([cancellationRequestedAt])
+  @@map("knowledge_ingestion_jobs")
 }
 
 /// A chunk of a document's extracted text plus its embedding vector — the
@@ -1127,6 +1174,7 @@ model KnowledgeSearchLog {
   topConfidence     Float?   @map("top_confidence")
   averageConfidence Float?   @map("average_confidence")
   latencyMs         Int      @map("latency_ms")
+  rerankLatencyMs   Int?     @map("rerank_latency_ms")
   cacheHit          Boolean  @default(false) @map("cache_hit")
   createdAt         DateTime @default(now()) @map("created_at")
 

@@ -8,6 +8,7 @@ import { ATTACHMENT_PROCESS_QUEUE } from '../attachments/processing/attachment-p
 import { AI_PROCESS_QUEUE } from '../communications/jobs/communications-jobs.constants';
 import { WORKFLOW_RUN_QUEUE } from '../workflows/jobs/workflow-run-queue.constants';
 import { STRIPE_WEBHOOK_QUEUE } from '../billing/jobs/stripe-webhook-queue.constants';
+import { KNOWLEDGE_INGESTION_QUEUE } from '../knowledge/ingestion/knowledge-ingestion-queue.constants';
 import { BackgroundJobFailureRepository } from './background-job-failure.repository';
 
 const MONITORED_QUEUES = [
@@ -16,6 +17,7 @@ const MONITORED_QUEUES = [
   AI_PROCESS_QUEUE,
   WORKFLOW_RUN_QUEUE,
   STRIPE_WEBHOOK_QUEUE,
+  KNOWLEDGE_INGESTION_QUEUE,
 ];
 
 /**

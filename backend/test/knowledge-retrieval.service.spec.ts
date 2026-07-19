@@ -44,6 +44,7 @@ describe('KnowledgeRetrievalService', () => {
   let chunkRepository: { semanticSearch: jest.Mock; keywordSearch: jest.Mock };
   let aiGatewayService: { embeddings: jest.Mock };
   let searchLogRepository: { create: jest.Mock };
+  let rerankerService: { rerank: jest.Mock };
   let embeddingCache: InMemoryEmbeddingCache;
 
   function buildService(configOverrides: Record<string, unknown> = {}): KnowledgeRetrievalService {
@@ -52,6 +53,7 @@ describe('KnowledgeRetrievalService', () => {
       aiGatewayService as never,
       searchLogRepository as never,
       embeddingCache,
+      rerankerService as never,
       configServiceWithDefaults(configOverrides),
     );
   }
@@ -69,6 +71,15 @@ describe('KnowledgeRetrievalService', () => {
       }),
     };
     searchLogRepository = { create: jest.fn().mockResolvedValue(undefined) };
+    rerankerService = {
+      rerank: jest.fn().mockImplementation((_query: string, candidates: unknown[]) =>
+        Promise.resolve({
+          results: candidates,
+          latencyMs: 1,
+          provider: 'test-reranker',
+        }),
+      ),
+    };
     embeddingCache = new InMemoryEmbeddingCache();
   });
 
