@@ -1,0 +1,194 @@
+<meta charset="utf-8">
+<title>Voltx — Today</title>
+<style>
+  :root{
+    --page-bg:#EDEBE7; --page-ink:#211F1C; --page-ink2:#6E6A62; --page-hair:#DAD6CE;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --page-bg:#191816; --page-ink:#E8E5E0; --page-ink2:#98938A; --page-hair:#33312D; }
+  }
+  :root[data-theme="dark"]{ --page-bg:#191816; --page-ink:#E8E5E0; --page-ink2:#98938A; --page-hair:#33312D; }
+  :root[data-theme="light"]{ --page-bg:#EDEBE7; --page-ink:#211F1C; --page-ink2:#6E6A62; --page-hair:#DAD6CE; }
+
+  body{
+    background:var(--page-bg); color:var(--page-ink);
+    font-family:-apple-system,"SF Pro Text","Inter","Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased; margin:0;
+  }
+  .wrap{ max-width:1080px; margin:0 auto; padding:56px 24px 96px; }
+  .head{ margin-bottom:48px; }
+  .head h1{ font-size:20px; line-height:28px; font-weight:600; margin:0 0 6px; letter-spacing:-0.01em; }
+  .head p{ font-size:14px; line-height:22px; color:var(--page-ink2); margin:0; max-width:62ch; }
+  .cap{ font-size:12px; line-height:16px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; color:var(--page-ink2); margin:56px 0 12px; }
+  .cap:first-of-type{ margin-top:0; }
+  .capnote{ font-size:13px; line-height:20px; color:var(--page-ink2); margin:0 0 16px; max-width:70ch; }
+  .frame{ width:100%; overflow:hidden; border:1px solid var(--page-hair); border-radius:12px; background:#F7F6F3; }
+  .screen{ width:1440px; height:900px; transform-origin:top left; position:relative; }
+
+  /* ————— Voltx design tokens (fixed light — the designed subject) ————— */
+  .screen{
+    --canvas:#F7F6F3; --surface:#FCFBF9; --raised:#FFFFFF;
+    --hair:#E7E4DE; --hair2:#D6D2C9; --wash:#F0EEE9; --wash-a:#ECE9E3;
+    --ink:#211F1C; --ink2:#6E6A62; --ink3:#A29C92;
+    --volt:#2F5CE0; --volt-wash:#EDF1FC;
+    background:var(--canvas); color:var(--ink);
+    font-size:16px; line-height:24px; font-weight:400;
+    display:flex;
+  }
+
+  /* Sidebar */
+  .side{ width:240px; height:100%; border-right:1px solid var(--hair); padding:16px; box-sizing:border-box; display:flex; flex-direction:column; flex-shrink:0; }
+  .ws{ height:32px; display:flex; align-items:center; padding:0 12px; font-size:13px; line-height:16px; font-weight:600; color:var(--ink); }
+  .nav{ margin-top:24px; display:flex; flex-direction:column; gap:2px; }
+  .item{ height:32px; border-radius:8px; padding:0 12px; display:flex; align-items:center; gap:8px; font-size:13px; line-height:16px; font-weight:500; color:var(--ink2); cursor:default; }
+  .item svg{ width:16px; height:16px; stroke:currentColor; stroke-width:1.5; fill:none; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+  .item.active{ background:var(--wash-a); color:var(--ink); }
+  .item:hover:not(.active){ background:var(--wash); }
+  .you{ margin-top:auto; height:32px; display:flex; align-items:center; gap:8px; padding:0 12px; font-size:13px; font-weight:500; color:var(--ink2); }
+  .avatar{ width:24px; height:24px; border-radius:50%; background:#E3E0D9; color:var(--ink2); font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+  /* Content column */
+  .col{ width:680px; margin:0 auto; padding-top:64px; box-sizing:content-box; }
+  .date{ font-size:13px; line-height:16px; font-weight:400; color:var(--ink2); }
+  .brief{ margin-top:16px; display:flex; flex-direction:column; gap:16px; }
+  .brief p{ margin:0; font-size:16px; line-height:24px; color:var(--ink); }
+  .door{ font-weight:500; color:var(--ink); text-decoration:none; cursor:pointer; }
+  .door:hover{ text-decoration:underline; text-underline-offset:3px; text-decoration-thickness:1px; }
+  .answers{ display:flex; gap:12px; margin-top:-4px; }
+  .ans{ font-size:13px; line-height:16px; font-weight:500; padding:6px 10px; border-radius:6px; cursor:pointer; border:none; background:transparent; font-family:inherit; }
+  .ans.rec{ color:var(--volt); }
+  .ans.rec:hover{ background:var(--volt-wash); }
+  .ans.alt{ color:var(--ink2); }
+  .ans.alt:hover{ background:var(--wash); }
+
+  .held{ margin-top:48px; display:flex; flex-direction:column; gap:8px; }
+  .row{ min-height:44px; box-sizing:border-box; padding:12px 16px; background:var(--surface); border:1px solid var(--hair); border-radius:8px; display:flex; align-items:center; justify-content:space-between; gap:16px; cursor:pointer; }
+  .row:hover{ border-color:var(--hair2); background:var(--raised); }
+  .row .s{ font-size:14px; line-height:20px; color:var(--ink); }
+  .verb{ font-size:13px; line-height:16px; font-weight:500; color:var(--volt); padding:5px 10px; border-radius:6px; cursor:pointer; border:none; background:transparent; font-family:inherit; white-space:nowrap; flex-shrink:0; }
+  .verb:hover{ background:var(--volt-wash); }
+
+  .reply{ margin-top:64px; height:44px; box-sizing:border-box; border:1px solid var(--hair); border-radius:8px; background:var(--surface); display:flex; align-items:center; padding:0 16px; justify-content:space-between; }
+  .reply .ph{ font-size:16px; color:var(--ink3); }
+  .kbd{ font-size:11px; line-height:12px; font-weight:500; color:var(--ink3); border:1px solid var(--hair); border-radius:4px; padding:2px 6px; }
+  .reply.focused{ border-color:var(--volt); background:var(--raised); box-shadow:0 0 0 3px rgba(47,92,224,0.25); }
+  .caret{ display:inline-block; width:1.5px; height:20px; background:var(--ink); vertical-align:-4px; animation:breathe 1.2s ease-in-out infinite; }
+  @keyframes breathe{ 0%,100%{opacity:1} 50%{opacity:0.15} }
+  @media (prefers-reduced-motion: reduce){ .caret{ animation:none; } }
+
+  /* First-day variant */
+  .screen.firstday{ display:block; }
+  .screen.firstday .col{ padding-top:342px; }
+
+  footer{ margin-top:64px; font-size:12px; line-height:18px; color:var(--page-ink2); }
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <h1>Voltx — Today</h1>
+    <p>The morning briefing. Desktop, light theme, 1440 × 900. Four states, one geometry. Spec: docs/design/screens/TODAY_SPEC.md.</p>
+  </div>
+
+  <div class="cap">1 · Default morning</div>
+  <p class="capnote">A dated letter: the brief in one voice, the day's one question with its answers inline, the held work as sentences with one verb each, and the reply line. The only color on the page is intent.</p>
+  <div class="frame"><div class="screen">
+    <div class="side">
+      <div class="ws">Adaeze Coffee Systems</div>
+      <div class="nav">
+        <div class="item active"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.25"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M12.6 3.4l-1 1M4.4 11.6l-1 1"/></svg>Today</div>
+        <div class="item"><svg viewBox="0 0 16 16"><path d="M2.5 13.5v-9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v9M9.5 6.5h3a1 1 0 0 1 1 1v6M1.5 13.5h13M5 6.5h1M5 9h1"/></svg>Company</div>
+        <div class="item"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M5.5 8.2 7.2 10 10.5 6.4"/></svg>Promises</div>
+      </div>
+      <div class="you"><span class="avatar">A</span>Amara</div>
+    </div>
+    <div class="col">
+      <div class="date">Friday, March 20</div>
+      <div class="brief">
+        <p><span class="door">Hotel Marlin</span> confirmed both machines yesterday evening and asked about installation before their reopening. A reply offering two dates from <span class="door">Chidi</span>’s calendar is held below.</p>
+        <p><span class="door">Kofi’s Roastery</span> settled their March invoice, and the three service reminders due this week went out on schedule.</p>
+        <p><span class="door">Dele Provisions</span> has been quiet for 31 days — they usually reorder by now. Should I check in?</p>
+      </div>
+      <div class="answers" style="margin-top:12px">
+        <button class="ans rec">Draft a check-in</button>
+        <button class="ans alt">Wait a week</button>
+        <button class="ans alt">Leave them be</button>
+      </div>
+      <div class="held">
+        <div class="row"><span class="s">Reply to Hotel Marlin — installation offered for March 11 or 13</span><button class="verb">Send</button></div>
+        <div class="row"><span class="s">Quote for Café Asha — six machines, standard training included</span><button class="verb">Send</button></div>
+      </div>
+      <div class="reply"><span class="ph">Ask anything</span><span class="kbd">⌘K</span></div>
+    </div>
+  </div></div>
+
+  <div class="cap">2 · Quiet day</div>
+  <p class="capnote">The signal that never lies. When nothing needs the owner, the brief is one sentence and the held section does not render. Silence, set in type.</p>
+  <div class="frame"><div class="screen">
+    <div class="side">
+      <div class="ws">Adaeze Coffee Systems</div>
+      <div class="nav">
+        <div class="item active"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.25"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M12.6 3.4l-1 1M4.4 11.6l-1 1"/></svg>Today</div>
+        <div class="item"><svg viewBox="0 0 16 16"><path d="M2.5 13.5v-9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v9M9.5 6.5h3a1 1 0 0 1 1 1v6M1.5 13.5h13M5 6.5h1M5 9h1"/></svg>Company</div>
+        <div class="item"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M5.5 8.2 7.2 10 10.5 6.4"/></svg>Promises</div>
+      </div>
+      <div class="you"><span class="avatar">A</span>Amara</div>
+    </div>
+    <div class="col">
+      <div class="date">Sunday, March 22</div>
+      <div class="brief">
+        <p>Nothing needs you today. All eleven standing promises are on track, and the week ahead looks clear.</p>
+      </div>
+      <div class="reply" style="margin-top:64px"><span class="ph">Ask anything</span><span class="kbd">⌘K</span></div>
+    </div>
+  </div></div>
+
+  <div class="cap">3 · First day</div>
+  <p class="capnote">Before the company exists in Voltx, the places have not materialized — no sidebar, no date, no chrome. The entire product is one sentence and its reply line, pre-focused.</p>
+  <div class="frame"><div class="screen firstday">
+    <div class="col">
+      <div class="brief">
+        <p>Hello, Amara. I’m Voltx. Tell me about your business — in your own words.</p>
+      </div>
+      <div class="reply focused" style="margin-top:32px"><span class="ph"><span class="caret"></span></span></div>
+    </div>
+  </div></div>
+
+  <div class="cap">4 · One year</div>
+  <p class="capnote">Same geometry, redistributed weight: the brief is shorter and denser with doors, held work has thinned to the consequential, and the question is rare. Trust changed the defaults, never the layout.</p>
+  <div class="frame"><div class="screen">
+    <div class="side">
+      <div class="ws">Adaeze Coffee Systems</div>
+      <div class="nav">
+        <div class="item active"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.25"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M12.6 3.4l-1 1M4.4 11.6l-1 1"/></svg>Today</div>
+        <div class="item"><svg viewBox="0 0 16 16"><path d="M2.5 13.5v-9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v9M9.5 6.5h3a1 1 0 0 1 1 1v6M1.5 13.5h13M5 6.5h1M5 9h1"/></svg>Company</div>
+        <div class="item"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M5.5 8.2 7.2 10 10.5 6.4"/></svg>Promises</div>
+      </div>
+      <div class="you"><span class="avatar">A</span>Amara</div>
+    </div>
+    <div class="col">
+      <div class="date">Wednesday, March 17</div>
+      <div class="brief">
+        <p>The <span class="door">Lagos shipment</span> cleared customs overnight — all eight orders remain on schedule, and <span class="door">Mrs. Adeyemi</span>’s repair is booked for Thursday morning.</p>
+        <p>One thing is ready for you: the annual price letter, written the way you asked.</p>
+      </div>
+      <div class="held">
+        <div class="row"><span class="s">The annual price letter — for your 214 standing customers</span><button class="verb">Send</button></div>
+      </div>
+      <div class="reply"><span class="ph">Ask anything</span><span class="kbd">⌘K</span></div>
+    </div>
+  </div></div>
+
+  <footer>Voltx design documents · Today screen · governed by the Product Experience Manifesto, the North Star Experience, the One-Year Story, the Visual DNA, and the Product Architecture.</footer>
+</div>
+
+<script>
+  function fit(){
+    document.querySelectorAll('.frame').forEach(function(f){
+      var s = f.querySelector('.screen');
+      var k = Math.min(1, f.clientWidth / 1440);
+      s.style.transform = 'scale(' + k + ')';
+      f.style.height = (900 * k) + 'px';
+    });
+  }
+  addEventListener('resize', fit); fit();
+</script>
