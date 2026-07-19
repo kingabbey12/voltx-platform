@@ -19,6 +19,7 @@ import { SystemSeedService } from './system-seed.service';
 @Injectable()
 export class DatabaseSeedBootstrapService implements OnApplicationBootstrap {
   private readonly logger = new Logger(DatabaseSeedBootstrapService.name);
+  private bootstrapPromise: Promise<void> | null = null;
 
   constructor(
     private readonly systemSeedService: SystemSeedService,
@@ -26,19 +27,40 @@ export class DatabaseSeedBootstrapService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    await this.ensureSeedIntegrityOnBootstrap();
+  }
+
+  async ensureSeedIntegrityOnBootstrap(): Promise<void> {
+    if (!this.bootstrapPromise) {
+      this.bootstrapPromise = this.runBootstrapSeedIntegrity();
+    }
+
+    await this.bootstrapPromise;
+  }
+
+  private async runBootstrapSeedIntegrity(): Promise<void> {
     if (!this.configService.get<boolean>('database.seedOnBootstrap', true)) {
+      this.logger.log('Boot seed bootstrap disabled by configuration (database.seedOnBootstrap=false)');
       return;
     }
+
+    this.logger.log('Boot seed bootstrap started');
 
     this.warnIfPooledWithoutPgbouncerFlag();
 
     // Each is independent — one failing must not skip the others. Failures
     // are non-fatal here (register's lazy self-heal covers the gap).
-    await this.attempt('RBAC', () => this.systemSeedService.ensureRbac());
+    await this.attempt('RBAC', async () => {
+      this.logger.log('Boot seed bootstrap ensuring RBAC');
+      await this.systemSeedService.ensureRbac();
+      this.logger.log('Boot seed bootstrap RBAC ensured');
+    });
     await this.attempt('billing plans', () => this.systemSeedService.ensureBillingPlans());
     await this.attempt('workflow templates', () =>
       this.systemSeedService.ensureWorkflowTemplates(),
     );
+
+    this.logger.log('Boot seed bootstrap finished');
   }
 
   private async attempt(label: string, run: () => Promise<void>): Promise<void> {
