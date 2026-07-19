@@ -157,6 +157,71 @@ describe('AI Streaming (e2e)', () => {
     expect(messages[1]?.content).toBe('Streaming reply.');
   });
 
+  it('streams /ai/chat using conversation-backed persistence and auto-creates a conversation when no id is provided', async () => {
+    const { accessToken } = await authenticateContext(app, prisma, usersRepository);
+
+    jest.spyOn(aiRuntimeService, 'streamChat').mockImplementation(async function* stream() {
+      await Promise.resolve();
+      yield {
+        type: 'content_delta',
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        delta: 'Chat endpoint response.',
+      };
+      yield {
+        type: 'message_end',
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        outputText: 'Chat endpoint response.',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      };
+    });
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/ai/chat')
+      .set(bearerAuthHeaders(accessToken))
+      .send({ userPrompt: 'Draft a concise update for leadership.' })
+      .expect(200);
+
+    const frames = parseSseFrames(response.text);
+    const statuses = frames
+      .filter((frame) => frame.event === 'status')
+      .map((frame) => frame.data.status);
+    expect(statuses).toEqual(['queued', 'processing', 'streaming', 'completed']);
+    expect(
+      frames.some(
+        (frame) => frame.event === 'content_delta' && frame.data.delta === 'Chat endpoint response.',
+      ),
+    ).toBe(true);
+    expect(frames.some((frame) => frame.event === 'message_end')).toBe(true);
+    expect(frames[frames.length - 1]?.event).toBe('done');
+
+    const conversationsResponse = await request(app.getHttpServer())
+      .get('/api/v1/ai/conversations')
+      .set(bearerAuthHeaders(accessToken))
+      .expect(200);
+    const conversations = (
+      conversationsResponse.body as ApiSuccessResponse<{
+        items: Array<{ id: string; title: string }>;
+      }>
+    ).data.items;
+
+    expect(conversations.length).toBeGreaterThan(0);
+    expect(conversations[0]?.title).toBe('Draft a concise update for leadership.');
+
+    const messagesResponse = await request(app.getHttpServer())
+      .get(`/api/v1/ai/conversations/${conversations[0]?.id}/messages`)
+      .set(bearerAuthHeaders(accessToken))
+      .expect(200);
+    const messages = (
+      messagesResponse.body as ApiSuccessResponse<{
+        items: Array<{ role: string; content: string }>;
+      }>
+    ).data.items;
+    expect(messages.map((message) => message.role)).toEqual(['user', 'assistant']);
+    expect(messages[1]?.content).toBe('Chat endpoint response.');
+  });
+
   it('emits status:failed and an error frame when the provider stream fails mid-turn, without leaving the connection hanging', async () => {
     const { accessToken } = await authenticateContext(app, prisma, usersRepository);
 

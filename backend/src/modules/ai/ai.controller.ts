@@ -4,8 +4,8 @@ import { Response } from 'express';
 import { AUTH_GUARDS } from '../../common/guards/protected.guards';
 import { RequireFeature } from '../billing/decorators/require-feature.decorator';
 import { FeatureGateGuard } from '../billing/guards/feature-gate.guard';
+import { ConversationService } from './conversations/conversation.service';
 import { AIChatRequestDto } from './dto/ai-chat.dto';
-import { AIGatewayService } from './gateway/ai-gateway.service';
 import { formatSseEvent } from './streaming/sse-event.formatter';
 
 @ApiTags('AI')
@@ -13,7 +13,7 @@ import { formatSseEvent } from './streaming/sse-event.formatter';
 @UseGuards(...AUTH_GUARDS)
 @Controller('ai')
 export class AIController {
-  constructor(private readonly aiGatewayService: AIGatewayService) {}
+  constructor(private readonly conversationService: ConversationService) {}
 
   @Post('chat')
   @HttpCode(HttpStatus.OK)
@@ -35,21 +35,31 @@ export class AIController {
     });
 
     try {
-      for await (const event of this.aiGatewayService.streamChat({
-        requestType: 'CHAT',
-        conversationId: dto.conversationId,
-        provider: dto.provider,
-        model: dto.model,
-        systemPrompt: dto.systemPrompt,
-        workspaceContext: dto.workspaceContext,
-        conversationHistory: dto.conversationHistory,
-        userPrompt: dto.userPrompt,
-        toolResults: dto.toolResults,
-        temperature: dto.temperature,
-        maxOutputTokens: dto.maxOutputTokens,
-        signal: abortController.signal,
-      })) {
-        response.write(formatSseEvent(event.type, event));
+      let conversationId = dto.conversationId;
+
+      if (!conversationId) {
+        const conversation = await this.conversationService.createConversation({
+          provider: dto.provider,
+          model: dto.model,
+        });
+        conversationId = conversation.id;
+      }
+
+      for await (const event of this.conversationService.streamMessageTurn(
+        conversationId,
+        {
+          content: dto.userPrompt,
+          systemPrompt: dto.systemPrompt,
+          workspaceContext: dto.workspaceContext,
+          toolResults: dto.toolResults,
+          temperature: dto.temperature,
+          maxOutputTokens: dto.maxOutputTokens,
+        },
+        abortController.signal,
+      )) {
+        const wireName = event.type === 'provider_event' ? event.event.type : event.type;
+        const payload = event.type === 'provider_event' ? event.event : event;
+        response.write(formatSseEvent(wireName, payload));
       }
 
       response.write(formatSseEvent('done', { status: 'completed' }));
