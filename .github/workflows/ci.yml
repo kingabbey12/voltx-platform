@@ -55,6 +55,10 @@ jobs:
         # AUTH_RATE_LIMIT_LIMIT is raised because e2e specs call loginAs()
         # dozens of times per run under --runInBand from a single IP, which
         # would otherwise trip the production auth-endpoint throttle (10/60s).
+        # DATABASE_SEED_ON_BOOTSTRAP=false: the e2e harness seeds deterministically
+        # via resetAndSeedAuthTestData() in beforeEach — the boot-time auto-repair
+        # (DatabaseSeedBootstrapService) is a production/staging safety net and
+        # must not race with the test harness's own controlled seed/reset cycle.
         run: |
           cat > .env.test <<EOF
           NODE_ENV=test
@@ -68,6 +72,7 @@ jobs:
           AUTH_RATE_LIMIT_TTL_SECONDS=60
           INTEGRATIONS_ENCRYPTION_KEY=ci-only-integrations-encryption-key
           INTEGRATIONS_WEBHOOK_BASE_URL=http://localhost:3000
+          DATABASE_SEED_ON_BOOTSTRAP=false
           EOF
 
       - name: Run migrations (test database)
