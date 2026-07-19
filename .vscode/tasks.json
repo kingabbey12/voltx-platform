@@ -1,0 +1,40 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "git-status-after-cleanup",
+			"type": "shell",
+			"command": "cd /Users/adegokeabiodun/Developer/voltx-platform && git status --short"
+		},
+		{
+			"label": "scan-touched-for-markers-clean",
+			"type": "shell",
+			"command": "cd /Users/adegokeabiodun/Developer/voltx-platform && files=$( (git diff --name-only; git ls-files --others --exclude-standard) | sort -u ); found=0; for f in $files; do if [ -f \"$f\" ]; then out=$(grep -nE 'TODO|FIXME|debugger|console\\.log\\(' \"$f\" || true); if [ -n \"$out\" ]; then echo \"-- $f\"; echo \"$out\"; found=1; fi; fi; done; echo \"marker_found=$found\""
+		},
+		{
+			"label": "restore-vscode-settings",
+			"type": "shell",
+			"command": "cd /Users/adegokeabiodun/Developer/voltx-platform && git restore .vscode/settings.json"
+		},
+		{
+			"label": "check-e2e-process-finished",
+			"type": "shell",
+			"command": "if pgrep -f 'node /opt/homebrew/bin/pnpm test:e2e|node .*jest/bin/jest.js --config ./test/jest-e2e.json' >/dev/null; then echo e2e_process=running; else echo e2e_process=done; fi"
+		},
+		{
+			"label": "extract-final-jest-footer",
+			"type": "shell",
+			"command": "tail -n 20 /tmp/e2e-final.log"
+		},
+		{
+			"label": "final-git-status-before-commit",
+			"type": "shell",
+			"command": "cd /Users/adegokeabiodun/Developer/voltx-platform && git status --short"
+		},
+		{
+			"label": "stage-and-commit-rag-milestone",
+			"type": "shell",
+			"command": "cd /Users/adegokeabiodun/Developer/voltx-platform && git add -A && git reset .vscode/tasks.json && git commit -m \"feat(knowledge): deliver RAG v1 ingestion, retrieval, and observability\" && git rev-parse --short HEAD && git status --short"
+		}
+	]
+}
