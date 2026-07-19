@@ -32,6 +32,11 @@ export class PlanService {
     return this.planRepository.listFeatures();
   }
 
+  /** Non-throwing lookup — returns null when the plan does not exist. */
+  async findPlanByKey(key: string): Promise<PlanEntity | null> {
+    return this.planRepository.findByKey(key);
+  }
+
   async getPlanByKeyOrThrow(key: string): Promise<PlanEntity> {
     const plan = await this.planRepository.findByKey(key);
     if (!plan) {

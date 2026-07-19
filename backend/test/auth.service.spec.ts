@@ -21,6 +21,7 @@ import { AuditService } from '../src/modules/audit/audit.service';
 import { MailService } from '../src/modules/mail/mail.service';
 import { BillingAccountService } from '../src/modules/billing/billing-account.service';
 import { PlanService } from '../src/modules/billing/plan.service';
+import { SystemSeedService } from '../src/database/seed/system-seed.service';
 import { SubscriptionService } from '../src/modules/billing/subscription.service';
 import * as passwordUtil from '../src/modules/auth/utils/password.util';
 import * as refreshTokenUtil from '../src/modules/auth/utils/refresh-token.util';
@@ -50,10 +51,11 @@ describe('AuthService', () => {
   let planService: jest.Mocked<PlanService>;
   let jwtService: jest.Mocked<JwtService>;
   let configService: jest.Mocked<ConfigService>;
+  let systemSeedService: jest.Mocked<SystemSeedService>;
   let prismaService: {
     system: {
       organization: { findUnique: jest.Mock };
-      role: { findUniqueOrThrow: jest.Mock };
+      role: { findUnique: jest.Mock };
       $transaction: jest.Mock;
     };
   };
@@ -115,7 +117,7 @@ describe('AuthService', () => {
           useValue: {
             system: {
               role: {
-                findUniqueOrThrow: jest.fn(),
+                findUnique: jest.fn(),
               },
               organization: {
                 // evaluateMfaRequirement()'s org-policy lookup — {} settings
@@ -184,7 +186,16 @@ describe('AuthService', () => {
         {
           provide: PlanService,
           useValue: {
+            findPlanByKey: jest.fn().mockResolvedValue({ id: 'professional-plan-id' }),
             getPlanByKeyOrThrow: jest.fn(),
+          },
+        },
+        {
+          provide: SystemSeedService,
+          useValue: {
+            ensureRbac: jest.fn(),
+            ensureBillingPlans: jest.fn(),
+            ensureWorkflowTemplates: jest.fn(),
           },
         },
       ],
@@ -205,6 +216,7 @@ describe('AuthService', () => {
     planService = module.get(PlanService);
     jwtService = module.get(JwtService);
     configService = module.get(ConfigService);
+    systemSeedService = module.get(SystemSeedService);
     prismaService = module.get(PrismaService);
   });
 
@@ -556,7 +568,7 @@ describe('AuthService', () => {
     verificationTokenService.issueEmailVerificationToken.mockResolvedValue({
       token: 'verify-token',
     });
-    prismaService.system.role.findUniqueOrThrow.mockResolvedValue({ id: 'owner-role-id' });
+    prismaService.system.role.findUnique.mockResolvedValue({ id: 'owner-role-id' });
     prismaService.system.$transaction.mockImplementation(
       (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
@@ -632,6 +644,68 @@ describe('AuthService', () => {
         userId: 'user-id',
       }),
     );
+  });
+
+  it('self-heals RBAC and still registers when the owner role is missing (the P2025 incident)', async () => {
+    jest.spyOn(passwordUtil, 'hashPassword').mockResolvedValue('hash');
+    authRepository.findUserByEmail.mockResolvedValue(null);
+    organizationRepository.isSlugTaken.mockResolvedValue(false);
+    verificationTokenService.issueEmailVerificationToken.mockResolvedValue({ token: 't' });
+
+    // Owner role absent on first lookup; present after ensureRbac() seeds it.
+    prismaService.system.role.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'owner-role-id' });
+    systemSeedService.ensureRbac.mockResolvedValue(undefined);
+
+    prismaService.system.$transaction.mockImplementation(
+      (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          organization: { create: jest.fn().mockResolvedValue({ id: 'org-id' }) },
+          user: {
+            create: jest.fn().mockResolvedValue({ id: 'user-id', email: 'jane.doe@example.com' }),
+          },
+          membership: { create: jest.fn().mockResolvedValue({}) },
+        }),
+    );
+    billingAccountService.createForOrganization.mockResolvedValue({
+      id: 'billing-account-id',
+      organizationId: 'org-id',
+      stripeCustomerId: null,
+      email: 'jane.doe@example.com',
+      defaultPaymentMethodId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    jwtService.signAsync.mockResolvedValue('access-token');
+    usersRepository.findById.mockResolvedValue({
+      id: 'user-id',
+      email: 'jane.doe@example.com',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      avatarUrl: null,
+      phoneNumber: null,
+      jobTitle: null,
+      status: UserStatus.ACTIVE,
+      isPlatformAdmin: false,
+      mfaEnabled: false,
+      lastLoginAt: null,
+      emailVerifiedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    });
+
+    const result = await service.register({
+      email: 'jane.doe@example.com',
+      password: 'SecurePassword123!',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      organizationName: 'Acme Inc',
+    });
+
+    expect(systemSeedService.ensureRbac).toHaveBeenCalledTimes(1);
+    expect(result.accessToken).toBe('access-token');
   });
 
   it('rejects login with invalid credentials', async () => {

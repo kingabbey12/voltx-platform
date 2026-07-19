@@ -2,12 +2,14 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { MembershipStatus, OrganizationStatus, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { SystemSeedService } from '../../database/seed/system-seed.service';
 import { OrganizationRepository } from '../organization/organization.repository';
 import { generateUniqueOrganizationSlug } from '../organization/utils/organization-slug.util';
 import { parseOrganizationSecurityPolicy } from '../organization/utils/organization-security-policy.util';
@@ -71,7 +73,10 @@ export class AuthService {
     private readonly trustedDeviceRepository: TrustedDeviceRepository,
     private readonly auditService: AuditService,
     private readonly mailService: MailService,
+    private readonly systemSeedService: SystemSeedService,
   ) {}
+
+  private readonly logger = new Logger(AuthService.name);
 
   async login(
     dto: LoginDto,
@@ -250,9 +255,7 @@ export class AuthService {
       this.organizationRepository.isSlugTaken(candidate),
     );
     const passwordHash = await hashPassword(dto.password);
-    const ownerRole = await this.prisma.system.role.findUniqueOrThrow({
-      where: { key: 'owner' },
-    });
+    const ownerRole = await this.resolveOwnerRole();
 
     const { organization, user } = await this.prisma.system.$transaction(async (tx) => {
       const createdOrganization = await tx.organization.create({
@@ -310,6 +313,32 @@ export class AuthService {
   }
 
   /**
+   * Resolves the system `owner` role assigned to a new organization's
+   * creator. If it's missing — a database that was migrated but never
+   * seeded, which historically surfaced as an opaque Prisma P2025 on every
+   * signup — this self-heals by seeding the RBAC catalog on demand (the
+   * database is provably warm at request time) and re-fetching, so the
+   * first registration recovers instead of failing the whole platform.
+   */
+  private async resolveOwnerRole(): Promise<{ id: string }> {
+    const existing = await this.prisma.system.role.findUnique({ where: { key: 'owner' } });
+    if (existing) {
+      return existing;
+    }
+
+    this.logger.warn('System "owner" role is missing at registration — seeding RBAC on demand');
+    await this.systemSeedService.ensureRbac();
+
+    const repaired = await this.prisma.system.role.findUnique({ where: { key: 'owner' } });
+    if (!repaired) {
+      throw new UnauthorizedException(
+        'Registration is temporarily unavailable: system roles could not be provisioned. Please try again shortly.',
+      );
+    }
+    return repaired;
+  }
+
+  /**
    * Every new organization starts on a real, locally-tracked trial of
    * the Professional plan — no Stripe Subscription object exists yet
    * (Phase 2's StripeSubscriptionService creates one the moment a
@@ -327,7 +356,17 @@ export class AuthService {
       organizationId,
       email,
     });
-    const plan = await this.planService.getPlanByKeyOrThrow('professional');
+    let plan = await this.planService.findPlanByKey('professional');
+    if (!plan) {
+      // Same self-heal as the owner role: a migrated-but-unseeded database
+      // is missing the plan catalog too. Seed on demand and re-fetch so a
+      // new org still gets its trial instead of erroring after commit.
+      this.logger.warn(
+        'Professional plan is missing at registration — seeding billing plans on demand',
+      );
+      await this.systemSeedService.ensureBillingPlans();
+      plan = await this.planService.getPlanByKeyOrThrow('professional');
+    }
     await this.subscriptionService.createTrialSubscription(
       organizationId,
       billingAccount.id,
