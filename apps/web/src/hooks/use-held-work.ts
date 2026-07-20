@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { agentsApi, type AgentApproval } from "@/lib/api/agents";
 import { describeApproval } from "@/lib/today/describe-approval";
@@ -62,19 +62,22 @@ export function useHeldWork() {
     [queryClient, setStatus],
   );
 
-  const items: HeldWorkItem[] = (ledger ?? []).map((approval) => ({
-    approval,
-    ...describeApproval(approval),
-    status: statusById[approval.id] ?? "held",
-  }));
+  // Stable identity unless the ledger or a row's status actually changes —
+  // the screen's window-level key handler depends on this list.
+  const items: HeldWorkItem[] = useMemo(
+    () =>
+      (ledger ?? []).map((approval) => ({
+        approval,
+        ...describeApproval(approval),
+        status: statusById[approval.id] ?? "held",
+      })),
+    [ledger, statusById],
+  );
 
   return {
     items,
     loading: query.isLoading && ledger === null,
     error: query.isError && ledger === null,
     sign,
-    retry: (approvalId: string) => {
-      void sign(approvalId);
-    },
   };
 }

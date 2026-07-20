@@ -136,6 +136,20 @@
   font-weight: 500;
 }
 
+/* The ask exchange — the owner's line and its answer, a section interval
+   below the ledger, sharing the brief's paragraph styles. */
+.ask {
+  margin-top: 60px;
+}
+
+.ask .brief {
+  margin-top: 0;
+}
+
+/* .door and .ans.alt are spec primitives not yet exercised by this screen:
+   doors await the grounding pipeline (record-linked figures), and alternate
+   answers await the inline question. They ship with the system so their
+   arrival is a data change, not a design change. */
 .door {
   font-weight: 500;
   color: var(--ink);

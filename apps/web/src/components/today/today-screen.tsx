@@ -10,7 +10,8 @@ import { HeldLedger } from "./held-ledger";
 import { ReplyLine } from "./reply-line";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMyOrganizations } from "@/hooks/use-organizations";
-import { useTodayBrief, toParagraphs } from "@/hooks/use-today-brief";
+import { useTodayBrief } from "@/hooks/use-today-brief";
+import { toParagraphs } from "@/lib/today/prose";
 import { useHeldWork, type HeldWorkItem } from "@/hooks/use-held-work";
 import { useRunCommand } from "@/hooks/use-operator";
 import { useOperatorStore } from "@/lib/stores/operator-store";
@@ -63,26 +64,39 @@ export function TodayScreen() {
   const brief = useTodayBrief(user?.organizationId);
   const held = useHeldWork();
 
+  // The one-arrival rule: chrome, date, and reply render in first paint; the
+  // brief and the ledger arrive together, never one pushing the other.
+  const arriving = brief.loading;
+
   // ————— Ask: the reply line submits through the existing operator runtime —————
   const { run, cancel } = useRunCommand();
   const turns = useOperatorStore((state) => state.turns);
   const [draft, setDraft] = useState("");
   const [asked, setAsked] = useState<{ objective: string; at: number } | null>(null);
+  const [askTurnId, setAskTurnId] = useState<string | null>(null);
   const replyRef = useRef<HTMLInputElement>(null);
 
-  const askTurn = useMemo(() => {
-    if (!asked) return null;
-    return (
-      turns.find(
-        (turn) => turn.objective === asked.objective && turn.createdAt >= asked.at - 1_000,
-      ) ?? null
+  // Find this screen's turn once (run() does not return an id), then pin it —
+  // matching by objective/time on every render would break if the same words
+  // are asked twice.
+  useEffect(() => {
+    if (!asked || askTurnId) return;
+    const match = turns.find(
+      (turn) => turn.objective === asked.objective && turn.createdAt >= asked.at - 1_000,
     );
-  }, [turns, asked]);
+    if (match) setAskTurnId(match.id);
+  }, [turns, asked, askTurnId]);
+
+  const askTurn = useMemo(
+    () => (askTurnId ? (turns.find((turn) => turn.id === askTurnId) ?? null) : null),
+    [turns, askTurnId],
+  );
 
   const submitAsk = useCallback(() => {
     const objective = draft.trim();
     if (objective.length === 0) return;
     setAsked({ objective, at: Date.now() });
+    setAskTurnId(null);
     setDraft("");
     void run(objective);
   }, [draft, run]);
@@ -127,7 +141,7 @@ export function TodayScreen() {
 
       // ⌘Enter — sign the selected held document.
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        if (selectedIndex !== null && held.items[selectedIndex]) {
+        if (!arriving && selectedIndex !== null && held.items[selectedIndex]) {
           event.preventDefault();
           signItem(held.items[selectedIndex]);
         }
@@ -153,7 +167,7 @@ export function TodayScreen() {
 
       // ↓ / ↑ — move between held documents.
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        if (held.items.length > 0) {
+        if (!arriving && held.items.length > 0) {
           event.preventDefault();
           moveSelection(event.key === "ArrowDown" ? 1 : -1);
         }
@@ -176,12 +190,11 @@ export function TodayScreen() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [askTurn?.status, cancel, held.items, moveSelection, selectedIndex, signItem]);
+  }, [arriving, askTurn?.status, cancel, held.items, moveSelection, selectedIndex, signItem]);
 
   // ————— The ask exchange, rendered as prose beneath the owner's line —————
   const askDoing = askTurn?.status === "running" && !askTurn.finalText;
-  const askStopped =
-    askTurn?.status === "error" && /abort/i.test(askTurn.error ?? "") ? true : false;
+  const askStopped = askTurn?.status === "error" && /abort/i.test(askTurn.error ?? "");
   const askParagraphs = askTurn?.finalText ? toParagraphs(askTurn.finalText) : null;
   const runningTool = askTurn?.toolCalls.find((call) => call.status === "running")?.toolName;
 
@@ -193,18 +206,20 @@ export function TodayScreen() {
 
         <TodayBriefSection brief={brief} />
 
-        <HeldLedger
-          items={held.items}
-          selectedIndex={selectedIndex}
-          onSelect={setSelectedIndex}
-          onOpen={openItem}
-          onSign={signItem}
-          sentenceRefs={sentenceRefs}
-        />
+        {!arriving && (
+          <HeldLedger
+            items={held.items}
+            selectedIndex={selectedIndex}
+            onSelect={setSelectedIndex}
+            onOpen={openItem}
+            onSign={signItem}
+            sentenceRefs={sentenceRefs}
+          />
+        )}
 
         {asked && (
-          <section style={{ marginTop: 60 }} aria-label="Your question">
-            <div className={styles.brief} style={{ marginTop: 0 }}>
+          <section className={styles.ask} aria-label="Your question">
+            <div className={styles.brief}>
               <p className={styles.q}>{asked.objective}</p>
               {askParagraphs?.map((paragraph, index) => (
                 <p key={index} className={styles.arrive}>

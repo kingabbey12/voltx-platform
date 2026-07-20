@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { agentsApi } from "@/lib/api/agents";
 import { useOperatorSession } from "@/hooks/use-operator";
 import { extractFinalText } from "@/lib/ai/extract-final-text";
+import { toParagraphs } from "@/lib/today/prose";
 
 /**
  * The morning brief for the Today screen, in the letter voice the Today spec
@@ -21,25 +22,13 @@ const BRIEF_OBJECTIVE = [
   "Never invent facts. Omit anything you cannot see.",
 ].join(" ");
 
+/** The error surface speaks the spec's grammar and names the failing party —
+ * raw transport/API messages never reach the letter. */
+const FRIENDLY_FAILURE = "the connection to Voltx failed";
+
 function cacheKey(organizationId: string): string {
   const today = new Date().toISOString().slice(0, 10);
   return `voltx.today.brief.${organizationId}.${today}`;
-}
-
-/** Split the model's letter into paragraphs, stripping any stray markdown
- * it produced despite instructions — the screen renders prose only. */
-export function toParagraphs(text: string): string[] {
-  return text
-    .split(/\n{2,}|\r\n{2,}/)
-    .map((paragraph) =>
-      paragraph
-        .replace(/^[#>*-]+\s*/gm, "")
-        .replace(/\*\*([^*]+)\*\*/g, "$1")
-        .replace(/\*([^*]+)\*/g, "$1")
-        .replace(/\s*\n\s*/g, " ")
-        .trim(),
-    )
-    .filter((paragraph) => paragraph.length > 0);
 }
 
 export interface TodayBrief {
@@ -62,7 +51,7 @@ export function useTodayBrief(organizationId: string | undefined): TodayBrief {
     setError(null);
     try {
       const activeSession = session ?? (await ensureSession());
-      if (!activeSession) throw new Error("the connection to Voltx failed");
+      if (!activeSession) throw new Error(FRIENDLY_FAILURE);
 
       const result = await agentsApi.runAutonomous(activeSession.readOnlyAgentId, {
         conversationId: activeSession.conversationId,
@@ -77,8 +66,8 @@ export function useTodayBrief(organizationId: string | undefined): TodayBrief {
         cacheKey(organizationId),
         JSON.stringify({ paragraphs: parts, at: Date.now() }),
       );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "the connection to Voltx failed");
+    } catch {
+      setError(FRIENDLY_FAILURE);
     } finally {
       setLoading(false);
     }

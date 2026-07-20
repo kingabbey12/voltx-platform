@@ -34,7 +34,7 @@ export function HeldLedger({
   if (items.length === 0) return null;
 
   return (
-    <div className={styles.held} role="list" aria-label="Held work">
+    <div className={clsx(styles.held, styles.arrive)} role="list" aria-label="Held work">
       {items.map((item, index) => {
         const settled = item.status === "sent";
         const sending = item.status === "sending";

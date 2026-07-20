@@ -24,12 +24,8 @@ export function TodaySidebar({
         <span className={clsx(styles.item, styles.active)} aria-current="page">
           Today
         </span>
-        <span className={styles.item} aria-disabled="true">
-          Company
-        </span>
-        <span className={styles.item} aria-disabled="true">
-          Promises
-        </span>
+        <span className={styles.item}>Company</span>
+        <span className={styles.item}>Promises</span>
       </div>
       <div className={styles.you}>{personName}</div>
     </nav>

@@ -14,9 +14,8 @@ export const ReplyLine = forwardRef<
     value: string;
     onChange: (value: string) => void;
     onSubmit: () => void;
-    disabled?: boolean;
   }
->(function ReplyLine({ value, onChange, onSubmit, disabled }, ref) {
+>(function ReplyLine({ value, onChange, onSubmit }, ref) {
   return (
     <form
       className={styles.reply}
@@ -34,7 +33,6 @@ export const ReplyLine = forwardRef<
         aria-label="Ask anything"
         autoComplete="off"
         spellCheck={false}
-        disabled={disabled}
       />
       <span className={styles.kbd} aria-hidden="true">
         ⌘K

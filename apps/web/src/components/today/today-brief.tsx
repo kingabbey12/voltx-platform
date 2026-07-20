@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import clsx from "clsx";
 import styles from "./today.module.css";
 import type { TodayBrief } from "@/hooks/use-today-brief";
 
@@ -40,7 +41,7 @@ export function TodayBriefSection({ brief }: { brief: TodayBrief }) {
           </p>
         </div>
         <div className={styles.answers}>
-          <button type="button" className={`${styles.ans} ${styles.rec}`} onClick={brief.retry}>
+          <button type="button" className={clsx(styles.ans, styles.rec)} onClick={brief.retry}>
             Try again
           </button>
         </div>
@@ -53,7 +54,7 @@ export function TodayBriefSection({ brief }: { brief: TodayBrief }) {
   }
 
   return (
-    <div className={`${styles.brief} ${styles.arrive}`}>
+    <div className={clsx(styles.brief, styles.arrive)}>
       {brief.paragraphs.map((paragraph, index) => (
         <p key={index}>{paragraph}</p>
       ))}
