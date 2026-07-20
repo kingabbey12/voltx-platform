@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { AITool, ToolExecutionError, ToolSchema } from '../../ai/tools/tool.interface';
+import { searchGrounding } from '../../ai/tools/grounding.helpers';
 import { DynamicToolSource, ToolRegistry } from '../../ai/tools/tool.registry';
 import { AttachmentService } from '../attachment.service';
 
@@ -55,6 +56,12 @@ export class AttachmentsToolSourceService implements DynamicToolSource, OnModule
           })),
         };
       },
+      ground: searchGrounding<{ attachments: Array<{ id: string; fileName: string }> }>({
+        recordType: 'document',
+        noun: ['document', 'documents'],
+        items: (output) =>
+          output.attachments.map((item) => ({ id: item.id, label: item.fileName })),
+      }),
     };
   }
 
@@ -84,6 +91,14 @@ export class AttachmentsToolSourceService implements DynamicToolSource, OnModule
           id: attachment.id,
           fileName: attachment.fileName,
           extractedText: attachment.extractedText ?? '',
+        };
+      },
+      ground(_input, output) {
+        const data = output as { id: string; fileName: string };
+        return {
+          summary: `Read ${data.fileName}`,
+          records: [{ type: 'document', id: data.id, label: data.fileName }],
+          events: [],
         };
       },
     };
