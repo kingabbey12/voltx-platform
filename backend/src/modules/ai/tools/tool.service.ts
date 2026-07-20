@@ -5,7 +5,7 @@ import { TenantContextService } from '../../../common/tenant/tenant-context.serv
 import { PrismaService } from '../../../database/prisma.service';
 import { MessageResponseDto } from '../conversations/dto/conversation.dto';
 import { ToolExecutionError } from './tool.interface';
-import { ToolResult } from './tool-result.types';
+import { ToolGrounding, ToolResult } from './tool-result.types';
 import { ToolExecutor } from './tool.executor';
 import { ToolRegistry, ToolDescriptor } from './tool.registry';
 
@@ -36,6 +36,8 @@ export interface ExecuteToolResponse {
   execution: ToolExecutionRecord;
   result: ToolResult;
   message: MessageResponseDto;
+  /** Grounding envelope from the tool's ground() hook, when it has one. */
+  grounding: ToolGrounding | null;
 }
 
 interface ConversationClient {
@@ -147,6 +149,7 @@ export class ToolService {
 
       const completedAt = new Date();
       const outputObject = toObject(result.output);
+      const grounding = this.groundResult(request.toolName, request.input, result.output);
 
       const updatedExecution = await this.toolExecutions().update({
         where: { id: execution.id },
@@ -191,6 +194,7 @@ export class ToolService {
           toolName: request.toolName,
           content: JSON.stringify(outputObject, null, 2),
         },
+        grounding,
         message: {
           id: toolMessage.id,
           conversationId: toolMessage.conversationId,
@@ -269,6 +273,7 @@ export class ToolService {
           content: errorMessage,
           isError: true,
         },
+        grounding: null,
         message: {
           id: toolMessage.id,
           conversationId: toolMessage.conversationId,
@@ -279,6 +284,27 @@ export class ToolService {
           createdAt: toolMessage.createdAt.toISOString(),
         },
       };
+    }
+  }
+
+  /**
+   * Runs the tool's optional ground() hook defensively: grounding is
+   * best-effort metadata and must never fail an execution that succeeded.
+   */
+  private groundResult(
+    toolName: string,
+    input: Record<string, unknown>,
+    output: unknown,
+  ): ToolGrounding | null {
+    try {
+      const tool = this.toolRegistry.get(toolName);
+      return tool.ground?.(input, output) ?? null;
+    } catch (error) {
+      this.logger.warn(
+        { toolName, error: error instanceof Error ? error.message : String(error) },
+        'AI tool grounding hook failed; continuing without grounding',
+      );
+      return null;
     }
   }
 

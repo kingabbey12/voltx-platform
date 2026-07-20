@@ -123,6 +123,24 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
           })),
         };
       },
+      ground(_input, output) {
+        const data = output as {
+          total: number;
+          opportunities: Array<{ id: string; title: string }>;
+        };
+        return {
+          summary:
+            data.total === 0
+              ? 'No matching opportunities in the pipeline'
+              : `Read ${data.total} ${data.total === 1 ? 'opportunity' : 'opportunities'} from the pipeline`,
+          records: data.opportunities.map((opportunity) => ({
+            type: 'sales.opportunity',
+            id: opportunity.id,
+            label: opportunity.title,
+          })),
+          events: [],
+        };
+      },
     };
   }
 
@@ -177,6 +195,24 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
             leadId: item.leadId,
             opportunityId: item.opportunityId,
           })),
+        };
+      },
+      ground(_input, output) {
+        const data = output as {
+          total: number;
+          activities: Array<{ id: string; subject: string }>;
+        };
+        return {
+          summary:
+            data.total === 0
+              ? 'Nothing is overdue'
+              : `Read ${data.total} overdue ${data.total === 1 ? 'activity' : 'activities'}`,
+          records: data.activities.map((activity) => ({
+            type: 'sales.activity',
+            id: activity.id,
+            label: activity.subject,
+          })),
+          events: [],
         };
       },
     };

@@ -304,6 +304,7 @@ describe('AIGatewayService', () => {
           createdAt: new Date(),
         },
         result: { toolName: 'datetime', content: '{}' },
+        grounding: null,
         message: {
           id: 'message-1',
           conversationId: 'conversation-1',
@@ -406,6 +407,7 @@ describe('AIGatewayService', () => {
           createdAt: new Date(),
         },
         result: { toolName: 'create_task', content: '{}' },
+        grounding: null,
         message: {
           id: 'message-2',
           conversationId: 'conversation-1',
@@ -443,6 +445,7 @@ describe('AIGatewayService', () => {
           createdAt: new Date(),
         },
         result: { toolName: 'create_task', content: '{}' },
+        grounding: null,
         message: {
           id: 'message-3',
           conversationId: 'conversation-1',

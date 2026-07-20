@@ -499,6 +499,7 @@ export class AgentLoopService {
         type: 'tool_call_result',
         toolName: decision.toolName,
         durationMs: response.execution.durationMs ?? 0,
+        ...(response.grounding ? { grounding: response.grounding } : {}),
       });
 
       return {
