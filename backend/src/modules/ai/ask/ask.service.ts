@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { AgentService } from '../agents/agent.service';
 import { RunAutonomousAgentDto } from '../agents/dto/autonomous-agent.dto';
+import { MultiAgentStreamEvent } from '../agents/autonomous/multi-agent-stream-event.types';
+import { AiGatewayStreamEvent } from '../gateway/ai-gateway-stream-event.types';
 import { isAbortError } from '../streaming/drain-generator';
 import { GroundedRecordRef } from '../tools/tool-result.types';
 import { ASK_RESPONSE_CONTRACT } from './ask-response-contract';
 import { parseAndGroundAskOutput } from './ask-response.parser';
 import { AskStreamEvent } from './ask.types';
 import { SentenceChunker } from './sentence-chunker';
+
+type AnyAgentStreamEvent = AiGatewayStreamEvent | MultiAgentStreamEvent;
 
 export interface AskStreamInput {
   agentId: string;
@@ -55,7 +59,11 @@ export class AskService {
     );
 
     try {
-      for await (const event of source) {
+      for await (const rawEvent of source) {
+        // Delegated child runs arrive wrapped in agent_event (recursively);
+        // their tool grounding and approvals count toward this turn exactly
+        // like the root's own — unwrap before dispatching.
+        const event = unwrapAgentEvent(rawEvent);
         switch (event.type) {
           case 'tool_call_start':
             yield { type: 'doing', label: describeToolWork(event.toolName) };
@@ -112,6 +120,14 @@ export class AskService {
     const { structured } = parseAndGroundAskOutput(outputText, groundedRecords, heldApprovalIds);
     yield { type: 'response', response: structured };
   }
+}
+
+function unwrapAgentEvent(event: AnyAgentStreamEvent): AnyAgentStreamEvent {
+  let current = event;
+  while (current.type === 'agent_event') {
+    current = current.event;
+  }
+  return current;
 }
 
 /** Doing-lines name the actual work, in words — never a spinner. */
