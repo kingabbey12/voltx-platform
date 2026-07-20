@@ -74,10 +74,25 @@ export function useHeldWork() {
     [ledger, statusById],
   );
 
+  // When Ask holds new work mid-session, the ledger re-reads so the new
+  // document appears — the one sanctioned exception to snapshot-on-arrival.
+  const refreshLedger = useCallback(async () => {
+    const fresh = await query.refetch();
+    if (fresh.data) {
+      setLedger((current) => {
+        const existing = current ?? [];
+        const known = new Set(existing.map((approval) => approval.id));
+        const additions = fresh.data.items.filter((approval) => !known.has(approval.id));
+        return [...existing, ...additions];
+      });
+    }
+  }, [query]);
+
   return {
     items,
     loading: query.isLoading && ledger === null,
     error: query.isError && ledger === null,
     sign,
+    refreshLedger,
   };
 }

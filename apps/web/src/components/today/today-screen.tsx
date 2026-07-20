@@ -8,31 +8,12 @@ import { TodaySidebar } from "./today-sidebar";
 import { TodayBriefSection } from "./today-brief";
 import { HeldLedger } from "./held-ledger";
 import { ReplyLine } from "./reply-line";
+import { AskExchangeSection } from "./ask-exchange";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMyOrganizations } from "@/hooks/use-organizations";
 import { useTodayBrief } from "@/hooks/use-today-brief";
-import { toParagraphs } from "@/lib/today/prose";
 import { useHeldWork, type HeldWorkItem } from "@/hooks/use-held-work";
-import { useRunCommand } from "@/hooks/use-operator";
-import { useOperatorStore } from "@/lib/stores/operator-store";
-
-/** Name the work being done for the doing-line — words, never a spinner. */
-function describeToolWork(toolName: string | undefined): string {
-  if (!toolName) return "Gathering the answer…";
-  const words = toolName.replace(/[_-]+/g, " ").toLowerCase();
-  const [first, ...rest] = words.split(" ");
-  const gerunds: Record<string, string> = {
-    search: "Searching",
-    get: "Reading",
-    list: "Reading",
-    read: "Reading",
-    find: "Finding",
-    create: "Drafting",
-    update: "Updating",
-  };
-  const verb = gerunds[first ?? ""] ?? "Reading";
-  return `${verb} ${rest.join(" ") || "the records"}…`;
-}
+import { useAsk } from "@/hooks/use-ask";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -48,6 +29,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
  * brief, the held-work ledger, the reply line — with the keyboard grammar
  * (type anywhere, ⌘K, ↑↓ through the ledger, Enter opens, ⌘Enter signs,
  * Esc returns) and the focus, motion, loading, empty and error treatments.
+ * The reply line speaks to Ask (docs/design/ASK.md): whole sentences,
+ * grounded doors, inline answers, and held work flowing into the ledger.
  */
 export function TodayScreen() {
   const router = useRouter();
@@ -68,38 +51,24 @@ export function TodayScreen() {
   // brief and the ledger arrive together, never one pushing the other.
   const arriving = brief.loading;
 
-  // ————— Ask: the reply line submits through the existing operator runtime —————
-  const { run, cancel } = useRunCommand();
-  const turns = useOperatorStore((state) => state.turns);
+  // ————— Ask: the reply line, wired to the grounded pipeline —————
+  const { exchange, ask, stop } = useAsk(held.refreshLedger);
   const [draft, setDraft] = useState("");
-  const [asked, setAsked] = useState<{ objective: string; at: number } | null>(null);
-  const [askTurnId, setAskTurnId] = useState<string | null>(null);
   const replyRef = useRef<HTMLInputElement>(null);
 
-  // Find this screen's turn once (run() does not return an id), then pin it —
-  // matching by objective/time on every render would break if the same words
-  // are asked twice.
-  useEffect(() => {
-    if (!asked || askTurnId) return;
-    const match = turns.find(
-      (turn) => turn.objective === asked.objective && turn.createdAt >= asked.at - 1_000,
-    );
-    if (match) setAskTurnId(match.id);
-  }, [turns, asked, askTurnId]);
-
-  const askTurn = useMemo(
-    () => (askTurnId ? (turns.find((turn) => turn.id === askTurnId) ?? null) : null),
-    [turns, askTurnId],
-  );
-
   const submitAsk = useCallback(() => {
-    const objective = draft.trim();
-    if (objective.length === 0) return;
-    setAsked({ objective, at: Date.now() });
-    setAskTurnId(null);
+    const prompt = draft.trim();
+    if (prompt.length === 0) return;
     setDraft("");
-    void run(objective);
-  }, [draft, run]);
+    void ask(prompt);
+  }, [draft, ask]);
+
+  const askFollowUp = useCallback(
+    (objective: string) => {
+      void ask(objective);
+    },
+    [ask],
+  );
 
   // ————— Ledger selection: the margin line, moved with the arrows —————
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -151,8 +120,8 @@ export function TodayScreen() {
       // Esc — return: stop the stream, then set down the reply, then clear
       // the selection. A draft is always kept.
       if (event.key === "Escape") {
-        if (askTurn?.status === "running") {
-          cancel();
+        if (exchange.status === "asking") {
+          stop();
           return;
         }
         if (document.activeElement === replyRef.current) {
@@ -190,13 +159,7 @@ export function TodayScreen() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [arriving, askTurn?.status, cancel, held.items, moveSelection, selectedIndex, signItem]);
-
-  // ————— The ask exchange, rendered as prose beneath the owner's line —————
-  const askDoing = askTurn?.status === "running" && !askTurn.finalText;
-  const askStopped = askTurn?.status === "error" && /abort/i.test(askTurn.error ?? "");
-  const askParagraphs = askTurn?.finalText ? toParagraphs(askTurn.finalText) : null;
-  const runningTool = askTurn?.toolCalls.find((call) => call.status === "running")?.toolName;
+  }, [arriving, exchange.status, stop, held.items, moveSelection, selectedIndex, signItem]);
 
   return (
     <div className={styles.screen}>
@@ -217,30 +180,7 @@ export function TodayScreen() {
           />
         )}
 
-        {asked && (
-          <section className={styles.ask} aria-label="Your question">
-            <div className={styles.brief}>
-              <p className={styles.q}>{asked.objective}</p>
-              {askParagraphs?.map((paragraph, index) => (
-                <p key={index} className={styles.arrive}>
-                  {paragraph}
-                </p>
-              ))}
-              {askStopped && <p className={styles.arrive}>— stopped here.</p>}
-              {askTurn?.status === "error" && !askStopped && (
-                <p className={styles.arrive}>
-                  The answer didn&rsquo;t arrive — the connection to Voltx dropped. Nothing was
-                  changed by asking. Ask again and I&rsquo;ll pick it up.
-                </p>
-              )}
-            </div>
-            {askDoing && (
-              <div className={styles.doing} role="status" aria-live="polite">
-                {describeToolWork(runningTool)}
-              </div>
-            )}
-          </section>
-        )}
+        <AskExchangeSection exchange={exchange} onAsk={askFollowUp} />
 
         <ReplyLine ref={replyRef} value={draft} onChange={setDraft} onSubmit={submitAsk} />
       </main>
