@@ -57,8 +57,16 @@ const FULL_MANIFEST = {
     {
       name: 'lookup_order',
       description: 'Looks up an order by id',
-      parametersSchema: { type: 'object', properties: { orderId: { type: 'string' } }, required: ['orderId'] },
-      responseSchema: { type: 'object', properties: { status: { type: 'string' } }, required: ['status'] },
+      parametersSchema: {
+        type: 'object',
+        properties: { orderId: { type: 'string' } },
+        required: ['orderId'],
+      },
+      responseSchema: {
+        type: 'object',
+        properties: { status: { type: 'string' } },
+        required: ['status'],
+      },
       endpointUrl: 'https://acme.example/tools/lookup-order',
     },
   ],
@@ -98,7 +106,9 @@ describe('Extension Framework (e2e)', () => {
     const createdApp = (createAppResponse.body as ApiSuccessResponse<MarketplaceAppResponse>).data;
 
     await request(app.getHttpServer())
-      .post(`/api/v1/organizations/${developer.organization.id}/marketplace/apps/${createdApp.id}/versions`)
+      .post(
+        `/api/v1/organizations/${developer.organization.id}/marketplace/apps/${createdApp.id}/versions`,
+      )
       .set(devAuth)
       .send({
         version: '1.0.0',
@@ -135,11 +145,15 @@ describe('Extension Framework (e2e)', () => {
     const createdApp = (createAppResponse.body as ApiSuccessResponse<MarketplaceAppResponse>).data;
 
     const submitVersionResponse = await request(app.getHttpServer())
-      .post(`/api/v1/organizations/${developer.organization.id}/marketplace/apps/${createdApp.id}/versions`)
+      .post(
+        `/api/v1/organizations/${developer.organization.id}/marketplace/apps/${createdApp.id}/versions`,
+      )
       .set(devAuth)
       .send({ version: '1.0.0', manifest: FULL_MANIFEST })
       .expect(201);
-    const version = (submitVersionResponse.body as ApiSuccessResponse<MarketplaceAppVersionResponse>).data;
+    const version = (
+      submitVersionResponse.body as ApiSuccessResponse<MarketplaceAppVersionResponse>
+    ).data;
 
     await request(app.getHttpServer())
       .post(`/api/v1/platform/marketplace/versions/${version.id}/approve`)
@@ -148,7 +162,9 @@ describe('Extension Framework (e2e)', () => {
 
     // Developer can see the materialized AI tool and its signing secret.
     const devToolsResponse = await request(app.getHttpServer())
-      .get(`/api/v1/organizations/${developer.organization.id}/marketplace/apps/${createdApp.id}/extensions/ai-tools`)
+      .get(
+        `/api/v1/organizations/${developer.organization.id}/marketplace/apps/${createdApp.id}/extensions/ai-tools`,
+      )
       .set(devAuth)
       .expect(200);
     const devTools = (devToolsResponse.body as ApiSuccessResponse<ExtensionAiToolResponse[]>).data;
@@ -166,17 +182,21 @@ describe('Extension Framework (e2e)', () => {
     ).toHaveLength(0);
 
     const installResponse = await request(app.getHttpServer())
-      .post(`/api/v1/organizations/${installer.organization.id}/marketplace/apps/${createdApp.id}/install`)
+      .post(
+        `/api/v1/organizations/${installer.organization.id}/marketplace/apps/${createdApp.id}/install`,
+      )
       .set(installerAuth)
       .send({})
       .expect(201);
-    const installId = (installResponse.body as ApiSuccessResponse<InstallAppResult>).data.install?.id;
+    const installId = (installResponse.body as ApiSuccessResponse<InstallAppResult>).data.install
+      ?.id;
 
     const installedResponse = await request(app.getHttpServer())
       .get(`/api/v1/organizations/${installer.organization.id}/extensions/installed`)
       .set(installerAuth)
       .expect(200);
-    const installed = (installedResponse.body as ApiSuccessResponse<InstalledExtensionsResponse>).data;
+    const installed = (installedResponse.body as ApiSuccessResponse<InstalledExtensionsResponse>)
+      .data;
     expect(installed.pages).toHaveLength(1);
     expect(installed.pages[0].path).toBe('/dashboard');
     expect(installed.widgets).toHaveLength(1);
@@ -195,7 +215,9 @@ describe('Extension Framework (e2e)', () => {
 
     // Uninstalling removes it from the installer's own view.
     await request(app.getHttpServer())
-      .delete(`/api/v1/organizations/${installer.organization.id}/marketplace/installs/${installId}`)
+      .delete(
+        `/api/v1/organizations/${installer.organization.id}/marketplace/installs/${installId}`,
+      )
       .set(installerAuth)
       .expect(200);
 
