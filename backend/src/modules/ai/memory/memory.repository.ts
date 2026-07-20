@@ -167,6 +167,24 @@ export class MemoryRepository {
     };
   }
 
+  /** Tenant-scoped metadata update (belief layer); null when out of scope. */
+  async updateMemoryMetadata(
+    id: string,
+    metadata: Record<string, unknown>,
+  ): Promise<MemoryEntity | null> {
+    const existing = await this.findMemoryById(id);
+    if (!existing) {
+      return null;
+    }
+
+    const record = await this.memories().update({
+      where: { id },
+      data: { metadata: toJsonValue(metadata) ?? {} },
+    });
+
+    return toMemoryEntity(record);
+  }
+
   async softDeleteMemory(id: string): Promise<MemoryEntity | null> {
     const existing = await this.findMemoryById(id);
     if (!existing) {

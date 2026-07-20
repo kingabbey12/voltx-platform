@@ -1,5 +1,6 @@
 import { forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
+import { confirmBelief, contradictBelief, readBelief, writeBelief } from './belief';
 import { AIGatewayService } from '../gateway/ai-gateway.service';
 import { AIMessage } from '../models/ai-model.types';
 import { CreateMemoryDto, MemoryResponseDto, PaginatedMemoriesDto } from './dto/memory.dto';
@@ -93,6 +94,52 @@ export class MemoryService {
       resourceId: entity.id,
       metadata: {
         conversationId: entity.conversationId,
+      },
+    });
+
+    return MemoryResponseDto.fromEntity(entity);
+  }
+
+  /**
+   * The owner confirms a belief: confidence rises, the confirmation is on
+   * the record. Part of inspectable memory (docs/design/ASK.md §4) — the
+   * company may not believe things the owner cannot see and overrule.
+   */
+  async confirmMemory(id: string): Promise<MemoryResponseDto> {
+    return this.adjustBelief(id, 'confirm');
+  }
+
+  /** The owner contradicts a belief: confidence drops, on the record. */
+  async contradictMemory(id: string): Promise<MemoryResponseDto> {
+    return this.adjustBelief(id, 'contradict');
+  }
+
+  private async adjustBelief(
+    id: string,
+    action: 'confirm' | 'contradict',
+  ): Promise<MemoryResponseDto> {
+    const existing = await this.memoryRepository.findMemoryById(id);
+    if (!existing) {
+      throw new NotFoundException(`Memory with id "${id}" not found`);
+    }
+
+    const belief = readBelief(existing.metadata, existing.importance);
+    const adjusted = action === 'confirm' ? confirmBelief(belief) : contradictBelief(belief);
+    const entity = await this.memoryRepository.updateMemoryMetadata(
+      id,
+      writeBelief(existing.metadata, adjusted),
+    );
+    if (!entity) {
+      throw new NotFoundException(`Memory with id "${id}" not found`);
+    }
+
+    await this.auditService.record({
+      action,
+      resource: 'ai_memory',
+      resourceId: entity.id,
+      metadata: {
+        conversationId: entity.conversationId,
+        confidence: adjusted.confidence,
       },
     });
 
