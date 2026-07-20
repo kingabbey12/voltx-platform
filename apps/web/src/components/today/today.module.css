@@ -1,0 +1,447 @@
+/*
+ * Today — design tokens and primitives, ported verbatim from the frozen
+ * Today specification (design artifact "Voltx — Today"). Fixed light: the
+ * designed subject. The dark token set exists in the Visual DNA but is not
+ * yet proofed against this screen, so it does not ship here.
+ *
+ * Every vertical interval is a multiple of the 12px half-line derived from
+ * the 24px leading. Do not adjust spacing without the spec.
+ */
+
+.screen {
+  --canvas: #f7f6f3;
+  --surface: #fcfbf9;
+  --raised: #ffffff;
+  --hair: #e7e4de;
+  --hair2: #d6d2c9;
+  --wash: #f0eee9;
+  --wash-a: #ece9e3;
+  --ink: #211f1c;
+  --ink2: #6e6a62;
+  --ink3: #a29c92;
+  --volt: #2f5ce0;
+  --volt-wash: #edf1fc;
+
+  background: var(--canvas);
+  color: var(--ink);
+  font-family:
+    -apple-system, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  min-height: 100dvh;
+}
+
+/* ————— Sidebar — set entirely in type; three weights carry the hierarchy ————— */
+
+.side {
+  width: 240px;
+  border-right: 1px solid var(--hair);
+  padding: 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.ws {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.nav {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  height: 32px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--ink2);
+  cursor: default;
+  transition: color 0.12s ease;
+  background: none;
+  border: none;
+  font-family: inherit;
+  text-align: left;
+}
+
+.item.active {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.item:hover:not(.active) {
+  color: var(--ink);
+}
+
+.you {
+  margin-top: auto;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--ink2);
+}
+
+/* ————— Content column — 600px measure on the half-line grid ————— */
+
+.col {
+  width: 600px;
+  margin: 0 auto;
+  padding-top: 96px;
+  padding-bottom: 96px;
+  box-sizing: content-box;
+}
+
+.date {
+  font-size: 13px;
+  line-height: 24px;
+  font-weight: 400;
+  color: var(--ink2);
+}
+
+.brief {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.brief p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--ink);
+}
+
+.q {
+  font-weight: 500;
+}
+
+/* The ask exchange — the owner's line and its answer, a section interval
+   below the ledger, sharing the brief's paragraph styles. */
+.ask {
+  margin-top: 60px;
+}
+
+.ask .brief {
+  margin-top: 0;
+}
+
+/* .door and .ans.alt are spec primitives not yet exercised by this screen:
+   doors await the grounding pipeline (record-linked figures), and alternate
+   answers await the inline question. They ship with the system so their
+   arrival is a data change, not a design change. */
+.door {
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+}
+
+.door:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.answers {
+  display: flex;
+  gap: 12px;
+  margin: 8px 0 0 -10px;
+  flex-wrap: wrap;
+}
+
+.ans {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  transition: background-color 0.12s ease;
+}
+
+.ans.rec {
+  color: var(--volt);
+}
+
+.ans.rec:hover {
+  background: var(--volt-wash);
+}
+
+.ans.alt {
+  color: var(--ink2);
+}
+
+.ans.alt:hover {
+  background: var(--wash);
+}
+
+/* ————— Held work — a ledger of prepared sentences, ruled like a document ————— */
+
+.held {
+  margin-top: 60px;
+}
+
+.row {
+  padding: 16px 0;
+  border-top: 1px solid var(--hair);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  cursor: pointer;
+  position: relative;
+}
+
+.held > :last-child {
+  border-bottom: 1px solid var(--hair);
+}
+
+.row .s {
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--ink);
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover .s {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.verb {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--volt);
+  padding: 5px 10px;
+  margin: -5px -10px -5px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background-color 0.12s ease;
+  /* Reserve the width of the widest word the verb can become ("Sending…")
+     so the ledger never shifts while work is in flight. */
+  min-width: 72px;
+  text-align: right;
+}
+
+.verb:hover {
+  background: var(--volt-wash);
+}
+
+.verb:disabled {
+  cursor: default;
+}
+
+/* Selection — the margin line: a document drawn from the stack, not a highlight */
+
+.row.sel {
+  border-top-color: var(--hair2);
+}
+
+.row.sel + .row,
+.row.sel + .note {
+  border-top-color: var(--hair2);
+}
+
+.row.sel::before {
+  content: "";
+  position: absolute;
+  left: -24px;
+  top: 16px;
+  bottom: 16px;
+  width: 2px;
+  background: var(--ink);
+}
+
+.row.sel:last-child {
+  border-bottom-color: var(--hair2);
+}
+
+/* Spent state — intent used, record kept */
+
+.row.done {
+  cursor: default;
+}
+
+.row.done .s {
+  color: var(--ink2);
+  cursor: default;
+}
+
+.row.done:hover .s {
+  text-decoration: none;
+}
+
+.row.done .verb {
+  color: var(--ink2);
+  cursor: default;
+}
+
+.row.done .verb:hover {
+  background: transparent;
+}
+
+/* Sending — the verb reports in its own words; nothing else changes */
+
+.row.sending .verb {
+  color: var(--ink2);
+  cursor: default;
+}
+
+.row.sending .verb:hover {
+  background: transparent;
+}
+
+/* ————— Error grammar — a sentence where the failure lives ————— */
+
+.note {
+  padding: 0 0 16px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink2);
+  max-width: 480px;
+}
+
+.note b {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* ————— The doing-line — loading named in words, never a spinner ————— */
+
+.doing {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink3);
+  margin-top: 16px;
+}
+
+/* ————— The reply line ————— */
+
+.reply {
+  margin-top: 72px;
+  height: 44px;
+  box-sizing: border-box;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reply input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--ink);
+  padding: 0;
+  outline: none;
+  caret-color: var(--ink);
+}
+
+.reply input::placeholder {
+  color: var(--ink3);
+}
+
+.kbd {
+  font-size: 11px;
+  line-height: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink3);
+}
+
+.reply.focused,
+.reply:focus-within {
+  border-color: var(--volt);
+  background: var(--raised);
+  box-shadow: 0 0 0 3px rgba(47, 92, 224, 0.15);
+}
+
+/* ————— Focus system — one ink ring for text controls; rows get the margin line ————— */
+
+.door:focus-visible,
+.ans:focus-visible,
+.verb:focus-visible,
+.item:focus-visible {
+  outline: 1.5px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Held rows are selected, not outlined — the margin line is the focus mark. */
+.row .s:focus-visible {
+  outline: none;
+}
+
+/* ————— Motion — four movements, each answering "what changed" ————— */
+
+.arrive {
+  animation: arrive 0.15s ease-out;
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arrive {
+    animation: none;
+  }
+
+  .item,
+  .ans,
+  .verb {
+    transition: none;
+  }
+}

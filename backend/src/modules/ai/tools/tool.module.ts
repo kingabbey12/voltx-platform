@@ -15,6 +15,7 @@ import {
   ToolExecutionContext,
   ToolSchema,
 } from './tool.interface';
+import { ToolGrounding } from './tool-result.types';
 import { OutboundHttpGuardService } from './outbound-http-guard.service';
 import { ToolExecutor } from './tool.executor';
 import { ToolRegistry } from './tool.registry';
@@ -110,6 +111,10 @@ class CalculatorTool implements AITool<{ expression: string }, { result: number 
     const result = safeEvaluateExpression(expression);
     return Promise.resolve({ result });
   }
+
+  ground(input: { expression: string }): ToolGrounding {
+    return { summary: `Computed ${input.expression.trim()}`, records: [], events: [] };
+  }
 }
 
 class DatetimeTool implements AITool<
@@ -146,6 +151,10 @@ class DatetimeTool implements AITool<
       timezone,
     });
   }
+
+  ground(): ToolGrounding {
+    return { summary: 'Read the current date and time', records: [], events: [] };
+  }
 }
 
 class UuidTool implements AITool<{ count?: number }, { uuids: string[] }> {
@@ -165,6 +174,15 @@ class UuidTool implements AITool<{ count?: number }, { uuids: string[] }> {
     const count = Math.max(1, Math.min(100, Number(input.count ?? 1)));
     const uuids = Array.from({ length: count }, () => randomUUID());
     return Promise.resolve({ uuids });
+  }
+
+  ground(_input: { count?: number }, output: { uuids: string[] }): ToolGrounding {
+    const count = output.uuids.length;
+    return {
+      summary: `Generated ${count} ${count === 1 ? 'identifier' : 'identifiers'}`,
+      records: [],
+      events: [],
+    };
   }
 }
 
@@ -204,6 +222,10 @@ class JsonTool implements AITool<{ operation: string; value: unknown }, { result
       default:
         throw new ToolExecutionError('Unsupported json operation', 'invalid_json_operation');
     }
+  }
+
+  ground(input: { operation: string; value: unknown }): ToolGrounding {
+    return { summary: `Transformed JSON (${input.operation})`, records: [], events: [] };
   }
 }
 
@@ -257,6 +279,17 @@ class HttpGetTool implements AITool<
     return {
       status: response.status,
       body,
+    };
+  }
+
+  ground(
+    input: { url: string; headers?: Record<string, string> },
+    output: { status: number; body: unknown },
+  ): ToolGrounding {
+    return {
+      summary: `Fetched ${hostOf(input.url)} (status ${output.status})`,
+      records: [],
+      events: [],
     };
   }
 }
@@ -319,6 +352,17 @@ class HttpPostTool implements AITool<
     return {
       status: response.status,
       body,
+    };
+  }
+
+  ground(
+    input: { url: string; headers?: Record<string, string>; body?: unknown },
+    output: { status: number; body: unknown },
+  ): ToolGrounding {
+    return {
+      summary: `Posted to ${hostOf(input.url)} (status ${output.status})`,
+      records: [],
+      events: [{ description: `Sent an HTTP POST to ${hostOf(input.url)}` }],
     };
   }
 }
@@ -463,6 +507,15 @@ class ArithmeticParser {
     const token = this.tokens[this.index];
     this.index += 1;
     return token;
+  }
+}
+
+/** Grounding summaries name the host, never the full URL — query strings can carry secrets. */
+function hostOf(rawUrl: string): string {
+  try {
+    return new URL(rawUrl.trim()).host;
+  } catch {
+    return 'the requested host';
   }
 }
 

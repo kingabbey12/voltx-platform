@@ -36,6 +36,20 @@ export class MemoryController {
     return this.memoryService.createMemory(dto);
   }
 
+  @Post(':id/confirm')
+  @ApiOperation({ summary: 'Confirm a remembered belief — confidence rises, on the record' })
+  @ApiOkResponse({ type: MemorySuccessResponseDto })
+  confirm(@Param('id') id: string): Promise<MemoryResponseDto> {
+    return this.memoryService.confirmMemory(id);
+  }
+
+  @Post(':id/contradict')
+  @ApiOperation({ summary: 'Contradict a remembered belief — confidence drops, on the record' })
+  @ApiOkResponse({ type: MemorySuccessResponseDto })
+  contradict(@Param('id') id: string): Promise<MemoryResponseDto> {
+    return this.memoryService.contradictMemory(id);
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Soft delete a memory entry' })
   @ApiOkResponse({ type: MemorySuccessResponseDto })

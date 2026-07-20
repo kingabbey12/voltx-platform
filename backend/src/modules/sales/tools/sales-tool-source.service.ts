@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 import { AITool, ToolSchema } from '../../ai/tools/tool.interface';
+import { mutationGrounding, searchGrounding } from '../../ai/tools/grounding.helpers';
 import { DynamicToolSource, ToolRegistry } from '../../ai/tools/tool.registry';
 import { NotificationService } from '../../notifications/notification.service';
 import { ActivitiesService } from '../activities/activities.service';
@@ -123,6 +124,24 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
           })),
         };
       },
+      ground(_input, output) {
+        const data = output as {
+          total: number;
+          opportunities: Array<{ id: string; title: string }>;
+        };
+        return {
+          summary:
+            data.total === 0
+              ? 'No matching opportunities in the pipeline'
+              : `Read ${data.total} ${data.total === 1 ? 'opportunity' : 'opportunities'} from the pipeline`,
+          records: data.opportunities.map((opportunity) => ({
+            type: 'sales.opportunity',
+            id: opportunity.id,
+            label: opportunity.title,
+          })),
+          events: [],
+        };
+      },
     };
   }
 
@@ -179,6 +198,24 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
           })),
         };
       },
+      ground(_input, output) {
+        const data = output as {
+          total: number;
+          activities: Array<{ id: string; subject: string }>;
+        };
+        return {
+          summary:
+            data.total === 0
+              ? 'Nothing is overdue'
+              : `Read ${data.total} overdue ${data.total === 1 ? 'activity' : 'activities'}`,
+          records: data.activities.map((activity) => ({
+            type: 'sales.activity',
+            id: activity.id,
+            label: activity.subject,
+          })),
+          events: [],
+        };
+      },
     };
   }
 
@@ -228,6 +265,11 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
 
         return { id: created.id, subject: created.subject, dueAt: created.dueAt };
       },
+      ground: mutationGrounding<{ id: string; subject: string }>({
+        recordType: 'sales.activity',
+        action: 'Created task',
+        record: (output) => ({ id: output.id, label: output.subject }),
+      }),
     };
   }
 
@@ -262,6 +304,11 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
           })),
         };
       },
+      ground: searchGrounding<{ leads: Array<{ id: string; title: string }> }>({
+        recordType: 'sales.lead',
+        noun: ['lead', 'leads'],
+        items: (output) => output.leads.map((lead) => ({ id: lead.id, label: lead.title })),
+      }),
     };
   }
 
@@ -307,6 +354,14 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
         });
         return { id: created.id, firstName: created.firstName, lastName: created.lastName };
       },
+      ground: mutationGrounding<{ id: string; firstName: string; lastName: string }>({
+        recordType: 'sales.contact',
+        action: 'Created contact',
+        record: (output) => ({
+          id: output.id,
+          label: `${output.firstName} ${output.lastName}`.trim(),
+        }),
+      }),
     };
   }
 
@@ -345,6 +400,14 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
         const updated = await contactsService.update(contactId, updates);
         return { id: updated.id, firstName: updated.firstName, lastName: updated.lastName };
       },
+      ground: mutationGrounding<{ id: string; firstName: string; lastName: string }>({
+        recordType: 'sales.contact',
+        action: 'Updated contact',
+        record: (output) => ({
+          id: output.id,
+          label: `${output.firstName} ${output.lastName}`.trim(),
+        }),
+      }),
     };
   }
 
@@ -368,6 +431,11 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
         const deleted = await contactsService.remove(input.contactId);
         return { id: deleted.id, deleted: true };
       },
+      ground: mutationGrounding<{ id: string }>({
+        recordType: 'sales.contact',
+        action: 'Deleted contact',
+        record: (output) => ({ id: output.id, label: 'the contact' }),
+      }),
     };
   }
 
@@ -407,6 +475,11 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
         });
         return { id: created.id, name: created.name };
       },
+      ground: mutationGrounding<{ id: string; name: string }>({
+        recordType: 'sales.company',
+        action: 'Created company',
+        record: (output) => ({ id: output.id, label: output.name }),
+      }),
     };
   }
 
@@ -443,6 +516,11 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
         const updated = await companiesService.update(companyId, updates);
         return { id: updated.id, name: updated.name };
       },
+      ground: mutationGrounding<{ id: string; name: string }>({
+        recordType: 'sales.company',
+        action: 'Updated company',
+        record: (output) => ({ id: output.id, label: output.name }),
+      }),
     };
   }
 
@@ -498,6 +576,11 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
         });
         return { id: created.id, title: created.title, stage: created.stage };
       },
+      ground: mutationGrounding<{ id: string; title: string }>({
+        recordType: 'sales.opportunity',
+        action: 'Created deal',
+        record: (output) => ({ id: output.id, label: output.title }),
+      }),
     };
   }
 
@@ -534,6 +617,11 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
         const updated = await opportunitiesService.update(dealId, updates);
         return { id: updated.id, title: updated.title, stage: updated.stage };
       },
+      ground: mutationGrounding<{ id: string; title: string }>({
+        recordType: 'sales.opportunity',
+        action: 'Updated deal',
+        record: (output) => ({ id: output.id, label: output.title }),
+      }),
     };
   }
 
@@ -566,8 +654,13 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
         const updated = await opportunitiesService.update(input.dealId, {
           stage: input.stage as OpportunityStage,
         });
-        return { id: updated.id, stage: updated.stage };
+        return { id: updated.id, title: updated.title, stage: updated.stage };
       },
+      ground: mutationGrounding<{ id: string; title: string; stage: string }>({
+        recordType: 'sales.opportunity',
+        action: 'Moved deal stage',
+        record: (output) => ({ id: output.id, label: `${output.title} → ${output.stage}` }),
+      }),
     };
   }
 
@@ -611,6 +704,11 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
         });
         return { id: updated.id, subject: updated.subject };
       },
+      ground: mutationGrounding<{ id: string; subject: string }>({
+        recordType: 'sales.activity',
+        action: 'Assigned task',
+        record: (output) => ({ id: output.id, label: output.subject }),
+      }),
     };
   }
 
@@ -653,6 +751,11 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
         });
         return { id: created.id, subject: created.subject };
       },
+      ground: mutationGrounding<{ id: string; subject: string }>({
+        recordType: 'sales.activity',
+        action: 'Added note',
+        record: (output) => ({ id: output.id, label: output.subject }),
+      }),
     };
   }
 
@@ -690,8 +793,13 @@ export class SalesToolSourceService implements DynamicToolSource, OnModuleInit {
           body: input.body,
           actionUrl: input.actionUrl,
         });
-        return { id: created.id };
+        return { id: created.id, title: input.title };
       },
+      ground: mutationGrounding<{ id: string; title: string }>({
+        recordType: 'notification',
+        action: 'Sent notification',
+        record: (output) => ({ id: output.id, label: output.title }),
+      }),
     };
   }
 }

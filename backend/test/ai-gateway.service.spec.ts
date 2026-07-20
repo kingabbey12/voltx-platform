@@ -304,6 +304,7 @@ describe('AIGatewayService', () => {
           createdAt: new Date(),
         },
         result: { toolName: 'datetime', content: '{}' },
+        grounding: null,
         message: {
           id: 'message-1',
           conversationId: 'conversation-1',
@@ -359,6 +360,7 @@ describe('AIGatewayService', () => {
         agentRunId: 'run-1',
         toolName: 'create_task',
         input: { subject: 'Follow up' },
+        summary: 'Create task — Follow up',
         status: 'PENDING',
         approverUserId: null,
         comment: null,
@@ -406,6 +408,7 @@ describe('AIGatewayService', () => {
           createdAt: new Date(),
         },
         result: { toolName: 'create_task', content: '{}' },
+        grounding: null,
         message: {
           id: 'message-2',
           conversationId: 'conversation-1',
@@ -443,6 +446,7 @@ describe('AIGatewayService', () => {
           createdAt: new Date(),
         },
         result: { toolName: 'create_task', content: '{}' },
+        grounding: null,
         message: {
           id: 'message-3',
           conversationId: 'conversation-1',

@@ -521,6 +521,9 @@ describe('AI Operator — Approvals & Dashboard (e2e)', () => {
         .set(bearerAuthHeaders(orgB.accessToken))
         .expect(200);
       expect((activityResponse.body as ApiSuccessResponse<{ total: number }>).data.total).toBe(0);
-    });
+      // Same 30s budget as this suite's other tests that drive a full
+      // autonomous run — the default 5s cannot cover two org setups plus a
+      // run with memory capture.
+    }, 30000);
   });
 });

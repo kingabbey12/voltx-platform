@@ -11,6 +11,7 @@ export interface CreateAgentActionApprovalData {
   agentRunId: string;
   toolName: string;
   input: Record<string, unknown>;
+  summary?: string;
   expiresAt?: Date;
 }
 
@@ -51,6 +52,7 @@ export class AgentApprovalRepository {
         agentRunId: data.agentRunId,
         toolName: data.toolName,
         input: data.input as Prisma.InputJsonValue,
+        summary: data.summary ?? null,
         expiresAt: data.expiresAt,
       },
     });
@@ -147,6 +149,7 @@ function toEntity(record: {
   agentRunId: string;
   toolName: string;
   input: Prisma.JsonValue;
+  summary: string | null;
   status: AgentActionApprovalStatus;
   approverUserId: string | null;
   comment: string | null;
@@ -160,6 +163,7 @@ function toEntity(record: {
     agentRunId: record.agentRunId,
     toolName: record.toolName,
     input: toObject(record.input),
+    summary: record.summary,
     status: record.status,
     approverUserId: record.approverUserId,
     comment: record.comment,

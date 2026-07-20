@@ -71,6 +71,20 @@ export class FinanceToolSourceService implements DynamicToolSource, OnModuleInit
           })),
         };
       },
+      // Aggregates are projections, not records (COMPANY.md §4) — the
+      // summary is grounded; there is no single record id to open.
+      ground(_input, output) {
+        const data = output as { currencies: Array<{ currency: string; dealCount: number }> };
+        const deals = data.currencies.reduce((sum, entry) => sum + entry.dealCount, 0);
+        return {
+          summary:
+            deals === 0
+              ? 'No closed-won revenue on record'
+              : `Read closed-won revenue across ${deals} ${deals === 1 ? 'deal' : 'deals'}`,
+          records: [],
+          events: [],
+        };
+      },
     };
   }
 
@@ -96,6 +110,18 @@ export class FinanceToolSourceService implements DynamicToolSource, OnModuleInit
         return {
           stages: byStage,
           totalOpenPipelineValue: byStage.reduce((sum, entry) => sum + entry.totalAmount, 0),
+        };
+      },
+      ground(_input, output) {
+        const data = output as { stages: Array<{ dealCount: number }> };
+        const deals = data.stages.reduce((sum, entry) => sum + entry.dealCount, 0);
+        return {
+          summary:
+            deals === 0
+              ? 'The open pipeline is empty'
+              : `Read the open pipeline across ${deals} ${deals === 1 ? 'deal' : 'deals'}`,
+          records: [],
+          events: [],
         };
       },
     };
@@ -132,6 +158,14 @@ export class FinanceToolSourceService implements DynamicToolSource, OnModuleInit
           totalCostUsd: summary.totalCostUsd,
           totalTokens: summary.totalTokens,
           callCount: summary.callCount,
+        };
+      },
+      ground(_input, output) {
+        const data = output as { lookbackDays: number; callCount: number };
+        return {
+          summary: `Read AI usage for the last ${data.lookbackDays} days (${data.callCount} calls)`,
+          records: [],
+          events: [],
         };
       },
     };

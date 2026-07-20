@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { AITool, ToolExecutionError, ToolSchema } from '../../ai/tools/tool.interface';
+import { mutationGrounding } from '../../ai/tools/grounding.helpers';
 import { DynamicToolSource, ToolRegistry } from '../../ai/tools/tool.registry';
 import { AttachmentService } from '../attachment.service';
 import { streamToBuffer } from '../stream-to-buffer.util';
@@ -77,6 +78,11 @@ export class DocumentToolSourceService implements DynamicToolSource, OnModuleIni
         });
         return { attachmentId: attachment.id, fileName: attachment.fileName };
       },
+      ground: mutationGrounding<{ attachmentId: string; fileName: string }>({
+        recordType: 'document',
+        action: 'Generated PDF',
+        record: (output) => ({ id: output.attachmentId, label: output.fileName }),
+      }),
     };
   }
 
@@ -134,6 +140,11 @@ export class DocumentToolSourceService implements DynamicToolSource, OnModuleIni
         });
         return { attachmentId: attachment.id, fileName: attachment.fileName };
       },
+      ground: mutationGrounding<{ attachmentId: string; fileName: string }>({
+        recordType: 'document',
+        action: 'Generated contract',
+        record: (output) => ({ id: output.attachmentId, label: output.fileName }),
+      }),
     };
   }
 
@@ -192,6 +203,11 @@ export class DocumentToolSourceService implements DynamicToolSource, OnModuleIni
         });
         return { attachmentId: attachment.id, fileName: attachment.fileName };
       },
+      ground: mutationGrounding<{ attachmentId: string; fileName: string }>({
+        recordType: 'document',
+        action: 'Converted to PDF',
+        record: (output) => ({ id: output.attachmentId, label: output.fileName }),
+      }),
     };
   }
 
@@ -231,6 +247,20 @@ export class DocumentToolSourceService implements DynamicToolSource, OnModuleIni
         const text = await ocrService.extractText(buffer);
         await attachmentService.updateExtractedText(attachment.id, text);
         return { attachmentId: attachment.id, extractedText: text };
+      },
+      ground(_input, output) {
+        const data = output as { attachmentId: string };
+        return {
+          summary: 'Extracted text from the image',
+          records: [{ type: 'document', id: data.attachmentId, label: 'the image' }],
+          events: [
+            {
+              description: 'Saved OCR text onto the attachment',
+              recordType: 'document',
+              recordId: data.attachmentId,
+            },
+          ],
+        };
       },
     };
   }

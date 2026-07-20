@@ -1,4 +1,5 @@
 import { AIStreamEvent } from '../models/ai-model.types';
+import { ToolGrounding } from '../tools/tool-result.types';
 
 /**
  * Coarse lifecycle status of a streamed AI turn (conversation message or
@@ -36,7 +37,7 @@ export type AiGatewayStreamEvent =
   | { type: 'status'; status: AiRunStatus }
   | { type: 'reasoning'; stage: AiReasoningStage; message: string }
   | { type: 'tool_call_start'; toolName: string }
-  | { type: 'tool_call_result'; toolName: string; durationMs: number }
+  | { type: 'tool_call_result'; toolName: string; durationMs: number; grounding?: ToolGrounding }
   | { type: 'tool_call_error'; toolName: string; message: string }
   | { type: 'provider_event'; event: AIStreamEvent }
   | { type: 'plan'; objective: string; steps: string[] }

@@ -16,6 +16,7 @@ import { TenantModule } from './common/tenant/tenant.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AgentModule } from './modules/ai/agents/agent.module';
+import { AskModule } from './modules/ai/ask/ask.module';
 import { AIModule } from './modules/ai/ai.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { BrandingModule } from './modules/branding/branding.module';
@@ -96,6 +97,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     EncryptionModule,
     AIModule,
     AgentModule,
+    AskModule,
     AttachmentsModule,
     BackgroundJobsModule,
     BillingModule,
