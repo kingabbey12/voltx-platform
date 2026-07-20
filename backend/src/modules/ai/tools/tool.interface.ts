@@ -45,6 +45,15 @@ export interface AITool<
    * over its arguments (no I/O): it runs after execute() on the same data.
    */
   ground?(input: TInput, output: TOutput): ToolGrounding | null;
+
+  /**
+   * Optional approval-summary hook (Ask pipeline): an owner-facing sentence
+   * describing what this call would do, computed from input alone — used
+   * when the call is held for approval, before any output exists. Tools
+   * without it get the generic backend describer; the frontend never
+   * invents summaries.
+   */
+  describe?(input: TInput): string | null;
 }
 
 export class ToolExecutionError extends Error {

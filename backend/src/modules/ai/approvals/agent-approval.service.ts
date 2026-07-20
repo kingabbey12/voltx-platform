@@ -7,6 +7,8 @@ import {
   AgentApprovalRepository,
   PaginatedAgentActionApprovals,
 } from './agent-approval.repository';
+import { describeToolCall } from './describe-tool-call';
+import { ToolRegistry } from '../tools/tool.registry';
 import { AgentActionApprovalEntity } from './entities/agent-action-approval.entity';
 
 /**
@@ -27,6 +29,7 @@ export class AgentApprovalService {
     private readonly tenantContextService: TenantContextService,
     private readonly authContextRepository: AuthContextRepository,
     private readonly notificationService: NotificationService,
+    private readonly toolRegistry: ToolRegistry,
   ) {}
 
   async findOrCreatePending(
@@ -44,6 +47,7 @@ export class AgentApprovalService {
       agentRunId,
       toolName,
       input,
+      summary: this.summarize(toolName, input),
     });
 
     await this.auditService.record({
@@ -56,6 +60,23 @@ export class AgentApprovalService {
     await this.notifyApprovers(tenant.organizationId, created);
 
     return created;
+  }
+
+  /**
+   * The held-work sentence, written once at creation: the tool's own
+   * describe() when it has one, else the generic backend describer. The
+   * frontend renders the stored summary and never invents its own.
+   */
+  private summarize(toolName: string, input: Record<string, unknown>): string {
+    try {
+      const described = this.toolRegistry.get(toolName).describe?.(input);
+      if (described && described.trim().length > 0) {
+        return described.trim();
+      }
+    } catch {
+      // Unknown/unregistered tool at approval time — fall through.
+    }
+    return describeToolCall(toolName, input);
   }
 
   /** Best-effort — a notification failure must never block the tool call from pausing correctly. */

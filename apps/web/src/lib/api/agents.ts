@@ -39,6 +39,8 @@ export interface AgentApproval {
   agentRunId: string;
   toolName: string;
   input: Record<string, unknown>;
+  /** Owner-facing sentence written server-side at creation — render this, never invent one. */
+  summary: string | null;
   status: ApprovalStatus;
   approverUserId: string | null;
   comment: string | null;

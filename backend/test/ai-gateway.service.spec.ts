@@ -360,6 +360,7 @@ describe('AIGatewayService', () => {
         agentRunId: 'run-1',
         toolName: 'create_task',
         input: { subject: 'Follow up' },
+        summary: 'Create task — Follow up',
         status: 'PENDING',
         approverUserId: null,
         comment: null,

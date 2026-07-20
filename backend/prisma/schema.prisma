@@ -479,6 +479,10 @@ model AgentActionApproval {
   agentRunId     String                    @map("agent_run_id") @db.Uuid
   toolName       String                    @map("tool_name")
   input          Json                      @default("{}")
+  /// Owner-facing sentence describing the held work, written at creation
+  /// from the tool's grounding vocabulary — the frontend renders this and
+  /// never invents summaries (docs/design/ASK.md §5).
+  summary        String?
   status         AgentActionApprovalStatus @default(PENDING)
   approverUserId String?                   @map("approver_user_id") @db.Uuid
   comment        String?
