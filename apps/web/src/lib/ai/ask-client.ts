@@ -48,7 +48,8 @@ export interface ResolvedRecord {
   type: string;
   id: string;
   label: string;
-  route: string;
+  /** The canonical place this record is read, or null when no page exists yet. */
+  route: string | null;
 }
 
 export async function* streamAsk(

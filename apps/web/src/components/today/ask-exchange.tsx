@@ -27,7 +27,9 @@ export function AskExchangeSection({
     async (recordType: string, recordId: string) => {
       try {
         const record = await askApi.resolveRecord(recordType, recordId);
-        router.push(record.route);
+        // A record kind with no standalone page yet resolves but does not
+        // navigate — a door never opens onto a wrong page.
+        if (record.route) router.push(record.route);
       } catch {
         // A door that cannot resolve does nothing — never a broken page.
       }
