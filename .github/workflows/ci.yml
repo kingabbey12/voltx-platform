@@ -150,10 +150,21 @@ jobs:
       - name: Test
         run: flutter test
 
-      # PR/CI validation only verifies the app compiles — it must never
-      # require Apple certificates or provisioning profiles, which aren't
-      # (and shouldn't be) available to pull-request runs. --no-codesign
-      # builds the release binary unsigned. Production release signing is
-      # handled by the release workflow, not CI.
-      - name: Build macOS (release, unsigned)
-        run: flutter build macos --release --no-codesign
+      # `flutter build macos --release` requires Apple code signing, and
+      # `flutter build macos` has no --no-codesign flag (that exists only for
+      # iOS/APK builds). PR/CI runs have no certificates and must not need
+      # them, so generate the native project without building (--config-only,
+      # a real Flutter flag) and compile it with xcodebuild using the
+      # documented CODE_SIGNING_ALLOWED=NO setting. This verifies the macOS
+      # app compiles, unsigned. The workspace, scheme, and Release
+      # configuration are the ones defined in apps/mobile/macos. Production
+      # release signing lives in the release workflow and is unchanged.
+      - name: Build macOS (unsigned compile check)
+        run: |
+          flutter build macos --config-only --release
+          xcodebuild \
+            -workspace macos/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            build
