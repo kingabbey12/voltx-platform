@@ -59,6 +59,12 @@ export const TOOL_PERMISSION_REQUIREMENTS: Readonly<Record<string, string | null
   generate_contract: 'attachment.create',
   convert_file: 'attachment.create',
   ocr_image: 'attachment.create',
+  search_promises: 'promise.read',
+  propose_promise: 'promise.create',
+  stand_promise: 'promise.update',
+  fulfill_promise: 'promise.update',
+  release_promise: 'promise.update',
+  break_promise: 'promise.update',
 };
 
 @Injectable()

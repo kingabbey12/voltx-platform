@@ -3,7 +3,9 @@ import {
   Building2,
   ClipboardCheck,
   CreditCard,
+  Handshake,
   Inbox,
+  Landmark,
   LayoutDashboard,
   Lock,
   Plug,
@@ -26,6 +28,8 @@ export interface NavItem {
 
 export const mainNav: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, shortcut: "G D" },
+  { label: "Company", href: "/company", icon: Landmark, shortcut: "G Y" },
+  { label: "Promises", href: "/promises", icon: Handshake, shortcut: "G P" },
   { label: "Inbox", href: "/inbox", icon: Inbox, shortcut: "G I" },
   { label: "AI Chat", href: "/ai", icon: Bot, shortcut: "G A" },
   { label: "AI Operator", href: "/ai/operator", icon: Sparkles, shortcut: "G O" },

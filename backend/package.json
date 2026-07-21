@@ -17,6 +17,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:e2e": "dotenv -e .env.test -- jest --config ./test/jest-e2e.json --maxWorkers=1 --workerIdleMemoryLimit=1GB",
+    "test:e2e:docker": "dotenv -e .env.docker.test -- jest --config ./test/jest-e2e.json --maxWorkers=1 --workerIdleMemoryLimit=1GB",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",

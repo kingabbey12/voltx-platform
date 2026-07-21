@@ -78,6 +78,7 @@
   border: none;
   font-family: inherit;
   text-align: left;
+  text-decoration: none;
 }
 
 .item.active {
@@ -443,5 +444,54 @@
   .ans,
   .verb {
     transition: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .screen {
+    display: block;
+  }
+
+  .side {
+    width: 100%;
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--hair);
+    padding: 8px 16px;
+  }
+
+  .ws,
+  .you {
+    display: none;
+  }
+
+  .nav {
+    margin-top: 0;
+    flex-direction: row;
+    gap: 4px;
+  }
+
+  .item {
+    width: auto;
+  }
+
+  .col {
+    width: auto;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 48px 20px;
+  }
+
+  .row {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .row.sel::before {
+    left: -12px;
+  }
+
+  .reply {
+    margin-top: 48px;
   }
 }

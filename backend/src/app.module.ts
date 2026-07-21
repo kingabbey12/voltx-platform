@@ -58,6 +58,8 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { WorkflowModule } from './modules/workflows/workflow.module';
 import { WorkflowEventsModule } from './modules/workflows/scheduling/workflow-events.module';
 import { EncryptionModule } from './modules/integrations/security/encryption.module';
+import { CompanyModule } from './modules/company/company.module';
+import { PromisesModule } from './modules/promises/promises.module';
 
 @Module({
   imports: [
@@ -104,6 +106,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     BrandingModule,
     AuthModule,
     CommunicationsModule,
+    CompanyModule,
     DeveloperPlatformModule,
     OAuthProviderModule,
     WebhooksModule,
@@ -129,6 +132,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     SupportSessionModule,
     PlatformSystemHealthModule,
     PlatformUserModule,
+    PromisesModule,
     ReferenceDataModule,
     RolesModule,
     ScimModule,

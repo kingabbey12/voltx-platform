@@ -35,6 +35,7 @@ export interface FindCommsConversationsParams {
   assigneeId?: string;
   priority?: CommsConversationPriority;
   channel?: CommsChannel;
+  contactId?: string;
 }
 
 export interface PaginatedCommsConversations {
@@ -157,6 +158,7 @@ export class ConversationRepository {
       ...(params.assigneeId ? { assigneeId: params.assigneeId } : {}),
       ...(params.priority ? { priority: params.priority } : {}),
       ...(params.channel ? { channel: params.channel } : {}),
+      ...(params.contactId ? { contactId: params.contactId } : {}),
       ...(params.search ? { subject: { contains: params.search, mode: 'insensitive' } } : {}),
     };
 

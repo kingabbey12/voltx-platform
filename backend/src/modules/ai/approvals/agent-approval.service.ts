@@ -129,6 +129,21 @@ export class AgentApprovalService {
     return this.approvalRepository.findPendingByOrganization(tenant.organizationId, page, limit);
   }
 
+  /** Approval history for one resource — see AgentApprovalRepository.findByToolNamesAndInputId. */
+  async listForResource(
+    toolNames: string[],
+    inputKey: string,
+    inputValue: string,
+  ): Promise<AgentActionApprovalEntity[]> {
+    const tenant = this.tenantContextService.getOrThrow();
+    return this.approvalRepository.findByToolNamesAndInputId(
+      tenant.organizationId,
+      toolNames,
+      inputKey,
+      inputValue,
+    );
+  }
+
   /**
    * Only one caller can ever win this: the pending→decided transition is
    * an atomic compare-and-swap in AgentApprovalRepository.decide()

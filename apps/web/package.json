@@ -2,8 +2,11 @@
   "name": "voltx-web",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@10.34.4",
   "scripts": {
+    "predev": "node scripts/validate-env.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/validate-env.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint ."

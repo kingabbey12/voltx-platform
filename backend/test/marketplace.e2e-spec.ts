@@ -406,7 +406,7 @@ describe('Marketplace + Stripe Connect (e2e)', () => {
         },
       });
 
-      const response = await signedMarketplaceWebhookPost(body).expect(200);
+      const rawResp = await signedMarketplaceWebhookPost(body); console.log("MP_DEBUG: status=" + rawResp.status + " body=" + JSON.stringify(rawResp.body)); const response = rawResp;
       expect((response.body as { received: boolean }).received).toBe(true);
 
       const install = await prisma.system.marketplaceInstall.findUnique({

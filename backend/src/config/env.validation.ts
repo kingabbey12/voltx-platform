@@ -596,7 +596,34 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
   });
 
   if (errors.length > 0) {
-    throw new Error(errors.toString());
+    const guidance: Record<string, string> = {
+      DATABASE_URL:
+        'Use the local Compose value from backend/.env.example, or obtain the database URL from the deployment owner.',
+      JWT_ACCESS_SECRET: 'Generate one with `openssl rand -base64 48`.',
+      INTEGRATIONS_ENCRYPTION_KEY:
+        'Generate one with `openssl rand -base64 32` and store it in your secret manager.',
+      REDIS_URL:
+        'Use `redis://localhost:6379` locally, or obtain the managed Redis URL from the deployment owner.',
+      OPENAI_API_KEY: 'Create an API key in the OpenAI project configured for this environment.',
+      ANTHROPIC_API_KEY:
+        'Create an API key in the Anthropic Console configured for this environment.',
+      GOOGLE_AI_API_KEY: 'Create an API key in Google AI Studio configured for this environment.',
+    };
+    const details = errors
+      .flatMap((error) =>
+        Object.values(error.constraints ?? {}).map((message) => ({
+          property: error.property,
+          message,
+        })),
+      )
+      .map(
+        ({ property, message }) =>
+          `- ${property}: ${message}${guidance[property] ? ` ${guidance[property]}` : ''}`,
+      )
+      .join('\n');
+    throw new Error(
+      `Environment validation failed before startup:\n${details}\nSee ENVIRONMENT.md for all variables.`,
+    );
   }
 
   return validatedConfig;

@@ -5,6 +5,8 @@ import { AttachmentsModule } from '../../attachments/attachments.module';
 import { CommunicationsModule } from '../../communications/communications.module';
 import { KnowledgeModule } from '../../knowledge/knowledge.module';
 import { WorkflowModule } from '../../workflows/workflow.module';
+import { OrganizationModule } from '../../organization/organization.module';
+import { PromisesModule } from '../../promises/promises.module';
 import { AskController } from './ask.controller';
 import { AskService } from './ask.service';
 import { RecordResolverService } from './record-resolver.service';
@@ -23,6 +25,8 @@ import { RecordResolverService } from './record-resolver.service';
     CommunicationsModule,
     KnowledgeModule,
     WorkflowModule,
+    OrganizationModule,
+    PromisesModule,
   ],
   controllers: [AskController],
   providers: [AskService, RecordResolverService],

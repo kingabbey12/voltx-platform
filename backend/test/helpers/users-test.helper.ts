@@ -24,8 +24,18 @@ export async function resetAuthTestData(prisma: PrismaService): Promise<void> {
     salesLead: { deleteMany(): Promise<unknown> };
     salesContact: { deleteMany(): Promise<unknown> };
     salesCompany: { deleteMany(): Promise<unknown> };
+    promiseEvent: { deleteMany(): Promise<unknown> };
+    promiseParty: { deleteMany(): Promise<unknown> };
+    promise: { deleteMany(): Promise<unknown> };
   };
 
+  // Promise.ownerId restricts user deletion (RESTRICT, not CASCADE — a
+  // promise's history must survive its owner's account being removed in
+  // production), so promise rows and their children must be cleared before
+  // user.deleteMany() below.
+  await ignoreMissingTable(() => systemClient.promiseEvent.deleteMany());
+  await ignoreMissingTable(() => systemClient.promiseParty.deleteMany());
+  await ignoreMissingTable(() => systemClient.promise.deleteMany());
   await ignoreMissingTable(() => systemClient.salesActivity.deleteMany());
   await ignoreMissingTable(() => systemClient.salesOpportunity.deleteMany());
   await ignoreMissingTable(() => systemClient.salesLead.deleteMany());

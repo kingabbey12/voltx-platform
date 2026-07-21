@@ -8,6 +8,8 @@ import { AttachmentService } from '../../attachments/attachment.service';
 import { ConversationService as CommsConversationService } from '../../communications/conversation/conversation.service';
 import { KnowledgeService } from '../../knowledge/knowledge.service';
 import { WorkflowService } from '../../workflows/workflow.service';
+import { OrganizationService } from '../../organization/organization.service';
+import { PromisesService } from '../../promises/promises.service';
 
 /**
  * Resolves a door to its canonical record (docs/design/ASK.md §6 "Record
@@ -16,11 +18,11 @@ import { WorkflowService } from '../../workflows/workflow.service';
  * exists (`route` is null for record kinds that have no standalone page
  * yet; the label still resolves, and the door simply does not navigate).
  *
- * COMPANY.md's promise and asset primitives map onto today's schema as:
- * promises-in-formation are sales.lead / sales.opportunity (both resolvable
- * here, per COMPANY.md §9's reconciliation table); assets have no backing
- * model yet, so no 'asset' type is claimed — a door type this resolver does
- * not know is NotFound, never a guess.
+ * The Promise primitive is built directly (`promise` binding below) rather
+ * than approximated — sales.lead / sales.opportunity remain resolvable as
+ * promises-in-formation ahead of a decision, per COMPANY.md §9. Assets have
+ * no backing model yet, so no 'asset' type is claimed — a door type this
+ * resolver does not know is NotFound, never a guess.
  *
  * Tenant isolation is inherited from the underlying services, whose
  * repositories scope every query to the tenant context's organizationId —
@@ -56,8 +58,17 @@ export class RecordResolverService {
     commsConversationService: CommsConversationService,
     knowledgeService: KnowledgeService,
     workflowService: WorkflowService,
+    organizationService: OrganizationService,
+    promisesService: PromisesService,
   ) {
     this.bindings = {
+      organization: {
+        permission: 'organization.read',
+        resolve: async (id) => {
+          const organization = await organizationService.findOne(id);
+          return { label: organization.name, route: '/company' };
+        },
+      },
       'sales.company': {
         permission: 'sales.company.read',
         resolve: async (id) => {
@@ -96,6 +107,13 @@ export class RecordResolverService {
           return { label: activity.subject, route: `/crm` };
         },
       },
+      promise: {
+        permission: 'promise.read',
+        resolve: async (id) => {
+          const promise = await promisesService.findOne(id);
+          return { label: promise.title, route: `/promises/${id}` };
+        },
+      },
       document: {
         permission: 'attachment.read',
         resolve: async (id) => {
@@ -109,7 +127,7 @@ export class RecordResolverService {
         permission: 'communications.conversation.read',
         resolve: async (id) => {
           const conversation = await commsConversationService.getConversationOrThrow(id);
-          return { label: conversation.subject ?? 'Conversation', route: `/inbox` };
+          return { label: conversation.subject ?? 'Conversation', route: `/inbox/${id}` };
         },
       },
       'knowledge.document': {

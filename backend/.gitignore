@@ -4,5 +4,6 @@ coverage
 .env
 .env.*
 !.env.example
+!.env.docker.test
 *.log
 .attachments-storage/

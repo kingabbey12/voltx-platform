@@ -110,6 +110,33 @@ export class AgentApprovalRepository {
   }
 
   /**
+   * Approval history for a specific resource (e.g. a promise): every
+   * hand-written mutating tool's input carries the id of the record it
+   * acts on (see PromisesToolSourceService), so filtering by tool name +
+   * a JSON path on `input` finds every approval — pending or decided —
+   * ever requested for that resource, without a new approval table or a
+   * resourceType/resourceId column on AgentActionApproval.
+   */
+  async findByToolNamesAndInputId(
+    organizationId: string,
+    toolNames: string[],
+    inputKey: string,
+    inputValue: string,
+    limit = 50,
+  ): Promise<AgentActionApprovalEntity[]> {
+    const records = await this.prisma.system.agentActionApproval.findMany({
+      where: {
+        organizationId,
+        toolName: { in: toolNames },
+        input: { path: [inputKey], equals: inputValue },
+      },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
+    return records.map(toEntity);
+  }
+
+  /**
    * Atomic compare-and-swap: the WHERE clause only matches a row still in
    * PENDING status, so of two concurrent decide() calls for the same
    * approval, Postgres's row-level locking on the UPDATE guarantees at

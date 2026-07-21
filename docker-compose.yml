@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: voltx
+      POSTGRES_PASSWORD: voltx
+      POSTGRES_DB: voltx
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voltx -d voltx"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  bootstrap:
+    build:
+      context: ./backend
+      target: build
+    env_file: ./backend/.env.example
+    environment:
+      DATABASE_URL: postgresql://voltx:voltx@postgres:5432/voltx
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    command: sh scripts/bootstrap-local.sh
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      target: build
+    env_file: ./backend/.env.example
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://voltx:voltx@postgres:5432/voltx
+      REDIS_ENABLED: "true"
+      REDIS_URL: redis://redis:6379
+    command: node dist/main.js
+    ports: ["3002:3000"]
+    depends_on:
+      bootstrap: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:3002/api/v1
+    ports: ["3001:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+
+  e2e:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      target: build
+    environment:
+      NODE_ENV: test
+      PORT: 3001
+      DATABASE_URL: postgresql://voltx:voltx@postgres:5432/voltx
+      JWT_ACCESS_SECRET: test-only-jwt-access-secret-0123456789abcdef
+      INTEGRATIONS_ENCRYPTION_KEY: test-only-encryption-key-0123456789abcdef
+      AUTH_RATE_LIMIT_LIMIT: 10000
+      RATE_LIMIT_LIMIT: 100000
+      AI_RATE_LIMIT_REQUESTS_PER_MINUTE: 100000
+    depends_on:
+      bootstrap: { condition: service_completed_successfully }
+    command: pnpm test:e2e:docker
+
+volumes:
+  postgres_data:
+  redis_data:
