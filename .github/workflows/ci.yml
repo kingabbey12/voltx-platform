@@ -150,5 +150,10 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Build macOS (release)
-        run: flutter build macos --release
+      # PR/CI validation only verifies the app compiles — it must never
+      # require Apple certificates or provisioning profiles, which aren't
+      # (and shouldn't be) available to pull-request runs. --no-codesign
+      # builds the release binary unsigned. Production release signing is
+      # handled by the release workflow, not CI.
+      - name: Build macOS (release, unsigned)
+        run: flutter build macos --release --no-codesign
