@@ -109,16 +109,22 @@ runs:
           echo "::endgroup::"
         }
 
-        # Poll the health probe. Success requires HTTP 200 AND a healthy status
-        # in the body — readiness/health return 200 even when degraded, so the
-        # body is authoritative.
+        # Poll the health probe. Success requires HTTP 200, a healthy top-level
+        # status, AND no dependency reporting "down". The last clause matters:
+        # this app's /api/v1/health returns a hardcoded top-level "ok" even
+        # when its database or redis is down (it reports their state only in a
+        # nested `dependencies` block), so a top-status check alone would pass
+        # a broken deploy and rollback would never fire. Point HEALTH_CHECK_URL
+        # at the readiness probe (which returns "not_ready" on a dependency
+        # outage); the down-guard is defense in depth for either endpoint.
         check_health() {
           local attempt code
           for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
             code=$(curl -sS -o /tmp/health-body.txt -w '%{http_code}' \
                      --max-time 10 "${HEALTH_URL}" || echo 000)
             if [ "${code}" = "200" ] \
-               && grep -Eq '"status":[[:space:]]*"(ok|ready|alive)"' /tmp/health-body.txt; then
+               && grep -Eq '"status":[[:space:]]*"(ok|ready|alive)"' /tmp/health-body.txt \
+               && ! grep -Eq '"status":[[:space:]]*"(down|not_ready)"' /tmp/health-body.txt; then
               echo "Healthy after ${attempt} attempt(s)."
               return 0
             fi
