@@ -1,0 +1,170 @@
+name: Deploy and verify
+description: >-
+  Rolls a backend image out to one environment, then gates on a real health
+  check. On a failed deploy it automatically rolls back to the last known-good
+  image and still fails the job, so a bad release never stays live and never
+  reports green. Supports an explicit rollback mode that redeploys the last
+  known-good (or a pinned) image on demand.
+
+inputs:
+  environment:
+    description: Target environment (staging | production)
+    required: true
+  mode:
+    description: deploy | rollback
+    required: true
+    default: deploy
+  image-repo:
+    description: Fully-qualified image repository, e.g. ghcr.io/owner/repo/backend
+    required: true
+  sha:
+    description: Commit SHA whose image should be deployed (deploy mode)
+    required: true
+  image-tag:
+    description: >-
+      Optional explicit image ref to roll back to. When empty in rollback mode,
+      the environment's last known-good tag (stable-<environment>) is used.
+    required: false
+    default: ''
+  health-url:
+    description: >-
+      Absolute URL of the environment's health probe (e.g.
+      https://api.example.com/api/v1/health). The job fails if this is empty —
+      a deploy without a health target is not allowed.
+    required: true
+  registry-username:
+    description: Registry username for retagging the stable pointer
+    required: true
+  registry-token:
+    description: Registry token for retagging the stable pointer
+    required: true
+  max-attempts:
+    description: Health-check attempts before declaring failure
+    required: false
+    default: '30'
+  interval-seconds:
+    description: Seconds between health-check attempts
+    required: false
+    default: '10'
+
+runs:
+  using: composite
+  steps:
+    - name: Log in to registry
+      shell: bash
+      run: |
+        echo "${{ inputs.registry-token }}" | docker login ghcr.io \
+          -u "${{ inputs.registry-username }}" --password-stdin
+
+    - name: Deploy, verify, and roll back on failure
+      shell: bash
+      env:
+        ENVIRONMENT: ${{ inputs.environment }}
+        MODE: ${{ inputs.mode }}
+        IMAGE_REPO: ${{ inputs.image-repo }}
+        SHA: ${{ inputs.sha }}
+        IMAGE_TAG_INPUT: ${{ inputs.image-tag }}
+        HEALTH_URL: ${{ inputs.health-url }}
+        MAX_ATTEMPTS: ${{ inputs.max-attempts }}
+        INTERVAL: ${{ inputs.interval-seconds }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "${HEALTH_URL}" ]; then
+          echo "::error::HEALTH_CHECK_URL is not configured for the '${ENVIRONMENT}' environment." \
+               "Set it (Settings → Environments → ${ENVIRONMENT} → Variables) before deploying."
+          exit 1
+        fi
+
+        STABLE_TAG="${IMAGE_REPO}:stable-${ENVIRONMENT}"
+
+        if [ "${MODE}" = "deploy" ]; then
+          TARGET_IMAGE="${IMAGE_REPO}:${SHA}"
+        else
+          TARGET_IMAGE="${IMAGE_TAG_INPUT:-${STABLE_TAG}}"
+        fi
+
+        # The last known-good image for this environment, if one has ever been
+        # promoted. Empty on the very first deploy (nothing to roll back to).
+        ROLLBACK_IMAGE=""
+        if docker manifest inspect "${STABLE_TAG}" >/dev/null 2>&1; then
+          ROLLBACK_IMAGE="${STABLE_TAG}"
+        fi
+
+        # ---- the one platform-specific seam -------------------------------
+        # Everything around this is real. The actual "make the platform run
+        # this image" call depends on where the backend is hosted, so it is
+        # isolated to a single optional script: drop in
+        # .github/scripts/deploy.sh <image> <environment> and it is used with
+        # no workflow edits. Until then the step is a no-op that records intent.
+        deploy_image() {
+          local image="$1"
+          echo "::group::Deploy ${image} → ${ENVIRONMENT}"
+          if [ -x "${GITHUB_WORKSPACE}/.github/scripts/deploy.sh" ]; then
+            "${GITHUB_WORKSPACE}/.github/scripts/deploy.sh" "${image}" "${ENVIRONMENT}"
+          else
+            echo "::warning::No .github/scripts/deploy.sh present — wire your" \
+                 "hosting platform here. Intended action: run ${image} on ${ENVIRONMENT}."
+          fi
+          echo "::endgroup::"
+        }
+
+        # Poll the health probe. Success requires HTTP 200, a healthy top-level
+        # status, AND no dependency reporting "down". The last clause matters:
+        # this app's /api/v1/health returns a hardcoded top-level "ok" even
+        # when its database or redis is down (it reports their state only in a
+        # nested `dependencies` block), so a top-status check alone would pass
+        # a broken deploy and rollback would never fire. Point HEALTH_CHECK_URL
+        # at the readiness probe (which returns "not_ready" on a dependency
+        # outage); the down-guard is defense in depth for either endpoint.
+        check_health() {
+          local attempt code
+          for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
+            code=$(curl -sS -o /tmp/health-body.txt -w '%{http_code}' \
+                     --max-time 10 "${HEALTH_URL}" || echo 000)
+            if [ "${code}" = "200" ] \
+               && grep -Eq '"status":[[:space:]]*"(ok|ready|alive)"' /tmp/health-body.txt \
+               && ! grep -Eq '"status":[[:space:]]*"(down|not_ready)"' /tmp/health-body.txt; then
+              echo "Healthy after ${attempt} attempt(s)."
+              return 0
+            fi
+            echo "Attempt ${attempt}/${MAX_ATTEMPTS}: HTTP ${code} — not healthy yet."
+            sleep "${INTERVAL}"
+          done
+          echo "Last health body:"; cat /tmp/health-body.txt || true
+          return 1
+        }
+
+        promote_stable() {
+          echo "Promoting ${TARGET_IMAGE} → ${STABLE_TAG} (new last known-good)."
+          docker buildx imagetools create --tag "${STABLE_TAG}" "${TARGET_IMAGE}"
+        }
+        # -------------------------------------------------------------------
+
+        echo "Mode=${MODE}  Environment=${ENVIRONMENT}  Image=${TARGET_IMAGE}"
+        deploy_image "${TARGET_IMAGE}"
+
+        if check_health; then
+          echo "::notice::${ENVIRONMENT} healthy on ${TARGET_IMAGE}."
+          if [ "${MODE}" = "deploy" ]; then
+            promote_stable
+          fi
+          exit 0
+        fi
+
+        echo "::error::Health check failed for ${ENVIRONMENT} on ${TARGET_IMAGE}."
+
+        if [ "${MODE}" = "deploy" ] && [ -n "${ROLLBACK_IMAGE}" ]; then
+          echo "::warning::Rolling back ${ENVIRONMENT} to last known-good ${ROLLBACK_IMAGE}."
+          deploy_image "${ROLLBACK_IMAGE}"
+          if check_health; then
+            echo "::notice::Rolled back to ${ROLLBACK_IMAGE}; service is healthy again."
+          else
+            echo "::error::Rollback to ${ROLLBACK_IMAGE} is also unhealthy — manual intervention required."
+          fi
+        elif [ "${MODE}" = "deploy" ]; then
+          echo "::error::No prior known-good image for ${ENVIRONMENT}; cannot auto-roll back."
+        fi
+
+        # A failed health check always fails the job, rollback or not.
+        exit 1

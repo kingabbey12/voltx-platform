@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Deploy seam for .github/actions/deploy-and-verify.
+#
+# Copy this file to `.github/scripts/deploy.sh`, make it executable
+# (`chmod +x`), and fill in your hosting platform's rollout command. The
+# composite action calls it as:
+#
+#     .github/scripts/deploy.sh <image-ref> <environment>
+#
+# It must return non-zero if the rollout command itself fails. It should NOT
+# health-check — the composite action does that (and rolls back on failure).
+# The script is invoked once for the forward deploy and, if health fails,
+# again with the previous known-good image for the automatic rollback.
+set -euo pipefail
+
+IMAGE="$1"        # e.g. ghcr.io/owner/voltx-platform/backend:<sha>
+ENVIRONMENT="$2"  # staging | production
+
+echo "Rolling out ${IMAGE} to ${ENVIRONMENT}..."
+
+# --- Wire your platform below. Examples: --------------------------------
+#
+# Fly.io:
+#   flyctl deploy --app "voltx-${ENVIRONMENT}" --image "${IMAGE}" \
+#     --strategy rolling --wait-timeout 300
+#
+# AWS ECS (force a new deployment onto an updated task definition):
+#   aws ecs update-service --cluster "voltx-${ENVIRONMENT}" \
+#     --service backend --force-new-deployment
+#
+# Kubernetes:
+#   kubectl -n "voltx-${ENVIRONMENT}" set image deploy/backend \
+#     backend="${IMAGE}" && kubectl -n "voltx-${ENVIRONMENT}" \
+#     rollout status deploy/backend --timeout=300s
+#
+# Render (deploy hook):
+#   curl -fsS -X POST "${RENDER_DEPLOY_HOOK}?imgURL=${IMAGE}"
+#
+# ------------------------------------------------------------------------
+
+echo "::error::deploy.sh is still the template — copy to deploy.sh and wire your platform."
+exit 1
