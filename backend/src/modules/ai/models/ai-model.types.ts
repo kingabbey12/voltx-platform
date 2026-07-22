@@ -1,6 +1,17 @@
-export type AIProviderName = 'openai' | 'anthropic' | 'google';
+export type AIProviderName =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'xai'
+  | 'groq'
+  | 'mistral'
+  | 'deepseek'
+  | 'ollama'
+  | 'openrouter'
+  | 'azure-openai';
 
-export type AIModelFamily = 'gpt-5' | 'claude' | 'gemini';
+export type AIModelFamily =
+  'gpt-5' | 'claude' | 'gemini' | 'grok' | 'llama' | 'mistral' | 'deepseek' | 'qwen';
 
 export type AIMessageRole = 'system' | 'user' | 'assistant' | 'tool';
 

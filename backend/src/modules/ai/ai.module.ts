@@ -18,10 +18,17 @@ import { KnowledgeRetrieverService } from './gateway/knowledge-retriever.service
 import { MemoryModule } from './memory/memory.module';
 import { ModelRegistryService } from './models/model-registry.service';
 import { PromptBuilderService } from './prompts/prompt-builder.service';
-import { AI_PROVIDERS } from './providers/ai-provider.interface';
+import { AI_PROVIDERS, AIProvider } from './providers/ai-provider.interface';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import { GoogleAIProvider } from './providers/google-ai.provider';
 import { OpenAIProvider } from './providers/openai.provider';
+import { XaiProvider } from './providers/xai.provider';
+import { GroqProvider } from './providers/groq.provider';
+import { MistralProvider } from './providers/mistral.provider';
+import { DeepSeekProvider } from './providers/deepseek.provider';
+import { OllamaProvider } from './providers/ollama.provider';
+import { OpenRouterProvider } from './providers/openrouter.provider';
+import { AzureOpenAIProvider } from './providers/azure-openai.provider';
 import { AIRuntimeService } from './runtime/ai-runtime.service';
 import { ToolModule } from './tools/tool.module';
 
@@ -52,14 +59,28 @@ import { ToolModule } from './tools/tool.module';
     OpenAIProvider,
     AnthropicProvider,
     GoogleAIProvider,
+    XaiProvider,
+    GroqProvider,
+    MistralProvider,
+    DeepSeekProvider,
+    OllamaProvider,
+    OpenRouterProvider,
+    AzureOpenAIProvider,
     {
       provide: AI_PROVIDERS,
-      useFactory: (
-        openAiProvider: OpenAIProvider,
-        anthropicProvider: AnthropicProvider,
-        googleAiProvider: GoogleAIProvider,
-      ) => [openAiProvider, anthropicProvider, googleAiProvider],
-      inject: [OpenAIProvider, AnthropicProvider, GoogleAIProvider],
+      useFactory: (...providers: AIProvider[]) => providers,
+      inject: [
+        OpenAIProvider,
+        AnthropicProvider,
+        GoogleAIProvider,
+        XaiProvider,
+        GroqProvider,
+        MistralProvider,
+        DeepSeekProvider,
+        OllamaProvider,
+        OpenRouterProvider,
+        AzureOpenAIProvider,
+      ],
     },
   ],
   exports: [
