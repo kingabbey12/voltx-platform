@@ -10,6 +10,20 @@ export type AIProviderName =
   | 'openrouter'
   | 'azure-openai';
 
+/** Every provider name, in one place, for runtime validation and enumeration. */
+export const AI_PROVIDER_NAMES = [
+  'openai',
+  'anthropic',
+  'google',
+  'xai',
+  'groq',
+  'mistral',
+  'deepseek',
+  'ollama',
+  'openrouter',
+  'azure-openai',
+] as const satisfies readonly AIProviderName[];
+
 export type AIModelFamily =
   'gpt-5' | 'claude' | 'gemini' | 'grok' | 'llama' | 'mistral' | 'deepseek' | 'qwen';
 
@@ -49,12 +63,24 @@ export interface AIModelDefinition {
   maxOutputTokens?: number;
 }
 
+/**
+ * A per-request override of the provider's env-configured credential, used by
+ * the Tenant AI Credentials module to run a call with an organization's own
+ * (decrypted) key. When present, it supersedes the provider's configured
+ * apiKey/baseUrl for that single call.
+ */
+export interface AIProviderCredentialOverride {
+  apiKey: string;
+  baseUrl?: string;
+}
+
 export interface AIProviderChatRequest {
   model: string;
   messages: AIMessage[];
   temperature?: number;
   maxOutputTokens?: number;
   signal?: AbortSignal;
+  credentialOverride?: AIProviderCredentialOverride;
 }
 
 export interface AIChatResponse {
@@ -70,6 +96,7 @@ export interface AIEmbeddingRequest {
   model: string;
   input: string[];
   signal?: AbortSignal;
+  credentialOverride?: AIProviderCredentialOverride;
 }
 
 export interface AIEmbeddingResponse {

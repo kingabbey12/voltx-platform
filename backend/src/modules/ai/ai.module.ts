@@ -91,6 +91,9 @@ import { ToolModule } from './tools/tool.module';
     ModelRegistryService,
     ConversationService,
     ConversationRepository,
+    // Exposed so the Tenant AI Credentials module can health-check a stored
+    // key against the real provider adapters via credentialOverride.
+    AI_PROVIDERS,
   ],
 })
 export class AIModule {}

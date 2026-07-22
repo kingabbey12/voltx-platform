@@ -76,13 +76,13 @@ export abstract class OpenAICompatibleProvider implements AIProvider {
   }
 
   async chat(request: AIProviderChatRequest): Promise<AIChatResponse> {
-    this.assertConfigured();
+    const { apiKey, baseUrl } = this.resolveCredential(request);
 
     const payload = await fetchJsonObject(
-      this.chatCompletionsUrl(request.model),
+      this.chatCompletionsUrl(request.model, baseUrl),
       {
         method: 'POST',
-        headers: this.buildHeaders(),
+        headers: this.buildHeaders(apiKey),
         body: JSON.stringify(this.buildChatBody(request, false)),
         signal: request.signal,
       },
@@ -106,7 +106,7 @@ export abstract class OpenAICompatibleProvider implements AIProvider {
   }
 
   async *stream(request: AIProviderChatRequest): AsyncIterable<AIStreamEvent> {
-    this.assertConfigured();
+    const { apiKey, baseUrl } = this.resolveCredential(request);
 
     const messageId = randomUUID();
     let outputText = '';
@@ -114,10 +114,10 @@ export abstract class OpenAICompatibleProvider implements AIProvider {
     yield { type: 'message_start', provider: this.name, model: request.model, messageId };
 
     const stream = await createStreamingResponse(
-      this.chatCompletionsUrl(request.model),
+      this.chatCompletionsUrl(request.model, baseUrl),
       {
         method: 'POST',
-        headers: this.buildHeaders(),
+        headers: this.buildHeaders(apiKey),
         body: JSON.stringify(this.buildChatBody(request, true)),
         signal: request.signal,
       },
@@ -163,13 +163,13 @@ export abstract class OpenAICompatibleProvider implements AIProvider {
   }
 
   async embeddings(request: AIEmbeddingRequest): Promise<AIEmbeddingResponse> {
-    this.assertConfigured();
+    const { apiKey, baseUrl } = this.resolveCredential(request);
 
     const payload = await fetchJsonObject(
-      this.embeddingsUrl(request.model),
+      this.embeddingsUrl(request.model, baseUrl),
       {
         method: 'POST',
-        headers: this.buildHeaders(),
+        headers: this.buildHeaders(apiKey),
         body: JSON.stringify({ model: this.wireModel(request.model), input: request.input }),
         signal: request.signal,
       },
@@ -193,19 +193,37 @@ export abstract class OpenAICompatibleProvider implements AIProvider {
     return Promise.resolve(this.enabled ? [...this.modelCatalog] : []);
   }
 
+  /**
+   * Resolves the effective credential for one call: a per-request override
+   * (a tenant's own decrypted key) takes precedence over the env-configured
+   * key. The configured-provider guard runs only when no override is supplied
+   * — a tenant key is itself proof of configuration, so the test/health path
+   * works even for a provider that has no env key set.
+   */
+  protected resolveCredential(request: {
+    credentialOverride?: { apiKey: string; baseUrl?: string };
+  }): { apiKey: string; baseUrl: string } {
+    const override = request.credentialOverride;
+    if (override) {
+      return { apiKey: override.apiKey, baseUrl: override.baseUrl ?? this.baseUrl };
+    }
+    this.assertConfigured();
+    return { apiKey: this.apiKey, baseUrl: this.baseUrl };
+  }
+
   // ————— Overridable hooks (Azure overrides URL + headers) —————
 
-  protected chatCompletionsUrl(_model: string): string {
-    return `${this.baseUrl}/chat/completions`;
+  protected chatCompletionsUrl(_model: string, baseUrl: string): string {
+    return `${baseUrl}/chat/completions`;
   }
 
-  protected embeddingsUrl(_model: string): string {
-    return `${this.baseUrl}/embeddings`;
+  protected embeddingsUrl(_model: string, baseUrl: string): string {
+    return `${baseUrl}/embeddings`;
   }
 
-  protected buildHeaders(): Record<string, string> {
+  protected buildHeaders(apiKey: string): Record<string, string> {
     return {
-      Authorization: `Bearer ${this.apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     };
   }

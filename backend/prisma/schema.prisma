@@ -182,6 +182,7 @@ model Organization {
   memories                Memory[]
   agents                  Agent[]
   aiUsageLogs             AiUsageLog[]
+  aiProviderCredentials   AiProviderCredential[]
   salesCompanies          SalesCompany[]
   salesContacts           SalesContact[]
   salesLeads              SalesLead[]
@@ -570,6 +571,47 @@ model AiUsageLog {
   @@index([requestType])
   @@index([createdAt])
   @@map("ai_usage_logs")
+}
+
+enum AiProviderCredentialStatus {
+  ACTIVE
+  DISABLED
+}
+
+/// Per-organization "bring your own key" AI provider credentials for the AI
+/// Gateway. The API key is encrypted at rest with EncryptionService
+/// (AES-256-GCM, self-describing) — plaintext never leaves the credentials
+/// module, and only masked previews are ever returned over the API. Rows are
+/// tenant-isolated (organizationId), RBAC-guarded, and every change is
+/// audited. TenantAiCredentialResolver decrypts an ACTIVE credential for the
+/// gateway to use in place of the env-configured key. `metadata` carries
+/// provider-specific extras (e.g. Azure apiVersion). Unique per
+/// (organization, provider, label) so one org can hold multiple providers
+/// and multiple named keys per provider.
+model AiProviderCredential {
+  id              String                     @id @default(uuid()) @db.Uuid
+  organizationId  String                     @map("organization_id") @db.Uuid
+  provider        String
+  label           String                     @default("default")
+  encryptedApiKey String                     @map("encrypted_api_key") @db.Text
+  baseUrl         String?                    @map("base_url")
+  metadata        Json                       @default("{}")
+  status          AiProviderCredentialStatus @default(ACTIVE)
+  lastRotatedAt   DateTime?                  @map("last_rotated_at")
+  lastTestedAt    DateTime?                  @map("last_tested_at")
+  lastTestStatus  String?                    @map("last_test_status")
+  lastTestError   String?                    @map("last_test_error")
+  createdByUserId String?                    @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+  deletedAt       DateTime?                  @map("deleted_at")
+  organization    Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider, label])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([deletedAt])
+  @@map("ai_provider_credentials")
 }
 
 model VerificationToken {

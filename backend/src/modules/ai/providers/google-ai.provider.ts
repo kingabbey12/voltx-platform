@@ -72,10 +72,10 @@ export class GoogleAIProvider implements AIProvider {
   }
 
   async chat(request: AIProviderChatRequest): Promise<AIChatResponse> {
-    this.assertConfigured();
+    const { apiKey, baseUrl } = this.resolveCredential(request);
 
     const payload = await fetchJsonObject(
-      this.buildModelUrl(request.model, 'generateContent'),
+      this.buildModelUrl(request.model, 'generateContent', apiKey, baseUrl),
       {
         method: 'POST',
         headers: this.buildHeaders(),
@@ -96,7 +96,7 @@ export class GoogleAIProvider implements AIProvider {
   }
 
   async *stream(request: AIProviderChatRequest): AsyncIterable<AIStreamEvent> {
-    this.assertConfigured();
+    const { apiKey, baseUrl } = this.resolveCredential(request);
 
     const messageId = randomUUID();
     let outputText = '';
@@ -109,7 +109,7 @@ export class GoogleAIProvider implements AIProvider {
     };
 
     const stream = await createStreamingResponse(
-      `${this.buildModelUrl(request.model, 'streamGenerateContent')}&alt=sse`,
+      `${this.buildModelUrl(request.model, 'streamGenerateContent', apiKey, baseUrl)}&alt=sse`,
       {
         method: 'POST',
         headers: this.buildHeaders(),
@@ -153,13 +153,13 @@ export class GoogleAIProvider implements AIProvider {
   }
 
   async embeddings(request: AIEmbeddingRequest): Promise<AIEmbeddingResponse> {
-    this.assertConfigured();
+    const { apiKey, baseUrl } = this.resolveCredential(request);
 
     const vectors: number[][] = [];
 
     for (const input of request.input) {
       const payload = await fetchJsonObject(
-        this.buildModelUrl(request.model, 'embedContent'),
+        this.buildModelUrl(request.model, 'embedContent', apiKey, baseUrl),
         {
           method: 'POST',
           headers: this.buildHeaders(),
@@ -201,8 +201,25 @@ export class GoogleAIProvider implements AIProvider {
     };
   }
 
-  private buildModelUrl(model: string, action: string): string {
-    return `${this.baseUrl}/models/${model}:${action}?key=${encodeURIComponent(this.apiKey)}`;
+  /**
+   * Effective credential for one call: a tenant's per-request override (from
+   * the Tenant AI Credentials module) supersedes the env-configured key. The
+   * configured-provider guard runs only without an override.
+   */
+  private resolveCredential(request: AIProviderChatRequest | AIEmbeddingRequest): {
+    apiKey: string;
+    baseUrl: string;
+  } {
+    const override = request.credentialOverride;
+    if (override) {
+      return { apiKey: override.apiKey, baseUrl: override.baseUrl ?? this.baseUrl };
+    }
+    this.assertConfigured();
+    return { apiKey: this.apiKey, baseUrl: this.baseUrl };
+  }
+
+  private buildModelUrl(model: string, action: string, apiKey: string, baseUrl: string): string {
+    return `${baseUrl}/models/${model}:${action}?key=${encodeURIComponent(apiKey)}`;
   }
 
   private buildChatBody(request: AIProviderChatRequest): Record<string, unknown> {

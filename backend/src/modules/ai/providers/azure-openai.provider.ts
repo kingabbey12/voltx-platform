@@ -52,20 +52,20 @@ export class AzureOpenAIProvider extends OpenAICompatibleProvider {
     );
   }
 
-  protected override chatCompletionsUrl(model: string): string {
-    return this.deploymentUrl(model, 'chat/completions');
+  protected override chatCompletionsUrl(model: string, baseUrl: string): string {
+    return this.deploymentUrl(model, 'chat/completions', baseUrl);
   }
 
-  protected override embeddingsUrl(model: string): string {
-    return this.deploymentUrl(model, 'embeddings');
+  protected override embeddingsUrl(model: string, baseUrl: string): string {
+    return this.deploymentUrl(model, 'embeddings', baseUrl);
   }
 
-  protected override buildHeaders(): Record<string, string> {
-    return { 'api-key': this.apiKey, 'Content-Type': 'application/json' };
+  protected override buildHeaders(apiKey: string): Record<string, string> {
+    return { 'api-key': apiKey, 'Content-Type': 'application/json' };
   }
 
-  private deploymentUrl(model: string, path: string): string {
-    const endpoint = this.baseUrl.replace(/\/$/, '');
+  private deploymentUrl(model: string, path: string, baseUrl: string): string {
+    const endpoint = baseUrl.replace(/\/$/, '');
     return `${endpoint}/openai/deployments/${encodeURIComponent(model)}/${path}?api-version=${this.apiVersion}`;
   }
 }
