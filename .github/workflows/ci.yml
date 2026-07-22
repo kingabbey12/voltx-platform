@@ -79,6 +79,15 @@ jobs:
         env:
           DATABASE_URL: postgresql://voltx:voltx@localhost:5433/voltx_test
 
+      # Registration provisions a subscription and looks up the billing plan
+      # catalog, so an empty billing_plans table makes POST /auth/register
+      # 404 ("Plan not found"). Populate it with the project's existing seed
+      # script, after migrations and before e2e.
+      - name: Seed billing plans (test database)
+        run: pnpm prisma:seed:billing-plans
+        env:
+          DATABASE_URL: postgresql://voltx:voltx@localhost:5433/voltx_test
+
       - name: E2E tests
         run: pnpm test:e2e
 
