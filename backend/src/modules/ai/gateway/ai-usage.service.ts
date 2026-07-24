@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AiRequestType } from '@prisma/client';
 import { calculateEstimatedCostUsd } from './ai-pricing.config';
 import { AgentRunUsageSummary, AiUsageRepository } from './ai-usage.repository';
+import { CredentialSource } from '../models/ai-model.types';
 
 export interface RecordUsageInput {
   organizationId: string;
@@ -19,6 +20,7 @@ export interface RecordUsageInput {
   durationMs?: number;
   succeeded: boolean;
   errorMessage?: string;
+  credentialSource?: CredentialSource;
 }
 
 /**
@@ -54,6 +56,7 @@ export class AiUsageService {
         durationMs: input.durationMs,
         succeeded: input.succeeded,
         errorMessage: input.errorMessage,
+        credentialSource: input.credentialSource,
       });
     } catch (error) {
       this.logger.error(

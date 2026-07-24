@@ -1,5 +1,7 @@
 export type AgentRunStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'TIMED_OUT' | 'WAITING_APPROVAL';
 
+export type AgentRunTriggerType = 'MANUAL' | 'SCHEDULED' | 'EVENT';
+
 export interface AgentRunEntity {
   id: string;
   agentId: string;
@@ -18,5 +20,9 @@ export interface AgentRunEntity {
   durationMs: number | null;
   tokenUsage: Record<string, unknown>;
   error: string | null;
+  agentVersionId: string | null;
+  triggerType: AgentRunTriggerType;
+  scheduleId: string | null;
+  attemptNumber: number;
   createdAt: Date;
 }

@@ -565,7 +565,8 @@ describe('Integration Platform (e2e)', () => {
             vectors: input.input.map(() =>
               new Array(1536).fill(0).map((_, i) => (i === 0 ? 1 : 0)),
             ),
-          } as AIEmbeddingResponse),
+            credentialSource: 'PLATFORM',
+          } as AIEmbeddingResponse & { credentialSource: 'PLATFORM' }),
         );
 
       const secret = 'slack-signing-secret';

@@ -1,10 +1,12 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { KnowledgeSearchFilters } from '../../knowledge/chunks/knowledge-chunk.repository';
 import { KnowledgeContextBuilderService } from '../../knowledge/context/knowledge-context-builder.service';
 
 export interface KnowledgeRetrievalRequest {
   organizationId: string;
   query: string;
   limit?: number;
+  filters?: KnowledgeSearchFilters;
 }
 
 /**
@@ -41,6 +43,7 @@ export class KnowledgeRetrieverService implements KnowledgeRetriever {
     try {
       const generator = this.knowledgeContextBuilderService.buildContext(request.query, {
         topK: request.limit,
+        filters: request.filters,
       });
 
       let step = await generator.next();

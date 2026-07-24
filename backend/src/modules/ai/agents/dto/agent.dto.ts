@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
@@ -18,8 +19,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ApiSuccessResponseDto } from '../../../../common/dto/api-response.dto';
 import { MessageResponseDto } from '../../conversations/dto/conversation.dto';
 import { AIProviderName } from '../../models/ai-model.types';
-import { AgentEntity } from '../entities/agent.entity';
-import { AgentRunEntity, AgentRunStatus } from '../entities/agent-run.entity';
+import { AgentEntity, AgentStatus } from '../entities/agent.entity';
+import { AgentRunEntity, AgentRunStatus, AgentRunTriggerType } from '../entities/agent-run.entity';
 
 export class CreateAgentDto {
   @ApiProperty({ example: 'Procurement Assistant' })
@@ -182,6 +183,46 @@ export class RunAgentDto {
   maxOutputTokens?: number;
 }
 
+export class TestRunAgentDto extends RunAgentDto {
+  /**
+   * When true, executes against the agent's latest (possibly unpublished)
+   * draft version instead of its published one — lets an operator try
+   * in-progress edits before publishing. Defaults to false (test against
+   * whatever is currently published, same as a real run).
+   */
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  useDraftVersion?: boolean;
+}
+
+export class ListAgentExecutionsQueryDto {
+  @ApiPropertyOptional({ example: 1, minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ example: 20, minimum: 1, maximum: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({ enum: ['RUNNING', 'SUCCEEDED', 'FAILED', 'TIMED_OUT', 'WAITING_APPROVAL'] })
+  @IsOptional()
+  @IsIn(['RUNNING', 'SUCCEEDED', 'FAILED', 'TIMED_OUT', 'WAITING_APPROVAL'])
+  status?: AgentRunStatus;
+
+  @ApiPropertyOptional({ enum: ['MANUAL', 'SCHEDULED', 'EVENT'] })
+  @IsOptional()
+  @IsIn(['MANUAL', 'SCHEDULED', 'EVENT'])
+  triggerType?: AgentRunTriggerType;
+}
+
 export class AgentResponseDto {
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440010' })
   id!: string;
@@ -207,6 +248,15 @@ export class AgentResponseDto {
   @ApiProperty({ example: true })
   enabled!: boolean;
 
+  @ApiProperty({ enum: ['DRAFT', 'PUBLISHED', 'ARCHIVED'], example: 'PUBLISHED' })
+  status!: AgentStatus;
+
+  @ApiPropertyOptional({ example: '550e8400-e29b-41d4-a716-446655440020' })
+  publishedVersionId!: string | null;
+
+  @ApiProperty({ example: 3 })
+  latestVersion!: number;
+
   @ApiProperty({ example: '2026-07-04T00:00:00.000Z' })
   createdAt!: string;
 
@@ -223,6 +273,9 @@ export class AgentResponseDto {
     dto.model = entity.model;
     dto.configuration = entity.configuration;
     dto.enabled = entity.enabled;
+    dto.status = entity.status;
+    dto.publishedVersionId = entity.publishedVersionId;
+    dto.latestVersion = entity.latestVersion;
     dto.createdAt = entity.createdAt.toISOString();
     dto.updatedAt = entity.updatedAt.toISOString();
     return dto;
@@ -272,6 +325,18 @@ export class AgentRunResponseDto {
   @ApiPropertyOptional({ example: null })
   error!: string | null;
 
+  @ApiPropertyOptional({ example: '550e8400-e29b-41d4-a716-446655440020' })
+  agentVersionId!: string | null;
+
+  @ApiProperty({ enum: ['MANUAL', 'SCHEDULED', 'EVENT'], example: 'MANUAL' })
+  triggerType!: AgentRunTriggerType;
+
+  @ApiPropertyOptional({ example: null })
+  scheduleId!: string | null;
+
+  @ApiProperty({ example: 1 })
+  attemptNumber!: number;
+
   @ApiProperty({ example: '2026-07-04T00:00:00.000Z' })
   createdAt!: string;
 
@@ -291,9 +356,30 @@ export class AgentRunResponseDto {
     dto.completedAt = entity.completedAt ? entity.completedAt.toISOString() : null;
     dto.durationMs = entity.durationMs;
     dto.error = entity.error;
+    dto.agentVersionId = entity.agentVersionId;
+    dto.triggerType = entity.triggerType;
+    dto.scheduleId = entity.scheduleId;
+    dto.attemptNumber = entity.attemptNumber;
     dto.createdAt = entity.createdAt.toISOString();
     return dto;
   }
+}
+
+export class PaginatedAgentRunsDto {
+  @ApiProperty({ type: [AgentRunResponseDto] })
+  items!: AgentRunResponseDto[];
+
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty()
+  page!: number;
+
+  @ApiProperty()
+  limit!: number;
+
+  @ApiProperty()
+  totalPages!: number;
 }
 
 export class RunAgentResponseDto {
@@ -331,3 +417,4 @@ export class AgentSuccessResponseDto extends ApiSuccessResponseDto<AgentResponse
 export class AgentsSuccessResponseDto extends ApiSuccessResponseDto<AgentResponseDto[]> {}
 export class AgentRunSuccessResponseDto extends ApiSuccessResponseDto<RunAgentResponseDto> {}
 export class AgentStatsSuccessResponseDto extends ApiSuccessResponseDto<AgentStatsResponseDto> {}
+export class PaginatedAgentRunsSuccessResponseDto extends ApiSuccessResponseDto<PaginatedAgentRunsDto> {}

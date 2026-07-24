@@ -9,6 +9,8 @@ import { AuditService } from '../../audit/audit.service';
 import { AiGatewayStreamEvent } from '../gateway/ai-gateway-stream-event.types';
 import { ModelRegistryService } from '../models/model-registry.service';
 import { drainToReturnValue, isAbortError } from '../streaming/drain-generator';
+import { AgentToolRepository } from './agent-tool.repository';
+import { AgentVersionRepository } from './agent-version.repository';
 import { AgentExecutor } from './agent.executor';
 import { AgentFactory } from './agent.factory';
 import { MultiAgentOrchestratorService } from './autonomous/multi-agent-orchestrator.service';
@@ -21,11 +23,16 @@ import {
   AgentRunResponseDto,
   AgentStatsResponseDto,
   CreateAgentDto,
+  ListAgentExecutionsQueryDto,
+  PaginatedAgentRunsDto,
   RunAgentDto,
   RunAgentResponseDto,
+  TestRunAgentDto,
   UpdateAgentDto,
 } from './dto/agent.dto';
 import { AgentEntity } from './entities/agent.entity';
+import { AgentRunTriggerType } from './entities/agent-run.entity';
+import { AgentVersionEntity } from './entities/agent-version.entity';
 
 @Injectable()
 export class AgentService {
@@ -37,6 +44,8 @@ export class AgentService {
     private readonly agentFactory: AgentFactory,
     private readonly modelRegistryService: ModelRegistryService,
     private readonly auditService: AuditService,
+    private readonly agentVersionRepository: AgentVersionRepository,
+    private readonly agentToolRepository: AgentToolRepository,
   ) {}
 
   async listAgents(): Promise<AgentResponseDto[]> {
@@ -48,6 +57,12 @@ export class AgentService {
   async findAgentByName(name: string): Promise<AgentEntity | null> {
     await this.agentRegistry.ensureSystemAgents();
     return this.agentRepository.findAgentByName(name);
+  }
+
+  async getAgent(id: string): Promise<AgentResponseDto> {
+    await this.agentRegistry.ensureSystemAgents();
+    const agent = await this.getAgentOrThrow(id);
+    return AgentResponseDto.fromEntity(agent);
   }
 
   async createAgent(dto: CreateAgentDto): Promise<AgentResponseDto> {
@@ -156,6 +171,59 @@ export class AgentService {
   }
 
   /**
+   * Test-runs an agent without affecting its published version — same
+   * lifecycle as runAgent (a real AgentRun row is still created, so it
+   * shows up in execution history/observability), but audited as a
+   * distinct 'test' action and, by default, executed against the agent's
+   * latest draft version rather than its published one so an operator can
+   * try in-progress edits before publishing.
+   */
+  async testRunAgent(
+    id: string,
+    dto: TestRunAgentDto,
+    grantedPermissions: string[] = [],
+  ): Promise<RunAgentResponseDto> {
+    const result = await drainToReturnValue(
+      this.runAgentStream(id, dto, grantedPermissions, undefined, {
+        useDraftVersion: dto.useDraftVersion ?? true,
+      }),
+    );
+
+    await this.auditService.record({
+      action: 'test',
+      resource: 'ai_agent',
+      resourceId: id,
+      metadata: { runId: result.run.id, conversationId: dto.conversationId },
+    });
+
+    return result;
+  }
+
+  /** Agent-scoped run/execution history — backs GET /ai/agents/:id/executions. */
+  async listExecutionsForAgent(
+    id: string,
+    query: ListAgentExecutionsQueryDto,
+  ): Promise<PaginatedAgentRunsDto> {
+    await this.getAgentOrThrow(id);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const result = await this.agentRepository.findRunsForAgent(id, {
+      page,
+      limit,
+      status: query.status,
+      triggerType: query.triggerType,
+    });
+
+    return {
+      items: result.items.map((run) => AgentRunResponseDto.fromEntity(run)),
+      total: result.total,
+      page,
+      limit,
+      totalPages: result.total === 0 ? 0 : Math.ceil(result.total / limit),
+    };
+  }
+
+  /**
    * Same agent-run lifecycle as runAgent (create the AgentRun row, execute
    * the turn, update the run to SUCCEEDED/FAILED/TIMED_OUT, audit-log the
    * outcome), expressed as a generator so runAgent can drain it for its
@@ -167,6 +235,7 @@ export class AgentService {
     dto: RunAgentDto,
     grantedPermissions: string[] = [],
     signal?: AbortSignal,
+    runContext: { triggerType?: AgentRunTriggerType; scheduleId?: string; useDraftVersion?: boolean } = {},
   ): AsyncGenerator<AiGatewayStreamEvent, RunAgentResponseDto> {
     yield { type: 'status', status: 'queued' };
 
@@ -175,6 +244,11 @@ export class AgentService {
     if (!agent.enabled) {
       throw new BadRequestException(`Agent "${agent.name}" is disabled`);
     }
+    if (agent.status === 'ARCHIVED') {
+      throw new BadRequestException(`Agent "${agent.name}" is archived`);
+    }
+
+    const agentVersion = await this.resolveRunVersion(agent, runContext.useDraftVersion ?? false);
 
     yield { type: 'status', status: 'processing' };
 
@@ -198,6 +272,9 @@ export class AgentService {
       output: {},
       startedAt,
       tokenUsage: {},
+      agentVersionId: agentVersion?.id ?? null,
+      triggerType: runContext.triggerType ?? 'MANUAL',
+      scheduleId: runContext.scheduleId ?? null,
     });
 
     const executorGenerator = this.agentExecutor.executeStream(
@@ -206,6 +283,7 @@ export class AgentService {
       dto,
       grantedPermissions,
       signal,
+      agentVersion,
     );
 
     try {
@@ -321,6 +399,13 @@ export class AgentService {
     if (!agent.enabled) {
       throw new BadRequestException(`Agent "${agent.name}" is disabled`);
     }
+    if (agent.status === 'ARCHIVED') {
+      throw new BadRequestException(`Agent "${agent.name}" is archived`);
+    }
+
+    const agentVersion = agent.publishedVersionId
+      ? await this.agentVersionRepository.findById(agent.id, agent.publishedVersionId)
+      : null;
 
     yield { type: 'status', status: 'processing' };
 
@@ -335,6 +420,7 @@ export class AgentService {
       rootRunId,
       depth: 0,
       status: 'RUNNING',
+      agentVersionId: agentVersion?.id ?? null,
       input: {
         mode: 'autonomous',
         objective: dto.objective,
@@ -417,14 +503,38 @@ export class AgentService {
   async getAgentStats(id: string): Promise<AgentStatsResponseDto> {
     const agent = await this.getAgentOrThrow(id);
     const stats = await this.agentRepository.getAgentRunStats(id);
+    const toolNameOverride = await this.agentToolRepository.listToolNamesForAgent(agent.id, null);
 
     const dto = new AgentStatsResponseDto();
     dto.agentId = agent.id;
-    dto.toolCount = this.agentFactory.getAllowedToolNames(agent).length;
+    dto.toolCount = this.agentFactory.getAllowedToolNames(agent, toolNameOverride).length;
     dto.totalRunCount = stats.totalRunCount;
     dto.succeededRunCount = stats.succeededRunCount;
     dto.lastRunAt = stats.lastRunAt ? stats.lastRunAt.toISOString() : null;
     return dto;
+  }
+
+  /**
+   * Resolves which AgentVersion a `/run` or `/test` call should execute
+   * against: the published version by default (null when the agent has
+   * never published one — the pre-migration/system-agent state, in which
+   * case AgentExecutor falls back to the agent's raw mutable fields), or
+   * the latest draft version when `useDraft` is set (the /test endpoint's
+   * default), falling back to the published version if no draft exists yet.
+   */
+  private async resolveRunVersion(
+    agent: AgentEntity,
+    useDraft: boolean,
+  ): Promise<AgentVersionEntity | null> {
+    if (useDraft) {
+      const draft = await this.agentVersionRepository.findLatest(agent.id);
+      if (draft) {
+        return draft;
+      }
+    }
+    return agent.publishedVersionId
+      ? this.agentVersionRepository.findById(agent.id, agent.publishedVersionId)
+      : null;
   }
 
   private async getAgentOrThrow(id: string): Promise<AgentEntity> {

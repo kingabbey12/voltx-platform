@@ -15,6 +15,10 @@ export interface CreateKnowledgeChunkInput {
   content: string;
   tokenCount: number;
   embedding: number[];
+  embeddingModel?: string | null;
+  embeddingProvider?: string | null;
+  embeddingDimensions?: number | null;
+  embeddingChecksum?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -22,6 +26,8 @@ export interface KnowledgeSearchFilters {
   sourceIds?: string[];
   sourceTypes?: string[];
   documentIds?: string[];
+  /** Scopes to one or more KnowledgeCollections via knowledge_documents.collection_id — the AI Agent builder's "Knowledge collection selection" field. */
+  collectionIds?: string[];
 }
 
 interface RawChunkRow {
@@ -107,6 +113,10 @@ export class KnowledgeChunkRepository {
           ${chunk.content},
           ${chunk.tokenCount},
           ${toVectorLiteral(chunk.embedding)}::vector,
+          ${chunk.embeddingModel ?? null},
+          ${chunk.embeddingProvider ?? null},
+          ${chunk.embeddingDimensions ?? null},
+          ${chunk.embeddingChecksum ?? null},
           ${JSON.stringify(chunk.metadata ?? {})}::jsonb,
           ${now}
         )`,
@@ -115,7 +125,8 @@ export class KnowledgeChunkRepository {
 
     await this.prisma.system.$executeRaw`
       INSERT INTO knowledge_chunks
-        (id, organization_id, document_id, chunk_index, content, token_count, embedding, metadata, created_at)
+        (id, organization_id, document_id, chunk_index, content, token_count, embedding,
+         embedding_model, embedding_provider, embedding_dimensions, embedding_checksum, metadata, created_at)
       VALUES ${Prisma.join(rows.map((r) => r.row))}
     `;
 
@@ -152,6 +163,38 @@ export class KnowledgeChunkRepository {
         AND deleted_at IS NULL
     `;
     return Number(result);
+  }
+
+  /**
+   * Returns already-stored embeddings for the given content checksums (scoped
+   * to the org + embedding model), so ingestion can reuse an identical chunk's
+   * vector instead of paying for a duplicate embedding call. Reads the vector
+   * back as text and parses it — pgvector renders as "[a,b,c]".
+   */
+  async findEmbeddingsByChecksum(
+    checksums: string[],
+    model: string,
+  ): Promise<Map<string, number[]>> {
+    const result = new Map<string, number[]>();
+    if (checksums.length === 0) {
+      return result;
+    }
+    const tenant = this.tenantContextService.getOrThrow();
+    const rows = await this.prisma.system.$queryRaw<
+      Array<{ embedding_checksum: string; embedding: string }>
+    >`
+      SELECT DISTINCT ON (embedding_checksum) embedding_checksum, embedding::text AS embedding
+      FROM knowledge_chunks
+      WHERE organization_id = ${tenant.organizationId}::uuid
+        AND embedding_model = ${model}
+        AND embedding_checksum = ANY(${checksums}::text[])
+        AND embedding IS NOT NULL
+        AND deleted_at IS NULL
+    `;
+    for (const row of rows) {
+      result.set(row.embedding_checksum, parseVectorLiteral(row.embedding));
+    }
+    return result;
   }
 
   async countForOrganization(): Promise<number> {
@@ -230,6 +273,9 @@ function buildFilterClause(filters: KnowledgeSearchFilters): Prisma.Sql {
   if (filters.documentIds && filters.documentIds.length > 0) {
     clauses.push(Prisma.sql`d.id = ANY(${filters.documentIds}::uuid[])`);
   }
+  if (filters.collectionIds && filters.collectionIds.length > 0) {
+    clauses.push(Prisma.sql`d.collection_id = ANY(${filters.collectionIds}::uuid[])`);
+  }
 
   if (clauses.length === 0) {
     return Prisma.sql``;
@@ -240,6 +286,14 @@ function buildFilterClause(filters: KnowledgeSearchFilters): Prisma.Sql {
 
 function toVectorLiteral(vector: number[]): string {
   return `[${vector.join(',')}]`;
+}
+
+function parseVectorLiteral(literal: string): number[] {
+  const inner = literal.trim().replace(/^\[/, '').replace(/\]$/, '');
+  if (inner.length === 0) {
+    return [];
+  }
+  return inner.split(',').map((value) => Number(value));
 }
 
 function toEntity(row: {

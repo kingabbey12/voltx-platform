@@ -103,7 +103,8 @@ describe('Knowledge Graph & RAG Platform (e2e)', () => {
             provider: 'openai',
             model: 'text-embedding-3-small',
             vectors: input.input.map((text) => topicVector(classify(text))),
-          } as AIEmbeddingResponse),
+            credentialSource: 'PLATFORM',
+          } as AIEmbeddingResponse & { credentialSource: 'PLATFORM' }),
       );
   });
 

@@ -1,3 +1,5 @@
+export type CredentialSource = 'PLATFORM' | 'TENANT';
+
 export type AIProviderName =
   | 'openai'
   | 'anthropic'
@@ -90,6 +92,14 @@ export interface AIChatResponse {
   outputText: string;
   finishReason?: string;
   usage?: AIUsage;
+  /**
+   * PLATFORM vs TENANT credential attribution. Populated by AIRuntimeService,
+   * which is the layer that knows whether a tenant BYO key was applied — the
+   * provider adapters only receive an opaque credentialOverride and never set
+   * this. Optional here so provider adapters satisfy the interface; the
+   * runtime re-declares it required on its own return type.
+   */
+  credentialSource?: CredentialSource;
 }
 
 export interface AIEmbeddingRequest {
@@ -103,6 +113,8 @@ export interface AIEmbeddingResponse {
   provider: AIProviderName;
   model: string;
   vectors: number[][];
+  /** See AIChatResponse.credentialSource — populated by AIRuntimeService. */
+  credentialSource?: CredentialSource;
 }
 
 export interface AIStreamEventBase {
@@ -124,6 +136,8 @@ export type AIStreamEvent =
       finishReason?: string;
       outputText?: string;
       usage?: AIUsage;
+      /** See AIChatResponse.credentialSource — injected by AIRuntimeService. */
+      credentialSource?: CredentialSource;
     })
   | (AIStreamEventBase & {
       type: 'error';
@@ -148,4 +162,5 @@ export interface AIRuntimeChatInput {
   temperature?: number;
   maxOutputTokens?: number;
   signal?: AbortSignal;
+  organizationId: string;
 }

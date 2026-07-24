@@ -5,6 +5,19 @@ import { ToolResult } from '../tools/tool-result.types';
 import { RunAgentDto } from './dto/agent.dto';
 import { AgentConfiguration, AgentEntity } from './entities/agent.entity';
 
+/**
+ * What AgentExecutor spreads straight into AIGatewayService.streamChat's
+ * AiGatewayChatInput. Widens the runtime layer's narrower AIRuntimeChatInput
+ * with the managed-prompt fields AiGatewayChatInput already supports
+ * (promptKey/promptVariables) — set only when the agent's published version
+ * references a Prompt; absent otherwise, so behavior for every agent that
+ * has never published a version is unchanged.
+ */
+export type AgentRuntimeChatInput = Omit<AIRuntimeChatInput, 'organizationId'> & {
+  promptKey?: string;
+  promptVariables?: Record<string, string>;
+};
+
 export interface SystemAgentDefinition {
   name: string;
   description: string;
@@ -314,16 +327,27 @@ export class AgentFactory {
     run: RunAgentDto;
     conversationHistory: AIMessage[];
     toolResults: ToolResult[];
-  }): AIRuntimeChatInput {
+    /** Resolved by the caller from the agent's published/draft AgentVersion's promptId — see AgentExecutor. */
+    promptKey?: string;
+    toolNameOverride?: string[] | null;
+    // organizationId is injected by AIGatewayService from tenant context, so it
+    // is intentionally not built here.
+  }): AgentRuntimeChatInput {
     const { agent, run, conversationHistory, toolResults } = params;
     const configuration = this.getConfiguration(agent);
-    const systemPrompt = this.buildSystemPrompt(agent, configuration, params.toolResults);
+    const systemPrompt = this.buildSystemPrompt(
+      agent,
+      configuration,
+      params.toolResults,
+      params.toolNameOverride,
+    );
 
     return {
       conversationId: run.conversationId,
       provider: agent.provider,
       model: agent.model,
       systemPrompt,
+      ...(params.promptKey ? { promptKey: params.promptKey } : {}),
       workspaceContext: run.workspaceContext,
       conversationHistory,
       userPrompt: run.prompt.trim(),
@@ -333,7 +357,19 @@ export class AgentFactory {
     };
   }
 
-  getAllowedToolNames(agent: AgentEntity): string[] {
+  /**
+   * `toolNameOverride` is the resolved AgentTool allowlist for this agent
+   * (or its version) — pass `null` (the default) to use
+   * configuration.toolNames unchanged, which is what happens for every
+   * agent with zero AgentTool rows, including all 10 hardcoded system
+   * agents. Pass an array (even empty) once AgentTool rows exist, so an
+   * explicit "zero tools allowed" is distinguishable from "not migrated
+   * yet".
+   */
+  getAllowedToolNames(agent: AgentEntity, toolNameOverride?: string[] | null): string[] {
+    if (toolNameOverride) {
+      return toolNameOverride;
+    }
     const configuration = this.getConfiguration(agent);
     return Array.isArray(configuration.toolNames)
       ? configuration.toolNames.filter((item): item is string => typeof item === 'string')
@@ -386,6 +422,7 @@ export class AgentFactory {
     agent: AgentEntity,
     configuration: AgentConfiguration & Record<string, unknown>,
     toolResults: ToolResult[],
+    toolNameOverride?: string[] | null,
   ): string {
     const sections = [agent.systemPrompt.trim()];
 
@@ -393,7 +430,7 @@ export class AgentFactory {
       sections.unshift(`Agent Role: ${agent.description.trim()}`);
     }
 
-    const allowedTools = this.getAllowedToolNames(agent);
+    const allowedTools = this.getAllowedToolNames(agent, toolNameOverride);
     if (allowedTools.length > 0) {
       sections.push(`Available Tools: ${allowedTools.join(', ')}`);
     }

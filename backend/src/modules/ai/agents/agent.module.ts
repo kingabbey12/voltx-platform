@@ -2,7 +2,13 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { AIModule } from '../ai.module';
 import { MemoryModule } from '../memory/memory.module';
+import { PromptResolverModule } from '../prompts/prompt-resolver.module';
 import { ToolModule } from '../tools/tool.module';
+import { WorkflowEventsModule } from '../../workflows/scheduling/workflow-events.module';
+import { AgentToolRepository } from './agent-tool.repository';
+import { AgentVersionRepository } from './agent-version.repository';
+import { AgentVersionService } from './agent-version.service';
+import { AgentWorkflowLinkRepository } from './agent-workflow-link.repository';
 import { AgentController } from './agent.controller';
 import { AgentExecutor } from './agent.executor';
 import { AgentFactory } from './agent.factory';
@@ -24,6 +30,10 @@ import { MultiAgentOrchestratorService } from './autonomous/multi-agent-orchestr
 import { AGENT_TASK_QUEUE } from './jobs/agent-task-queue.constants';
 import { AgentTaskQueueService } from './jobs/agent-task-queue.service';
 import { AgentTaskProcessor } from './jobs/agent-task.processor';
+import { AgentScheduleRepository } from './scheduling/agent-schedule.repository';
+import { AgentScheduleService } from './scheduling/agent-schedule.service';
+import { AgentSchedulerRunService } from './scheduling/agent-scheduler-run.service';
+import { AgentSchedulerService } from './scheduling/agent-scheduler.service';
 
 // Same REDIS_ENABLED-gated pattern as communications.module.ts's AI
 // process queue and attachments.module.ts's processing queue — when
@@ -42,7 +52,22 @@ const queueImports = redisEnabled
 const queueProcessors = redisEnabled ? [AgentTaskProcessor] : [];
 
 @Module({
-  imports: [AIModule, MemoryModule, ToolModule, ...queueImports],
+  imports: [
+    AIModule,
+    MemoryModule,
+    ToolModule,
+    // Lightweight, acyclic read path for PromptsRepository — see
+    // PromptResolverModule's own doc comment (AIModule already imports it
+    // for the same reason; AgentModule needs PromptsRepository directly to
+    // resolve an AgentVersion's linked Prompt key).
+    PromptResolverModule,
+    // @Global() — WorkflowEventBusService is already injectable anywhere,
+    // this import is here only for clarity/explicitness, not strictly
+    // required. Reusing the same bus Workflow scheduling uses means one
+    // fired event can trigger both a workflow and an agent schedule.
+    WorkflowEventsModule,
+    ...queueImports,
+  ],
   controllers: [AgentController, AgentApprovalController, AiDashboardController],
   providers: [
     AgentRepository,
@@ -50,6 +75,14 @@ const queueProcessors = redisEnabled ? [AgentTaskProcessor] : [];
     AgentRegistry,
     AgentExecutor,
     AgentService,
+    AgentVersionRepository,
+    AgentToolRepository,
+    AgentVersionService,
+    AgentWorkflowLinkRepository,
+    AgentScheduleRepository,
+    AgentScheduleService,
+    AgentSchedulerService,
+    AgentSchedulerRunService,
     AgentPlannerService,
     AgentLoopService,
     AgentRunStepRepository,
@@ -63,6 +96,6 @@ const queueProcessors = redisEnabled ? [AgentTaskProcessor] : [];
     AiSuggestionService,
     ...queueProcessors,
   ],
-  exports: [AgentService],
+  exports: [AgentService, AgentWorkflowLinkRepository],
 })
 export class AgentModule {}

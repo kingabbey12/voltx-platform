@@ -3,8 +3,8 @@ import { Prisma } from '@prisma/client';
 import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../../database/prisma.service';
 import { toAgentEntity, toAgentRunEntity, toJsonValue } from './entities/agent.mapper';
-import { AgentEntity } from './entities/agent.entity';
-import { AgentRunEntity, AgentRunStatus } from './entities/agent-run.entity';
+import { AgentEntity, AgentStatus } from './entities/agent.entity';
+import { AgentRunEntity, AgentRunStatus, AgentRunTriggerType } from './entities/agent-run.entity';
 
 export interface CreateAgentData {
   name: string;
@@ -24,6 +24,9 @@ export interface UpdateAgentData {
   model?: string;
   configuration?: Record<string, unknown>;
   enabled?: boolean;
+  status?: AgentStatus;
+  publishedVersionId?: string | null;
+  latestVersion?: number;
 }
 
 export interface CreateAgentRunData {
@@ -42,6 +45,10 @@ export interface CreateAgentRunData {
   durationMs?: number | null;
   tokenUsage?: Record<string, unknown>;
   error?: string | null;
+  agentVersionId?: string | null;
+  triggerType?: AgentRunTriggerType;
+  scheduleId?: string | null;
+  attemptNumber?: number;
 }
 
 export interface UpdateAgentRunData {
@@ -72,6 +79,9 @@ interface AgentRecord {
   model: string;
   configuration: Prisma.JsonValue;
   enabled: boolean;
+  status: AgentStatus;
+  publishedVersionId: string | null;
+  latestVersion: number;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -95,6 +105,10 @@ interface AgentRunRecord {
   durationMs: number | null;
   tokenUsage: Prisma.JsonValue;
   error: string | null;
+  agentVersionId: string | null;
+  triggerType: AgentRunTriggerType;
+  scheduleId: string | null;
+  attemptNumber: number;
   createdAt: Date;
 }
 
@@ -137,6 +151,10 @@ interface AgentRunClient {
       durationMs?: number | null;
       tokenUsage: Prisma.InputJsonValue | Record<string, never>;
       error?: string | null;
+      agentVersionId?: string | null;
+      triggerType?: AgentRunTriggerType;
+      scheduleId?: string | null;
+      attemptNumber?: number;
     };
   }): Promise<AgentRunRecord>;
   update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<AgentRunRecord>;
@@ -245,6 +263,11 @@ export class AgentRepository {
           ? { configuration: toJsonValue(data.configuration) ?? {} }
           : {}),
         ...(data.enabled !== undefined ? { enabled: data.enabled } : {}),
+        ...(data.status !== undefined ? { status: data.status } : {}),
+        ...(data.publishedVersionId !== undefined
+          ? { publishedVersionId: data.publishedVersionId }
+          : {}),
+        ...(data.latestVersion !== undefined ? { latestVersion: data.latestVersion } : {}),
       },
     });
 
@@ -285,10 +308,40 @@ export class AgentRepository {
         durationMs: data.durationMs ?? null,
         tokenUsage: toJsonValue(data.tokenUsage) ?? {},
         error: data.error ?? null,
+        agentVersionId: data.agentVersionId ?? null,
+        triggerType: data.triggerType ?? 'MANUAL',
+        scheduleId: data.scheduleId ?? null,
+        attemptNumber: data.attemptNumber ?? 1,
       },
     });
 
     return toAgentRunEntity(record);
+  }
+
+  /** Agent-scoped run history, paginated — backs GET /ai/agents/:id/executions. */
+  async findRunsForAgent(
+    agentId: string,
+    params: { page: number; limit: number; status?: AgentRunStatus; triggerType?: AgentRunTriggerType },
+  ): Promise<{ items: AgentRunEntity[]; total: number }> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const where = {
+      agentId,
+      agent: { organizationId: tenant.organizationId },
+      ...(params.status ? { status: params.status } : {}),
+      ...(params.triggerType ? { triggerType: params.triggerType } : {}),
+    };
+
+    const [records, total] = await Promise.all([
+      this.agentRuns().findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }],
+        skip: (params.page - 1) * params.limit,
+        take: params.limit,
+      }),
+      this.agentRuns().count({ where }),
+    ]);
+
+    return { items: records.map(toAgentRunEntity), total };
   }
 
   /**

@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
+import { AgentService } from '../ai/agents/agent.service';
+import { AgentWorkflowLinkRepository } from '../ai/agents/agent-workflow-link.repository';
 import { AIProviderName } from '../ai/models/ai-model.types';
 import { ConversationResponseDto } from '../ai/conversations/dto/conversation.dto';
 import { ConversationService } from '../ai/conversations/conversation.service';
@@ -78,6 +80,8 @@ export class WorkflowService {
     private readonly tenantContextService: TenantContextService,
     private readonly configService: ConfigService,
     private readonly workflowRunQueueService: WorkflowRunQueueService,
+    private readonly agentWorkflowLinkRepository: AgentWorkflowLinkRepository,
+    private readonly agentService: AgentService,
   ) {}
 
   async createWorkflow(request: CreateWorkflowRequest): Promise<WorkflowEntity> {

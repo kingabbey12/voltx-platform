@@ -528,7 +528,8 @@ describe('Workflow Engine (e2e)', () => {
           provider: 'openai',
           model: 'text-embedding-3-small',
           vectors: input.input.map(() => new Array(1536).fill(0).map((_, i) => (i === 0 ? 1 : 0))),
-        } as AIEmbeddingResponse),
+          credentialSource: 'PLATFORM',
+        } as AIEmbeddingResponse & { credentialSource: 'PLATFORM' }),
       );
 
     const sourceResponse = await request(app.getHttpServer())

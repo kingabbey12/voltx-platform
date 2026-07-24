@@ -1,5 +1,7 @@
 import { AIProviderName } from '../../models/ai-model.types';
 
+export type AgentStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+
 export interface AgentConfiguration {
   kind?: 'system' | 'custom';
   systemAgentKey?: string;
@@ -22,6 +24,9 @@ export interface AgentEntity {
   model: string;
   configuration: AgentConfiguration & Record<string, unknown>;
   enabled: boolean;
+  status: AgentStatus;
+  publishedVersionId: string | null;
+  latestVersion: number;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;

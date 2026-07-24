@@ -4,7 +4,10 @@ import { ExtractTextInput, TextExtractor } from './text-extractor.interface';
 
 @Injectable()
 export class XlsxTextExtractor implements TextExtractor {
-  readonly supportedContentTypes = ['xlsx', 'csv'];
+  // 'csv' is handled by the dedicated CsvTextExtractor (which also accepts
+  // already-extracted text, not just a workbook buffer) — this extractor owns
+  // the binary spreadsheet format only.
+  readonly supportedContentTypes = ['xlsx'];
 
   // eslint-disable-next-line @typescript-eslint/require-await -- async is intentional: keeps the throw below a promise rejection, matching the TextExtractor interface contract.
   async extract(input: ExtractTextInput): Promise<string> {

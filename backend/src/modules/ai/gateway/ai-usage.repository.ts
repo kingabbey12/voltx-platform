@@ -20,6 +20,7 @@ export interface CreateAiUsageLogData {
   durationMs?: number;
   succeeded: boolean;
   errorMessage?: string;
+  credentialSource?: string;
 }
 
 export interface AgentRunUsageSummary {
@@ -55,6 +56,7 @@ export class AiUsageRepository {
         durationMs: data.durationMs,
         succeeded: data.succeeded,
         errorMessage: data.errorMessage,
+        credentialSource: data.credentialSource,
       },
     });
   }

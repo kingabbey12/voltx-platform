@@ -1,17 +1,20 @@
 import { Prisma } from '@prisma/client';
 import { MemoryAccessEntity } from './memory-access.entity';
-import { MemoryEntity } from './memory.entity';
+import { MemoryEntity, MemoryScope } from './memory.entity';
 
 interface MemoryRecord {
   id: string;
   organizationId: string;
   userId: string;
   conversationId: string;
+  agentId: string | null;
+  scope: MemoryScope;
   category: string;
   importance: number;
   content: string;
   embeddingId: string | null;
   metadata: Prisma.JsonValue;
+  expiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -30,11 +33,14 @@ export function toMemoryEntity(record: MemoryRecord): MemoryEntity {
     organizationId: record.organizationId,
     userId: record.userId,
     conversationId: record.conversationId,
+    agentId: record.agentId,
+    scope: record.scope,
     category: record.category,
     importance: record.importance,
     content: record.content,
     embeddingId: record.embeddingId,
     metadata: toObject(record.metadata),
+    expiresAt: record.expiresAt,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     deletedAt: record.deletedAt,

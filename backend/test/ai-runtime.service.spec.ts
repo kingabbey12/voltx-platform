@@ -12,6 +12,9 @@ import { PromptBuilderService } from '../src/modules/ai/prompts/prompt-builder.s
 import { AI_PROVIDERS, AIProviderError } from '../src/modules/ai/providers/ai-provider.interface';
 import { AIRuntimeService } from '../src/modules/ai/runtime/ai-runtime.service';
 import { ToolService } from '../src/modules/ai/tools/tool.service';
+import { TenantAiCredentialResolver } from '../src/modules/ai/credentials/tenant-ai-credential-resolver.service';
+
+const ORGANIZATION_ID = 'org-1';
 
 describe('AIRuntimeService', () => {
   let service: AIRuntimeService;
@@ -99,6 +102,13 @@ describe('AIRuntimeService', () => {
             build: jest.fn().mockResolvedValue([]),
           },
         },
+        {
+          provide: TenantAiCredentialResolver,
+          useValue: {
+            // No tenant BYO key -> the runtime falls back to the platform key.
+            resolve: jest.fn().mockResolvedValue(null),
+          },
+        },
       ],
     }).compile();
 
@@ -118,6 +128,7 @@ describe('AIRuntimeService', () => {
     const result = await service.chat({
       userPrompt: 'Hello world',
       workspaceContext: ['Workspace: Voltx'],
+      organizationId: ORGANIZATION_ID,
     });
 
     expect(promptBuilderService.build).toHaveBeenCalled();
@@ -167,6 +178,7 @@ describe('AIRuntimeService', () => {
     const events = await collectEvents(
       service.streamChat({
         userPrompt: 'Hello world',
+        organizationId: ORGANIZATION_ID,
       }),
     );
 

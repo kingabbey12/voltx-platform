@@ -1,5 +1,6 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHash } from 'node:crypto';
 import { AIProviderName } from '../../ai/models/ai-model.types';
 import { AIGatewayService } from '../../ai/gateway/ai-gateway.service';
 import { TextChunkerService } from '../chunking/text-chunker.service';
@@ -209,27 +210,45 @@ export class KnowledgeIngestionService {
     yield { type: 'embedding_started', documentId, chunkCount: chunks.length };
     const embeddingStartedAt = Date.now();
 
-    const batches = chunkArray(chunks, this.embeddingBatchSize);
-    const embeddings: number[][] = [];
+    // One checksum per chunk; identical content shares a single embedding.
+    const checksums = chunks.map((chunk) => checksumOf(chunk.content));
 
-    for (const batch of batches) {
+    // Reuse embeddings already stored for the same content (any document) —
+    // this is what "skip duplicate embeddings" means on the ingestion path.
+    const vectorByChecksum = await this.knowledgeChunkRepository.findEmbeddingsByChecksum(
+      [...new Set(checksums)],
+      this.embeddingModel,
+    );
+
+    // Collect the still-unembedded, de-duplicated contents to send once.
+    const pendingContentByChecksum = new Map<string, string>();
+    for (let i = 0; i < chunks.length; i += 1) {
+      const checksum = checksums[i];
+      if (!vectorByChecksum.has(checksum) && !pendingContentByChecksum.has(checksum)) {
+        pendingContentByChecksum.set(checksum, chunks[i].content);
+      }
+    }
+
+    const pendingChecksums = [...pendingContentByChecksum.keys()];
+    const pendingContents = [...pendingContentByChecksum.values()];
+
+    for (const batchIndices of batchRanges(pendingContents.length, this.embeddingBatchSize)) {
       const response = await this.aiGatewayService.embeddings({
         provider: this.embeddingProvider,
         model: this.embeddingModel,
-        input: batch.map((chunk) => chunk.content),
+        input: batchIndices.map((index) => pendingContents[index]),
         documentId,
         signal,
       });
 
-      for (const vector of response.vectors) {
+      response.vectors.forEach((vector, position) => {
         if (vector.length !== this.embeddingDimensions) {
           throw new InternalServerErrorException(
             `Embedding model "${this.embeddingModel}" returned ${vector.length}-dimensional vectors, expected ${this.embeddingDimensions}`,
           );
         }
-      }
-
-      embeddings.push(...response.vectors);
+        vectorByChecksum.set(pendingChecksums[batchIndices[position]], vector);
+      });
     }
 
     await this.knowledgeChunkRepository.createMany(
@@ -238,7 +257,11 @@ export class KnowledgeIngestionService {
         chunkIndex: chunk.index,
         content: chunk.content,
         tokenCount: chunk.tokenCount,
-        embedding: embeddings[index],
+        embedding: vectorByChecksum.get(checksums[index]) ?? [],
+        embeddingModel: this.embeddingModel,
+        embeddingProvider: this.embeddingProvider,
+        embeddingDimensions: this.embeddingDimensions,
+        embeddingChecksum: checksums[index],
       })),
     );
 
@@ -277,10 +300,19 @@ export class KnowledgeIngestionService {
   }
 }
 
-function chunkArray<T>(items: T[], size: number): T[][] {
-  const batches: T[][] = [];
-  for (let start = 0; start < items.length; start += size) {
-    batches.push(items.slice(start, start + size));
+/** Splits [0, total) into batches of index arrays, each at most `size` long. */
+function batchRanges(total: number, size: number): number[][] {
+  const batches: number[][] = [];
+  for (let start = 0; start < total; start += size) {
+    const batch: number[] = [];
+    for (let index = start; index < Math.min(start + size, total); index += 1) {
+      batch.push(index);
+    }
+    batches.push(batch);
   }
   return batches;
+}
+
+function checksumOf(content: string): string {
+  return createHash('sha256').update(content).digest('hex');
 }

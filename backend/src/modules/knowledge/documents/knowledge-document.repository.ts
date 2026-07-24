@@ -9,6 +9,7 @@ import {
 
 export interface CreateKnowledgeDocumentData {
   sourceId: string;
+  collectionId?: string | null;
   externalId?: string;
   title: string;
   contentType: string;
@@ -18,6 +19,7 @@ export interface CreateKnowledgeDocumentData {
 
 export interface UpdateKnowledgeDocumentData {
   title?: string;
+  collectionId?: string | null;
   rawText?: string;
   metadata?: Record<string, unknown>;
   status?: KnowledgeDocumentStatus;
@@ -44,6 +46,7 @@ interface KnowledgeDocumentRecord {
   id: string;
   organizationId: string;
   sourceId: string;
+  collectionId: string | null;
   externalId: string | null;
   title: string;
   contentType: string;
@@ -90,6 +93,7 @@ export class KnowledgeDocumentRepository {
       data: {
         organizationId: tenant.organizationId,
         sourceId: data.sourceId,
+        collectionId: data.collectionId ?? null,
         externalId: data.externalId ?? null,
         title: data.title,
         contentType: data.contentType,
@@ -170,6 +174,7 @@ export class KnowledgeDocumentRepository {
       where: { id },
       data: {
         ...(data.title !== undefined ? { title: data.title } : {}),
+        ...(data.collectionId !== undefined ? { collectionId: data.collectionId } : {}),
         ...(data.rawText !== undefined ? { rawText: data.rawText } : {}),
         ...(data.metadata !== undefined ? { metadata: toJsonValue(data.metadata) ?? {} } : {}),
         ...(data.status !== undefined ? { status: data.status } : {}),
@@ -225,6 +230,7 @@ function toEntity(record: KnowledgeDocumentRecord): KnowledgeDocumentEntity {
     id: record.id,
     organizationId: record.organizationId,
     sourceId: record.sourceId,
+    collectionId: record.collectionId,
     externalId: record.externalId,
     title: record.title,
     contentType: record.contentType,

@@ -18,6 +18,7 @@ import { BillingModule } from './modules/billing/billing.module';
 import { AgentModule } from './modules/ai/agents/agent.module';
 import { AskModule } from './modules/ai/ask/ask.module';
 import { TenantAiCredentialsModule } from './modules/ai/credentials/tenant-ai-credentials.module';
+import { PromptsModule } from './modules/ai/prompts/prompts.module';
 import { AIModule } from './modules/ai/ai.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { BrandingModule } from './modules/branding/branding.module';
@@ -102,6 +103,7 @@ import { PromisesModule } from './modules/promises/promises.module';
     AgentModule,
     AskModule,
     TenantAiCredentialsModule,
+    PromptsModule,
     AttachmentsModule,
     BackgroundJobsModule,
     BillingModule,

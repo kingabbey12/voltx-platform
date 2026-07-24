@@ -10,8 +10,15 @@ export async function createTestApp(): Promise<INestApplication<App>> {
   }).compile();
 
   const app = moduleFixture.createNestApplication({ bufferLogs: true, bodyParser: false });
-  configureApp(app);
-  await app.init();
+
+  try {
+    configureApp(app);
+    await app.init();
+  } catch (e) {
+    console.error('[BOOTSTRAP_ERROR] Exception during app.init():');
+    console.error(e);
+    throw e;
+  }
 
   return app;
 }

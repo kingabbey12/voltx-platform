@@ -111,6 +111,35 @@ enum AgentMessageType {
   COMPLETION
 }
 
+enum AgentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// How an AgentRun was started — mirrors WorkflowTriggerType's MANUAL/
+/// SCHEDULED/EVENT distinction, scoped down to what Agent runs actually
+/// support (no DELAYED trigger for agents).
+enum AgentTriggerType {
+  MANUAL
+  SCHEDULED
+  EVENT
+}
+
+/// Distinct from AgentTriggerType: an AgentSchedule's own kind, which
+/// never includes MANUAL (a schedule is by definition not manual).
+enum AgentScheduleTriggerType {
+  CRON
+  EVENT
+}
+
+enum MemoryScope {
+  CONVERSATION
+  LONG_TERM
+  WORKING
+  SESSION
+}
+
 enum SalesCompanyStatus {
   PROSPECT
   ACTIVE
@@ -183,6 +212,9 @@ model Organization {
   agents                  Agent[]
   aiUsageLogs             AiUsageLog[]
   aiProviderCredentials   AiProviderCredential[]
+  prompts                 Prompt[]
+  promptVersions          PromptVersion[]
+  promptTestRuns          PromptTestRun[]
   salesCompanies          SalesCompany[]
   salesContacts           SalesContact[]
   salesLeads              SalesLead[]
@@ -191,6 +223,8 @@ model Organization {
   promises                Promise[]
   knowledgeSources        KnowledgeSource[]
   knowledgeEntities       KnowledgeEntity[]
+  knowledgeCollections    KnowledgeCollection[]
+  knowledgeIngestionJobs  KnowledgeIngestionJob[]
   workflows               Workflow[]
   integrationConnections  IntegrationConnection[]
   invitations             Invitation[]
@@ -232,6 +266,7 @@ model Organization {
   marketplaceApps         MarketplaceApp[]         @relation("MarketplaceAppDeveloper")
   marketplaceInstalls     MarketplaceInstall[]     @relation("MarketplaceInstallOrganization")
   developerConnectAccount DeveloperConnectAccount?
+  agentVersions           AgentVersion[]
 
   @@index([status])
   @@index([parentOrganizationId])
@@ -368,6 +403,15 @@ model Memory {
   organizationId String                       @map("organization_id") @db.Uuid
   userId         String                       @map("user_id") @db.Uuid
   conversationId String                       @map("conversation_id") @db.Uuid
+  /// Nullable — set when this memory was captured/written in the context
+  /// of a specific Agent (conversation-only memories, the original use
+  /// case, leave this null). Enables agent-scoped memory retrieval.
+  agentId        String?                      @map("agent_id") @db.Uuid
+  /// Defaults to CONVERSATION so every pre-existing row (and every
+  /// caller that doesn't pass a scope) keeps its current meaning
+  /// unchanged. WORKING/SESSION are ephemeral, TTL-pruned via expiresAt;
+  /// CONVERSATION/LONG_TERM keep the original count-based pruning.
+  scope          MemoryScope                  @default(CONVERSATION)
   category       String
   importance     Float
   content        String
@@ -379,17 +423,24 @@ model Memory {
   /// MemoryService.captureConversationMemories.
   embedding      Unsupported("vector(1536)")?
   metadata       Json                         @default("{}")
+  /// TTL for WORKING/SESSION-scoped memories only — null for
+  /// CONVERSATION/LONG_TERM, which are never time-based pruned.
+  expiresAt      DateTime?                    @map("expires_at")
   createdAt      DateTime                     @default(now()) @map("created_at")
   updatedAt      DateTime                     @updatedAt @map("updated_at")
   deletedAt      DateTime?                    @map("deleted_at")
   organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversation   Conversation                 @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  agent          Agent?                       @relation(fields: [agentId], references: [id], onDelete: SetNull)
   accesses       MemoryAccess[]
 
   @@index([organizationId])
   @@index([userId])
   @@index([conversationId])
+  @@index([agentId])
+  @@index([scope])
+  @@index([expiresAt])
   @@index([category])
   @@index([importance])
   @@index([deletedAt])
@@ -412,25 +463,42 @@ model MemoryAccess {
 }
 
 model Agent {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  name           String
-  description    String
-  systemPrompt   String       @map("system_prompt")
-  provider       String
-  model          String
-  configuration  Json         @default("{}")
-  enabled        Boolean      @default(true)
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  deletedAt      DateTime?    @map("deleted_at")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  runs           AgentRun[]
-  aiUsageLogs    AiUsageLog[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  organizationId     String              @map("organization_id") @db.Uuid
+  name               String
+  description        String
+  systemPrompt       String              @map("system_prompt")
+  provider           String
+  model              String
+  configuration      Json                @default("{}")
+  enabled            Boolean             @default(true)
+  /// Defaults to PUBLISHED (not DRAFT) so every agent created before this
+  /// column existed — and any created without setting status explicitly —
+  /// is immediately runnable exactly as before, matching the pre-existing
+  /// behavior where `enabled` was the only gate.
+  status             AgentStatus         @default(PUBLISHED)
+  /// Plain pointer (no FK), mirrors Prompt.publishedVersionId — publish/
+  /// rollback just repoints this at an AgentVersion.id. Null means "no
+  /// version has ever been published"; AgentExecutor falls back to this
+  /// Agent row's own mutable fields/configuration.toolNames in that case.
+  publishedVersionId String?             @map("published_version_id") @db.Uuid
+  latestVersion      Int                 @default(0) @map("latest_version")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  deletedAt          DateTime?           @map("deleted_at")
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  runs               AgentRun[]
+  aiUsageLogs        AiUsageLog[]
+  versions           AgentVersion[]
+  tools              AgentTool[]
+  schedules          AgentSchedule[]
+  workflowLinks      AgentWorkflowLink[]
+  memories           Memory[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
   @@index([enabled])
+  @@index([status])
   @@index([deletedAt])
   @@map("agents")
 }
@@ -453,11 +521,23 @@ model AgentRun {
   durationMs     Int?                  @map("duration_ms")
   tokenUsage     Json                  @default("{}") @map("token_usage")
   error          String?
+  /// Which immutable AgentVersion snapshot this run actually executed
+  /// against — null for runs against an agent that has never published a
+  /// version (pre-migration agents and system agents included).
+  agentVersionId String?               @map("agent_version_id") @db.Uuid
+  /// MANUAL (default) preserves today's behavior for every existing
+  /// caller (POST /run, /run/autonomous). SCHEDULED/EVENT are set only by
+  /// AgentSchedulerRunService.
+  triggerType    AgentTriggerType      @default(MANUAL) @map("trigger_type")
+  scheduleId     String?               @map("schedule_id") @db.Uuid
+  attemptNumber  Int                   @default(1) @map("attempt_number")
   createdAt      DateTime              @default(now()) @map("created_at")
   agent          Agent                 @relation(fields: [agentId], references: [id], onDelete: Cascade)
   conversation   Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   parentRun      AgentRun?             @relation("AgentRunHierarchy", fields: [parentRunId], references: [id], onDelete: Cascade)
   childRuns      AgentRun[]            @relation("AgentRunHierarchy")
+  agentVersion   AgentVersion?         @relation(fields: [agentVersionId], references: [id], onDelete: SetNull)
+  schedule       AgentSchedule?        @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   aiUsageLogs    AiUsageLog[]
   steps          AgentRunStep[]
   sentMessages   AgentMessage[]
@@ -469,7 +549,131 @@ model AgentRun {
   @@index([rootRunId])
   @@index([status])
   @@index([createdAt])
+  @@index([agentVersionId])
+  @@index([scheduleId])
+  @@index([triggerType])
   @@map("agent_runs")
+}
+
+/// Immutable snapshot of an agent's builder config at a point in time —
+/// mirrors PromptVersion/Prompt.publishedVersionId exactly. Agent.status +
+/// Agent.publishedVersionId are the mutable "which version is live"
+/// pointer; every AgentVersion row itself never changes after creation.
+model AgentVersion {
+  id                    String          @id @default(uuid()) @db.Uuid
+  organizationId        String          @map("organization_id") @db.Uuid
+  agentId               String          @map("agent_id") @db.Uuid
+  version               Int
+  name                  String
+  description           String
+  systemPrompt          String          @map("system_prompt")
+  provider              String
+  model                 String
+  temperature           Float?
+  maxTokens             Int?            @map("max_tokens")
+  /// Plain nullable reference (no FK) to a managed Prompt — matches the
+  /// codebase's convention of not FK-constraining optional cross-module
+  /// references (Prompt.publishedVersionId has none either), so the AI
+  /// Agents module has no hard dependency on Prompt Management.
+  promptId              String?         @map("prompt_id") @db.Uuid
+  /// Plain nullable reference (no FK) to a KnowledgeCollection, for the
+  /// "Knowledge collection selection" builder field — same no-FK rationale.
+  knowledgeCollectionId String?         @map("knowledge_collection_id") @db.Uuid
+  configuration         Json            @default("{}")
+  createdByUserId       String?         @map("created_by_user_id") @db.Uuid
+  createdAt             DateTime        @default(now()) @map("created_at")
+  agent                 Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tools                 AgentTool[]
+  runs                  AgentRun[]
+  schedules             AgentSchedule[]
+
+  @@unique([agentId, version])
+  @@index([organizationId])
+  @@index([agentId])
+  @@map("agent_versions")
+}
+
+/// Canonical per-agent tool allowlist, promoted out of the
+/// Agent.configuration.toolNames JSON blob so tool selection has its own
+/// queryable, versioned identity. agentVersionId is null for the live/
+/// draft agent's current tool set and set on immutable AgentVersion
+/// snapshots (copied there at publish time). AgentFactory falls back to
+/// configuration.toolNames only when an agent has zero AgentTool rows —
+/// which is true for every pre-migration agent, including the 10
+/// hardcoded system agents, so their behavior is unchanged.
+model AgentTool {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  agentId        String        @map("agent_id") @db.Uuid
+  agentVersionId String?       @map("agent_version_id") @db.Uuid
+  toolName       String        @map("tool_name")
+  enabled        Boolean       @default(true)
+  config         Json          @default("{}")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  agent          Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agentVersion   AgentVersion? @relation(fields: [agentVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, agentVersionId, toolName])
+  @@index([organizationId])
+  @@index([agentId])
+  @@index([agentVersionId])
+  @@map("agent_tools")
+}
+
+/// A CRON/EVENT trigger for an agent — mirrors WorkflowSchedule and
+/// AgentSchedulerService mirrors WorkflowSchedulerService's cron
+/// registration/event-bus-subscription pattern exactly. Firing enqueues
+/// onto the existing AGENT_TASK_QUEUE rather than a second BullMQ queue.
+model AgentSchedule {
+  id              String                   @id @default(uuid()) @db.Uuid
+  organizationId  String                   @map("organization_id") @db.Uuid
+  agentId         String                   @map("agent_id") @db.Uuid
+  agentVersionId  String?                  @map("agent_version_id") @db.Uuid
+  triggerType     AgentScheduleTriggerType @map("trigger_type")
+  cronExpression  String?                  @map("cron_expression")
+  eventName       String?                  @map("event_name")
+  input           Json                     @default("{}")
+  enabled         Boolean                  @default(true)
+  nextRunAt       DateTime?                @map("next_run_at")
+  lastRunAt       DateTime?                @map("last_run_at")
+  createdByUserId String?                  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+  agent           Agent                    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agentVersion    AgentVersion?            @relation(fields: [agentVersionId], references: [id], onDelete: SetNull)
+  runs            AgentRun[]
+
+  @@index([organizationId])
+  @@index([agentId])
+  @@index([triggerType])
+  @@index([enabled])
+  @@index([nextRunAt])
+  @@map("agent_schedules")
+}
+
+/// Tracking/impact-analysis only — does NOT change
+/// agent-step-executor.ts's existing name-based runtime agent lookup for
+/// WorkflowStepType.AGENT steps. Upserted whenever a WorkflowVersion is
+/// created from a DAG containing AGENT-type steps, keyed by the step's id
+/// in that DAG, so an operator can see which workflows depend on which
+/// agents before editing/archiving one.
+model AgentWorkflowLink {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  workflowId     String   @map("workflow_id") @db.Uuid
+  agentId        String   @map("agent_id") @db.Uuid
+  stepKey        String   @map("step_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  workflow       Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  agent          Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, stepKey])
+  @@index([organizationId])
+  @@index([workflowId])
+  @@index([agentId])
+  @@map("agent_workflow_links")
 }
 
 /// A pending/decided human approval gate for a sensitive AI tool call —
@@ -556,6 +760,7 @@ model AiUsageLog {
   durationMs       Int?          @map("duration_ms")
   succeeded        Boolean       @default(true)
   errorMessage     String?       @map("error_message")
+  credentialSource String?       @map("credential_source")
   createdAt        DateTime      @default(now()) @map("created_at")
   organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -612,6 +817,103 @@ model AiProviderCredential {
   @@index([provider])
   @@index([deletedAt])
   @@map("ai_provider_credentials")
+}
+
+enum PromptStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+/// A managed, versioned prompt owned by an organization. The Prompt row is
+/// the mutable envelope (name, category, tags, lifecycle status, and a
+/// pointer to the currently-published immutable version); the text itself
+/// lives in PromptVersion rows. Resolved and rendered by the AI Gateway
+/// before a provider call when a request names `key`. Tenant-isolated,
+/// RBAC-guarded, audited, soft-deletable.
+model Prompt {
+  id                 String          @id @default(uuid()) @db.Uuid
+  organizationId     String          @map("organization_id") @db.Uuid
+  key                String
+  name               String
+  description        String?
+  category           String?
+  tags               String[]        @default([])
+  status             PromptStatus    @default(DRAFT)
+  /// Points at the immutable PromptVersion currently served at runtime. Plain
+  /// id (no FK) so publish/rollback just repoints it without relation churn.
+  publishedVersionId String?         @map("published_version_id") @db.Uuid
+  createdByUserId    String?         @map("created_by_user_id") @db.Uuid
+  updatedByUserId    String?         @map("updated_by_user_id") @db.Uuid
+  archivedAt         DateTime?       @map("archived_at")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+  deletedAt          DateTime?       @map("deleted_at")
+  organization       Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions           PromptVersion[]
+  testRuns           PromptTestRun[]
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+  @@index([status])
+  @@index([category])
+  @@index([deletedAt])
+  @@map("prompts")
+}
+
+/// An immutable snapshot of a prompt's template + declared variables at a
+/// point in time. Never updated or deleted — publish/rollback only change
+/// which version Prompt.publishedVersionId points at, so history is total.
+model PromptVersion {
+  id              String       @id @default(uuid()) @db.Uuid
+  promptId        String       @map("prompt_id") @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  version         Int
+  template        String       @db.Text
+  variables       Json         @default("[]")
+  model           String?
+  provider        String?
+  notes           String?
+  createdByUserId String?      @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at")
+  prompt          Prompt       @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, version])
+  @@index([promptId])
+  @@index([organizationId])
+  @@map("prompt_versions")
+}
+
+/// A recorded test execution of a prompt version through the runtime — the
+/// rendered prompt, the provider/model used, and the latency/token/cost/
+/// response captured. Never a production conversation.
+model PromptTestRun {
+  id              String       @id @default(uuid()) @db.Uuid
+  promptId        String       @map("prompt_id") @db.Uuid
+  promptVersionId String?      @map("prompt_version_id") @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  renderedPrompt  String       @map("rendered_prompt") @db.Text
+  variables       Json         @default("{}")
+  model           String?
+  provider        String?
+  latencyMs       Int?         @map("latency_ms")
+  inputTokens     Int?         @map("input_tokens")
+  outputTokens    Int?         @map("output_tokens")
+  totalTokens     Int?         @map("total_tokens")
+  costUsd         Decimal?     @map("cost_usd") @db.Decimal(12, 6)
+  response        String?      @db.Text
+  createdByUserId String?      @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at")
+  prompt          Prompt       @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([promptId])
+  @@index([organizationId])
+  @@index([createdAt])
+  @@map("prompt_test_runs")
 }
 
 model VerificationToken {
@@ -1132,6 +1434,7 @@ model KnowledgeDocument {
   id             String                  @id @default(uuid()) @db.Uuid
   organizationId String                  @map("organization_id") @db.Uuid
   sourceId       String                  @map("source_id") @db.Uuid
+  collectionId   String?                 @map("collection_id") @db.Uuid
   externalId     String?                 @map("external_id")
   title          String
   contentType    String                  @map("content_type")
@@ -1144,10 +1447,12 @@ model KnowledgeDocument {
   updatedAt      DateTime                @updatedAt @map("updated_at")
   deletedAt      DateTime?               @map("deleted_at")
   source         KnowledgeSource         @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  collection     KnowledgeCollection?    @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   chunks         KnowledgeChunk[]
 
   @@index([organizationId])
   @@index([sourceId])
+  @@index([collectionId])
   @@index([externalId])
   @@index([status])
   @@index([deletedAt])
@@ -1160,25 +1465,33 @@ model KnowledgeDocument {
 /// raw SQL in KnowledgeChunkRepository, and its migration is hand-written
 /// (extension + column + ivfflat index + generated tsvector + GIN index).
 model KnowledgeChunk {
-  id             String                       @id @default(uuid()) @db.Uuid
-  organizationId String                       @map("organization_id") @db.Uuid
-  documentId     String                       @map("document_id") @db.Uuid
-  chunkIndex     Int                          @map("chunk_index")
-  content        String
-  tokenCount     Int                          @map("token_count")
-  embedding      Unsupported("vector(1536)")?
+  id                  String                       @id @default(uuid()) @db.Uuid
+  organizationId      String                       @map("organization_id") @db.Uuid
+  documentId          String                       @map("document_id") @db.Uuid
+  chunkIndex          Int                          @map("chunk_index")
+  content             String
+  tokenCount          Int                          @map("token_count")
+  embedding           Unsupported("vector(1536)")?
+  /// Provenance for the stored vector — which provider/model produced it, its
+  /// dimensionality, and a content checksum used to skip re-embedding
+  /// identical chunks. All written through raw SQL in KnowledgeChunkRepository.
+  embeddingModel      String?                      @map("embedding_model")
+  embeddingProvider   String?                      @map("embedding_provider")
+  embeddingDimensions Int?                         @map("embedding_dimensions")
+  embeddingChecksum   String?                      @map("embedding_checksum")
   /// Generated column (to_tsvector(content)), maintained entirely in the
   /// migration SQL — declared here only so Prisma doesn't propose dropping
   /// it on a future `migrate dev` diff.
-  contentTsv     Unsupported("tsvector")?     @map("content_tsv")
-  metadata       Json                         @default("{}")
-  createdAt      DateTime                     @default(now()) @map("created_at")
-  deletedAt      DateTime?                    @map("deleted_at")
-  document       KnowledgeDocument            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  contentTsv          Unsupported("tsvector")?     @map("content_tsv")
+  metadata            Json                         @default("{}")
+  createdAt           DateTime                     @default(now()) @map("created_at")
+  deletedAt           DateTime?                    @map("deleted_at")
+  document            KnowledgeDocument            @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([documentId])
   @@index([deletedAt])
+  @@index([organizationId, embeddingChecksum, embeddingModel])
   @@map("knowledge_chunks")
 }
 
@@ -1245,6 +1558,94 @@ model KnowledgeSearchLog {
   @@index([organizationId])
   @@index([createdAt])
   @@map("knowledge_search_logs")
+}
+
+enum KnowledgeCollectionStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+/// A user-defined grouping of knowledge documents, used to scope retrieval
+/// (a "collection filter") and to organize an org's knowledge. Documents
+/// point at a collection via KnowledgeDocument.collectionId (nullable) —
+/// deleting a collection detaches its documents rather than cascading.
+model KnowledgeCollection {
+  id              String                    @id @default(uuid()) @db.Uuid
+  organizationId  String                    @map("organization_id") @db.Uuid
+  name            String
+  description     String?
+  tags            String[]                  @default([])
+  metadata        Json                      @default("{}")
+  status          KnowledgeCollectionStatus @default(ACTIVE)
+  createdByUserId String?                   @map("created_by_user_id") @db.Uuid
+  updatedByUserId String?                   @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+  deletedAt       DateTime?                 @map("deleted_at")
+  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents       KnowledgeDocument[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("knowledge_collections")
+}
+
+enum KnowledgeJobType {
+  INGEST_DOCUMENT
+  REINDEX_DOCUMENT
+  REINDEX_SOURCE
+  DELETE_DOCUMENT
+}
+
+enum KnowledgeJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum KnowledgeJobStage {
+  QUEUED
+  PARSING
+  CHUNKING
+  EMBEDDING
+  INDEXING
+  DONE
+}
+
+/// A tracked, retryable unit of ingestion work (upload/parse/chunk/embed/
+/// index, reindex, delete). Drives the async pipeline behind a BullMQ queue
+/// (or a synchronous fallback when Redis is disabled) and backs GET
+/// /knowledge/jobs. Carries the enqueuing user's identity so the worker can
+/// reconstruct tenant context off the HTTP request.
+model KnowledgeIngestionJob {
+  id                    String             @id @default(uuid()) @db.Uuid
+  organizationId        String             @map("organization_id") @db.Uuid
+  type                  KnowledgeJobType
+  status                KnowledgeJobStatus @default(QUEUED)
+  stage                 KnowledgeJobStage  @default(QUEUED)
+  documentId            String?            @map("document_id") @db.Uuid
+  sourceId              String?            @map("source_id") @db.Uuid
+  progress              Int                @default(0)
+  attempts              Int                @default(0)
+  maxAttempts           Int                @default(3) @map("max_attempts")
+  error                 String?
+  metadata              Json               @default("{}")
+  createdByUserId       String?            @map("created_by_user_id") @db.Uuid
+  createdByMembershipId String?            @map("created_by_membership_id") @db.Uuid
+  startedAt             DateTime?          @map("started_at")
+  completedAt           DateTime?          @map("completed_at")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+  organization          Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("knowledge_ingestion_jobs")
 }
 
 enum WorkflowStatus {
@@ -1323,22 +1724,23 @@ enum WorkflowLogLevel {
 /// WorkflowRun always points at the exact definition it started with,
 /// even if the workflow is edited or republished mid-flight.
 model Workflow {
-  id               String             @id @default(uuid()) @db.Uuid
-  organizationId   String             @map("organization_id") @db.Uuid
+  id               String              @id @default(uuid()) @db.Uuid
+  organizationId   String              @map("organization_id") @db.Uuid
   name             String
   description      String?
-  status           WorkflowStatus     @default(DRAFT)
-  publishedVersion Int?               @map("published_version")
-  createdBy        String             @map("created_by") @db.Uuid
-  createdAt        DateTime           @default(now()) @map("created_at")
-  updatedAt        DateTime           @updatedAt @map("updated_at")
-  deletedAt        DateTime?          @map("deleted_at")
-  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  status           WorkflowStatus      @default(DRAFT)
+  publishedVersion Int?                @map("published_version")
+  createdBy        String              @map("created_by") @db.Uuid
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  deletedAt        DateTime?           @map("deleted_at")
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   versions         WorkflowVersion[]
   runs             WorkflowRun[]
   schedules        WorkflowSchedule[]
   webhooks         WorkflowWebhook[]
   variables        WorkflowVariable[]
+  agentLinks       AgentWorkflowLink[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -3998,10 +4400,10 @@ model MarketplaceAppVersion {
 
   // v2.3 Developer Platform (Phase 8) — materialized from `manifest` once
   // this version is approved (see ExtensionMaterializationService).
-  customPages  ExtensionCustomPage[]
+  customPages   ExtensionCustomPage[]
   customWidgets ExtensionCustomWidget[]
-  navEntries   ExtensionCustomNavEntry[]
-  aiTools      ExtensionAiTool[]
+  navEntries    ExtensionCustomNavEntry[]
+  aiTools       ExtensionAiTool[]
 
   @@unique([appId, version])
   @@index([appId])

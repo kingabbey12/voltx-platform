@@ -4,6 +4,7 @@ import { TextChunkerService } from './chunking/text-chunker.service';
 import { KnowledgeChunkRepository } from './chunks/knowledge-chunk.repository';
 import { KnowledgeContextBuilderService } from './context/knowledge-context-builder.service';
 import { KnowledgeDocumentRepository } from './documents/knowledge-document.repository';
+import { CsvTextExtractor } from './extraction/csv-text-extractor';
 import { DocxTextExtractor } from './extraction/docx-text-extractor';
 import { PdfTextExtractor } from './extraction/pdf-text-extractor';
 import { PlainTextExtractor } from './extraction/plain-text-extractor';
@@ -36,6 +37,7 @@ import { KnowledgeSourceRepository } from './sources/knowledge-source.repository
     DocxTextExtractor,
     XlsxTextExtractor,
     PptxTextExtractor,
+    CsvTextExtractor,
     PlainTextExtractor,
     TextExtractorRegistry,
     TextChunkerService,

@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { CsvTextExtractor } from '../src/modules/knowledge/extraction/csv-text-extractor';
 import { DocxTextExtractor } from '../src/modules/knowledge/extraction/docx-text-extractor';
 import { PdfTextExtractor } from '../src/modules/knowledge/extraction/pdf-text-extractor';
 import { PlainTextExtractor } from '../src/modules/knowledge/extraction/plain-text-extractor';
@@ -109,6 +110,7 @@ describe('TextExtractorRegistry', () => {
       new DocxTextExtractor(),
       new XlsxTextExtractor(),
       new PptxTextExtractor(),
+      new CsvTextExtractor(),
       new PlainTextExtractor(),
     );
   }

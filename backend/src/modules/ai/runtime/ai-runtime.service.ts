@@ -9,11 +9,13 @@ import {
   AIModelDefinition,
   AIProviderChatRequest,
   AIStreamEvent,
+  CredentialSource,
 } from '../models/ai-model.types';
 import { PromptBuilderService } from '../prompts/prompt-builder.service';
 import { AIProvider, AIProviderError, AI_PROVIDERS } from '../providers/ai-provider.interface';
 import { MemoryService } from '../memory/memory.service';
 import { ExecuteToolRequest, ExecuteToolResponse, ToolService } from '../tools/tool.service';
+import { TenantAiCredentialResolver } from '../credentials/tenant-ai-credential-resolver.service';
 
 @Injectable()
 export class AIRuntimeService {
@@ -30,26 +32,30 @@ export class AIRuntimeService {
     private readonly toolService: ToolService,
     private readonly configService: ConfigService,
     private readonly attachmentContentBuilderService: AttachmentContentBuilderService,
+    private readonly credentialResolver: TenantAiCredentialResolver,
   ) {
     this.maxRetries = configService.get<number>('ai.maxRetries', 2);
     this.retryBaseDelayMs = configService.get<number>('ai.retryBaseDelayMs', 250);
   }
 
-  async chat(input: AIRuntimeChatInput): Promise<AIChatResponse> {
+  async chat(
+    input: AIRuntimeChatInput,
+  ): Promise<AIChatResponse & { credentialSource: CredentialSource }> {
     return this.executeWithRetries(async () => {
-      const { provider, model, request } = await this.prepareChatRequest(input);
+      const { provider, model, request, credentialSource } = await this.prepareChatRequest(input);
       const response = await provider.chat(request);
 
       return {
         ...response,
         provider: provider.name,
         model: model.id,
+        credentialSource,
       };
     });
   }
 
   async *streamChat(input: AIRuntimeChatInput): AsyncIterable<AIStreamEvent> {
-    const { provider, model, request } = await this.prepareChatRequest(input);
+    const { provider, model, request, credentialSource } = await this.prepareChatRequest(input);
 
     let attempt = 0;
 
@@ -63,6 +69,7 @@ export class AIRuntimeService {
             ...event,
             provider: provider.name,
             model: model.id,
+            ...(event.type === 'message_end' ? { credentialSource } : {}),
           };
         }
         return;
@@ -87,8 +94,10 @@ export class AIRuntimeService {
   }
 
   async embeddings(
-    input: Pick<AIRuntimeChatInput, 'provider' | 'model' | 'signal'> & { input: string[] },
-  ): Promise<AIEmbeddingResponse> {
+    input: Pick<AIRuntimeChatInput, 'provider' | 'model' | 'signal' | 'organizationId'> & {
+      input: string[];
+    },
+  ): Promise<AIEmbeddingResponse & { credentialSource: CredentialSource }> {
     return this.executeWithRetries(async () => {
       const { provider, model } = await this.modelRegistryService.resolveProviderAndModel(
         input.provider,
@@ -96,16 +105,21 @@ export class AIRuntimeService {
         'embeddings',
       );
 
+      const credential = await this.credentialResolver.resolve(input.organizationId, provider.name);
+      const credentialSource: CredentialSource = credential ? 'TENANT' : 'PLATFORM';
+
       const response = await provider.embeddings({
         model: model.id,
         input: input.input,
         signal: input.signal,
+        credentialOverride: credential ?? undefined,
       });
 
       return {
         ...response,
         provider: provider.name,
         model: model.id,
+        credentialSource,
       };
     });
   }
@@ -122,6 +136,7 @@ export class AIRuntimeService {
     provider: AIProvider;
     model: AIModelDefinition;
     request: AIProviderChatRequest;
+    credentialSource: CredentialSource;
   }> {
     const { provider, model } = await this.modelRegistryService.resolveProviderAndModel(
       input.provider,
@@ -142,6 +157,9 @@ export class AIRuntimeService {
         )
       : undefined;
 
+    const credential = await this.credentialResolver.resolve(input.organizationId, provider.name);
+    const credentialSource: CredentialSource = credential ? 'TENANT' : 'PLATFORM';
+
     return {
       provider,
       model,
@@ -159,7 +177,9 @@ export class AIRuntimeService {
         temperature: input.temperature,
         maxOutputTokens: input.maxOutputTokens,
         signal: input.signal,
+        credentialOverride: credential ?? undefined,
       },
+      credentialSource,
     };
   }
 

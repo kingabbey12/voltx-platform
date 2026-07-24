@@ -1,10 +1,16 @@
-import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
+import { PROMPT_RESOLVER, PromptResolverPort } from '../prompts/prompt-resolver.service';
 import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 import { AgentApprovalService } from '../approvals/agent-approval.service';
 import { isMutatingTool } from '../approvals/tool-approval-policy';
 import { ToolApprovalRequiredError } from '../approvals/tool-approval-required.error';
-import { AIEmbeddingResponse, AIStreamEvent, AIUsage } from '../models/ai-model.types';
+import {
+  AIEmbeddingResponse,
+  AIStreamEvent,
+  AIUsage,
+  CredentialSource,
+} from '../models/ai-model.types';
 import { AIRuntimeService } from '../runtime/ai-runtime.service';
 import { ToolRegistry } from '../tools/tool.registry';
 import { ExecuteToolRequest, ExecuteToolResponse } from '../tools/tool.service';
@@ -46,6 +52,12 @@ export class AIGatewayService {
     private readonly toolRegistry: ToolRegistry,
     @Inject(forwardRef(() => KnowledgeRetrieverService))
     private readonly knowledgeRetrieverService: KnowledgeRetrieverService,
+    // Optional: present only when PromptResolverModule is wired in (it always
+    // is in the running app). Absent in unit tests that construct the gateway
+    // in isolation, where prompt resolution simply doesn't apply.
+    @Optional()
+    @Inject(PROMPT_RESOLVER)
+    private readonly promptResolver?: PromptResolverPort,
   ) {}
 
   async *streamChat(input: AiGatewayChatInput): AsyncIterable<AIStreamEvent> {
@@ -53,9 +65,23 @@ export class AIGatewayService {
     this.rateLimiterService.assertWithinLimit(tenant.organizationId);
 
     const startedAt = Date.now();
+
+    // Managed-prompt resolution: if the caller referenced a prompt key and the
+    // org has a PUBLISHED version, render it into the system prompt before the
+    // provider call. Falls back to input.systemPrompt when there is no resolver
+    // or no published prompt — so behavior is unchanged when promptKey is unset.
+    const systemPrompt = await this.resolveSystemPrompt(
+      tenant.organizationId,
+      tenant.userId,
+      input,
+    );
+
     const knowledgeContext = await this.knowledgeRetrieverService.retrieve({
       organizationId: tenant.organizationId,
       query: input.userPrompt,
+      ...(input.knowledgeCollectionId
+        ? { filters: { collectionIds: [input.knowledgeCollectionId] } }
+        : {}),
     });
     const mergedWorkspaceContext = [...(input.workspaceContext ?? []), ...knowledgeContext];
 
@@ -65,13 +91,14 @@ export class AIGatewayService {
     let finishReason: string | undefined;
     let succeeded = true;
     let errorMessage: string | undefined;
+    let credentialSource: CredentialSource | undefined;
 
     try {
       for await (const event of this.aiRuntimeService.streamChat({
         conversationId: input.conversationId,
         provider: input.provider,
         model: input.model,
-        systemPrompt: input.systemPrompt,
+        systemPrompt,
         workspaceContext: mergedWorkspaceContext,
         conversationHistory: input.conversationHistory,
         userPrompt: input.userPrompt,
@@ -80,6 +107,7 @@ export class AIGatewayService {
         temperature: input.temperature,
         maxOutputTokens: input.maxOutputTokens ?? defaultMaxOutputTokens(input.requestType),
         signal: input.signal,
+        organizationId: tenant.organizationId,
       })) {
         resolvedProvider = event.provider;
         resolvedModel = event.model;
@@ -87,6 +115,7 @@ export class AIGatewayService {
         if (event.type === 'message_end') {
           finishReason = event.finishReason;
           usage = event.usage;
+          credentialSource = event.credentialSource;
         }
 
         if (event.type === 'error') {
@@ -122,6 +151,7 @@ export class AIGatewayService {
           durationMs,
           succeeded,
           errorMessage,
+          credentialSource,
         });
 
         if (succeeded) {
@@ -143,11 +173,13 @@ export class AIGatewayService {
             requestType: input.requestType,
             agentId: input.agentId,
             agentRunId: input.agentRunId,
+            promptKey: input.promptKey,
             provider: resolvedProvider,
             model: resolvedModel,
             finishReason,
             durationMs,
             succeeded,
+            credentialSource,
           },
         });
       });
@@ -241,6 +273,7 @@ export class AIGatewayService {
     let resolvedModel = input.model;
     let succeeded = true;
     let errorMessage: string | undefined;
+    let credentialSource: CredentialSource | undefined;
 
     try {
       const response = await this.aiRuntimeService.embeddings({
@@ -248,9 +281,11 @@ export class AIGatewayService {
         model: input.model,
         input: input.input,
         signal: input.signal,
+        organizationId: tenant.organizationId,
       });
       resolvedProvider = response.provider;
       resolvedModel = response.model;
+      credentialSource = response.credentialSource;
       return response;
     } catch (error) {
       succeeded = false;
@@ -271,6 +306,7 @@ export class AIGatewayService {
           durationMs,
           succeeded,
           errorMessage,
+          credentialSource,
         });
 
         await this.auditService.record({
@@ -283,10 +319,36 @@ export class AIGatewayService {
             inputCount: input.input.length,
             durationMs,
             succeeded,
+            credentialSource,
           },
         });
       });
     }
+  }
+
+  /**
+   * Resolves the effective system prompt for a chat request. When the caller
+   * references a managed prompt (`promptKey`) and the org has a PUBLISHED
+   * version, the rendered prompt overrides `systemPrompt`; otherwise the
+   * request's own `systemPrompt` is used unchanged. A resolver failure (e.g. a
+   * missing required variable) is surfaced to the caller as a request error
+   * rather than silently ignored — an unrenderable managed prompt must not
+   * fall through to the raw template.
+   */
+  private async resolveSystemPrompt(
+    organizationId: string,
+    userId: string | undefined,
+    input: AiGatewayChatInput,
+  ): Promise<string | undefined> {
+    if (!input.promptKey || !this.promptResolver) {
+      return input.systemPrompt;
+    }
+    const rendered = await this.promptResolver.resolveSystemPrompt(
+      { organizationId, userId },
+      input.promptKey,
+      input.promptVariables ?? {},
+    );
+    return rendered ?? input.systemPrompt;
   }
 
   /**

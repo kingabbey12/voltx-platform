@@ -5,13 +5,16 @@ import { toAIMessage } from '../conversations/to-ai-message';
 import { AIGatewayService } from '../gateway/ai-gateway.service';
 import { AiGatewayStreamEvent } from '../gateway/ai-gateway-stream-event.types';
 import { MemoryService } from '../memory/memory.service';
+import { PromptsRepository } from '../prompts/prompts.repository';
 import { isAbortError } from '../streaming/drain-generator';
 import { ExecuteToolResponse } from '../tools/tool.service';
 import { ToolResult } from '../tools/tool-result.types';
+import { AgentToolRepository } from './agent-tool.repository';
 import { AgentFactory } from './agent.factory';
 import { RunAgentDto } from './dto/agent.dto';
 import { AgentEntity } from './entities/agent.entity';
 import { AgentRunEntity } from './entities/agent-run.entity';
+import { AgentVersionEntity } from './entities/agent-version.entity';
 
 export interface AgentExecutionResult {
   outputText: string;
@@ -30,6 +33,8 @@ export class AgentExecutor {
     private readonly conversationRepository: ConversationRepository,
     private readonly memoryService: MemoryService,
     private readonly agentFactory: AgentFactory,
+    private readonly agentToolRepository: AgentToolRepository,
+    private readonly promptsRepository: PromptsRepository,
   ) {}
 
   /**
@@ -38,6 +43,13 @@ export class AgentExecutor {
    * way. AgentService.runAgent drains this for its existing JSON response;
    * AgentService.runAgentStream re-yields it live over SSE — one
    * implementation of the turn, two consumption modes.
+   *
+   * `agentVersion` is the resolved published/draft version AgentService is
+   * running against (null for every agent that has never published a
+   * version — the pre-migration/system-agent default), and is what makes
+   * this turn use the version's linked managed Prompt, knowledge
+   * collection, and promoted tool allowlist instead of the agent's raw
+   * configuration.toolNames JSON fallback.
    */
   async *executeStream(
     agent: AgentEntity,
@@ -45,6 +57,7 @@ export class AgentExecutor {
     dto: RunAgentDto,
     grantedPermissions: string[] = [],
     signal?: AbortSignal,
+    agentVersion: AgentVersionEntity | null = null,
   ): AsyncGenerator<AiGatewayStreamEvent, AgentExecutionResult> {
     const conversation = await this.conversationRepository.findConversationById(dto.conversationId);
     if (!conversation) {
@@ -65,8 +78,16 @@ export class AgentExecutor {
       },
     });
 
+    const toolNameOverride = await this.agentToolRepository.listToolNamesForAgent(
+      agent.id,
+      agentVersion?.id ?? null,
+    );
+    const promptKey = agentVersion?.promptId
+      ? (await this.promptsRepository.findPromptById(agentVersion.promptId))?.key
+      : undefined;
+
     const toolResponses: ExecuteToolResponse[] = [];
-    const allowedToolNames = this.agentFactory.getAllowedToolNames(agent);
+    const allowedToolNames = this.agentFactory.getAllowedToolNames(agent, toolNameOverride);
 
     if ((dto.toolRequests ?? []).length > 0) {
       yield { type: 'reasoning', stage: 'planning', message: 'Planning...' };
@@ -136,7 +157,12 @@ export class AgentExecutor {
           run: dto,
           conversationHistory: history.map(toAIMessage),
           toolResults,
+          promptKey,
+          toolNameOverride,
         }),
+        ...(agentVersion?.knowledgeCollectionId
+          ? { knowledgeCollectionId: agentVersion.knowledgeCollectionId }
+          : {}),
         signal,
       })) {
         providerUsed = event.provider;

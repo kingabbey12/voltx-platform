@@ -4,6 +4,7 @@ import { AttachmentsModule } from '../attachments/attachments.module';
 import { BillingModule } from '../billing/billing.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { AIController } from './ai.controller';
+import { TenantAiCredentialResolverModule } from './credentials/tenant-ai-credential-resolver.module';
 import { AgentApprovalRepository } from './approvals/agent-approval.repository';
 import { AgentApprovalService } from './approvals/agent-approval.service';
 import { ConversationController } from './conversations/conversation.controller';
@@ -18,6 +19,7 @@ import { KnowledgeRetrieverService } from './gateway/knowledge-retriever.service
 import { MemoryModule } from './memory/memory.module';
 import { ModelRegistryService } from './models/model-registry.service';
 import { PromptBuilderService } from './prompts/prompt-builder.service';
+import { PromptResolverModule } from './prompts/prompt-resolver.module';
 import { AI_PROVIDERS, AIProvider } from './providers/ai-provider.interface';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import { GoogleAIProvider } from './providers/google-ai.provider';
@@ -40,6 +42,12 @@ import { ToolModule } from './tools/tool.module';
     forwardRef(() => KnowledgeModule),
     AttachmentsModule,
     BillingModule,
+    // Read path for tenant "bring your own key" — carries no AIModule
+    // dependency, so this import is acyclic (see the module's own comment).
+    TenantAiCredentialResolverModule,
+    // Read path for managed prompts — likewise acyclic; provides PROMPT_RESOLVER
+    // so the gateway can inject a rendered published prompt per request.
+    PromptResolverModule,
   ],
   controllers: [AIController, ConversationController],
   providers: [

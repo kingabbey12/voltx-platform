@@ -4,15 +4,18 @@ import { TenantContextService } from '../../../common/tenant/tenant-context.serv
 import { PrismaService } from '../../../database/prisma.service';
 import { toJsonValue, toMemoryAccessEntity, toMemoryEntity } from './entities/memory.mapper';
 import { MemoryAccessEntity } from './entities/memory-access.entity';
-import { MemoryEntity } from './entities/memory.entity';
+import { MemoryEntity, MemoryScope } from './entities/memory.entity';
 
 export interface CreateMemoryData {
   conversationId: string;
+  agentId?: string | null;
+  scope?: MemoryScope;
   category: string;
   importance: number;
   content: string;
   embeddingId?: string;
   metadata?: Record<string, unknown>;
+  expiresAt?: Date | null;
 }
 
 export interface ListMemoriesParams {
@@ -35,11 +38,14 @@ interface MemoryRecord {
   organizationId: string;
   userId: string;
   conversationId: string;
+  agentId: string | null;
+  scope: MemoryScope;
   category: string;
   importance: number;
   content: string;
   embeddingId: string | null;
   metadata: Prisma.JsonValue;
+  expiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -62,11 +68,14 @@ interface MemoryClient {
       organizationId: string;
       userId: string;
       conversationId: string;
+      agentId?: string | null;
+      scope?: MemoryScope;
       category: string;
       importance: number;
       content: string;
       embeddingId?: string | null;
       metadata: Prisma.InputJsonValue | Record<string, never>;
+      expiresAt?: Date | null;
     };
   }): Promise<MemoryRecord>;
   findFirst(args: { where: Record<string, unknown> }): Promise<MemoryRecord | null>;
@@ -78,6 +87,10 @@ interface MemoryClient {
   }): Promise<MemoryRecord[]>;
   count(args: { where: Record<string, unknown> }): Promise<number>;
   update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<MemoryRecord>;
+  updateMany(args: {
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }): Promise<{ count: number }>;
 }
 
 interface MemoryAccessClient {
@@ -112,15 +125,50 @@ export class MemoryRepository {
         organizationId: tenant.organizationId,
         userId: tenant.userId,
         conversationId: data.conversationId,
+        agentId: data.agentId ?? null,
+        scope: data.scope ?? 'CONVERSATION',
         category: data.category,
         importance: data.importance,
         content: data.content,
         embeddingId: data.embeddingId ?? null,
         metadata: toJsonValue(data.metadata) ?? {},
+        expiresAt: data.expiresAt ?? null,
       },
     });
 
     return toMemoryEntity(record);
+  }
+
+  /**
+   * WORKING/SESSION-scoped memories past their TTL — the time-based
+   * counterpart to listPrunableMemories' count-based eviction, which stays
+   * unchanged for CONVERSATION/LONG_TERM scope. Not tenant-scoped by
+   * caller (sweeps across every org) since this runs on a global interval,
+   * not inside a request's tenant context.
+   */
+  async listExpiredMemories(before: Date, limit: number): Promise<MemoryEntity[]> {
+    const records = await this.memories().findMany({
+      where: {
+        scope: { in: ['WORKING', 'SESSION'] },
+        expiresAt: { lte: before },
+        deletedAt: null,
+      },
+      take: limit,
+      orderBy: [{ expiresAt: 'asc' }],
+    });
+
+    return records.map(toMemoryEntity);
+  }
+
+  async softDeleteMemories(ids: string[]): Promise<number> {
+    if (ids.length === 0) {
+      return 0;
+    }
+    const result = await this.memories().updateMany({
+      where: { id: { in: ids }, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+    return result.count;
   }
 
   async findMemoryById(id: string): Promise<MemoryEntity | null> {

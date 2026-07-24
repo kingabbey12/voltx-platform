@@ -51,7 +51,11 @@ describe('KnowledgeIngestionService', () => {
     update: jest.Mock;
     listBySource: jest.Mock;
   };
-  let chunkRepository: { deleteByDocument: jest.Mock; createMany: jest.Mock };
+  let chunkRepository: {
+    deleteByDocument: jest.Mock;
+    createMany: jest.Mock;
+    findEmbeddingsByChecksum: jest.Mock;
+  };
   let sourceRepository: { markIndexed: jest.Mock };
   let textExtractorRegistry: { extract: jest.Mock };
   let textChunkerService: { chunk: jest.Mock };
@@ -80,6 +84,7 @@ describe('KnowledgeIngestionService', () => {
     chunkRepository = {
       deleteByDocument: jest.fn().mockResolvedValue(0),
       createMany: jest.fn().mockResolvedValue([]),
+      findEmbeddingsByChecksum: jest.fn().mockResolvedValue(new Map()),
     };
     sourceRepository = { markIndexed: jest.fn().mockResolvedValue(undefined) };
     textExtractorRegistry = {

@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { AIProviderName } from '../../models/ai-model.types';
-import { AgentEntity } from './agent.entity';
-import { AgentRunEntity, AgentRunStatus } from './agent-run.entity';
+import { AgentEntity, AgentStatus } from './agent.entity';
+import { AgentRunEntity, AgentRunStatus, AgentRunTriggerType } from './agent-run.entity';
 
 interface AgentRecord {
   id: string;
@@ -13,6 +13,9 @@ interface AgentRecord {
   model: string;
   configuration: Prisma.JsonValue;
   enabled: boolean;
+  status: AgentStatus;
+  publishedVersionId: string | null;
+  latestVersion: number;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -36,6 +39,10 @@ interface AgentRunRecord {
   durationMs: number | null;
   tokenUsage: Prisma.JsonValue;
   error: string | null;
+  agentVersionId: string | null;
+  triggerType: AgentRunTriggerType;
+  scheduleId: string | null;
+  attemptNumber: number;
   createdAt: Date;
 }
 
@@ -50,6 +57,9 @@ export function toAgentEntity(record: AgentRecord): AgentEntity {
     model: record.model,
     configuration: toObject(record.configuration),
     enabled: record.enabled,
+    status: record.status,
+    publishedVersionId: record.publishedVersionId,
+    latestVersion: record.latestVersion,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     deletedAt: record.deletedAt,
@@ -75,6 +85,10 @@ export function toAgentRunEntity(record: AgentRunRecord): AgentRunEntity {
     durationMs: record.durationMs,
     tokenUsage: toObject(record.tokenUsage),
     error: record.error,
+    agentVersionId: record.agentVersionId,
+    triggerType: record.triggerType,
+    scheduleId: record.scheduleId,
+    attemptNumber: record.attemptNumber,
     createdAt: record.createdAt,
   };
 }
