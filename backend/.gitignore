@@ -5,5 +5,9 @@ coverage
 .env.*
 !.env.example
 !.env.docker.test
+# Tracked on purpose: NODE_ENV=test loads this file and nothing else, so the
+# suite is only reproducible if every checkout has it. It holds placeholders
+# exclusively — no value here reaches a real service. See TESTING.md.
+!.env.test
 *.log
 .attachments-storage/

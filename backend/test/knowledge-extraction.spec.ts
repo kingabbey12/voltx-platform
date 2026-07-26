@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { DocxTextExtractor } from '../src/modules/knowledge/extraction/docx-text-extractor';
 import { PdfTextExtractor } from '../src/modules/knowledge/extraction/pdf-text-extractor';
 import { PlainTextExtractor } from '../src/modules/knowledge/extraction/plain-text-extractor';
@@ -48,17 +48,28 @@ describe('DocxTextExtractor', () => {
 });
 
 describe('XlsxTextExtractor', () => {
-  it('extracts every sheet as CSV from a real workbook buffer', async () => {
-    const workbook = XLSX.utils.book_new();
-    const sheet1 = XLSX.utils.aoa_to_sheet([
-      ['Name', 'Stage'],
-      ['Acme Corp', 'Negotiation'],
-    ]);
-    const sheet2 = XLSX.utils.aoa_to_sheet([['Note'], ['Follow up next week']]);
-    XLSX.utils.book_append_sheet(workbook, sheet1, 'Deals');
-    XLSX.utils.book_append_sheet(workbook, sheet2, 'Notes');
+  async function buildWorkbook(sheets: { name: string; rows: unknown[][] }[]): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    for (const { name, rows } of sheets) {
+      const worksheet = workbook.addWorksheet(name);
+      for (const row of rows) {
+        worksheet.addRow(row);
+      }
+    }
+    return Buffer.from(await workbook.xlsx.writeBuffer());
+  }
 
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  it('extracts every sheet as CSV from a real workbook buffer', async () => {
+    const buffer = await buildWorkbook([
+      {
+        name: 'Deals',
+        rows: [
+          ['Name', 'Stage'],
+          ['Acme Corp', 'Negotiation'],
+        ],
+      },
+      { name: 'Notes', rows: [['Note'], ['Follow up next week']] },
+    ]);
 
     const extractor = new XlsxTextExtractor();
     const text = await extractor.extract({ contentType: 'xlsx', buffer });
@@ -68,6 +79,35 @@ describe('XlsxTextExtractor', () => {
     expect(text).toContain('Negotiation');
     expect(text).toContain('Sheet: Notes');
     expect(text).toContain('Follow up next week');
+  });
+
+  it('quotes fields containing commas or quotes so rows stay parseable', async () => {
+    const buffer = await buildWorkbook([
+      { name: 'Deals', rows: [['Acme, Inc.', 'He said "yes"']] },
+    ]);
+
+    const extractor = new XlsxTextExtractor();
+    const text = await extractor.extract({ contentType: 'xlsx', buffer });
+
+    expect(text).toContain('"Acme, Inc."');
+    expect(text).toContain('"He said ""yes"""');
+  });
+
+  it('reads CSV input without routing it through a spreadsheet parser', async () => {
+    const extractor = new XlsxTextExtractor();
+    const text = await extractor.extract({
+      contentType: 'csv',
+      buffer: Buffer.from('Name,Stage\nAcme Corp,Negotiation\n', 'utf8'),
+    });
+
+    expect(text).toBe('Sheet: Sheet1\nName,Stage\nAcme Corp,Negotiation\n');
+  });
+
+  it('rejects a buffer that is not a readable workbook rather than throwing raw', async () => {
+    const extractor = new XlsxTextExtractor();
+    await expect(
+      extractor.extract({ contentType: 'xlsx', buffer: Buffer.from('not a workbook') }),
+    ).rejects.toThrow('File is not a readable XLSX workbook');
   });
 
   it('rejects when no buffer is provided', async () => {

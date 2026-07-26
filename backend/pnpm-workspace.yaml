@@ -1,0 +1,26 @@
+# pnpm 10 reads `overrides` from here, not from the `pnpm` field in
+# package.json (which it now ignores with a warning). These pin transitive
+# dependencies onto their patched versions so `pnpm audit --audit-level=high`
+# passes in CI, where it is a blocking step.
+#
+# Each entry exists because a real advisory was reported against the version
+# pnpm would otherwise resolve. Remove an entry only when the parent package
+# has upgraded past it on its own — re-run `pnpm audit` after doing so.
+overrides:
+  # GHSA — DoS in the file-upload middleware, reached via @nestjs/platform-express
+  # on every multipart request.
+  multer: '>=2.2.0'
+  # ReDoS, pulled in transitively through several build and telemetry chains.
+  brace-expansion: '>=5.0.8'
+  minimatch: '>=5.0.8'
+  # Prototype pollution in XML parsing (AWS SDK dependency chain).
+  fast-xml-parser: '>=5.10.1'
+  # ReDoS in URI parsing, via ajv under the Nest CLI.
+  fast-uri: '>=3.1.4'
+  # Moderate advisories with published fixes. Both are pinned to a major that
+  # still ships CommonJS: an open-ended '>=11.1.1' resolves uuid to 14.x, which
+  # is ESM-only and breaks ts-jest's CJS transform for every suite that reaches
+  # uuid transitively (12 suites failed to load). Widen these deliberately, not
+  # by default.
+  uuid: '^11.1.1'
+  protobufjs: '^7.6.5'

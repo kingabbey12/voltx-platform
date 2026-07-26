@@ -1,0 +1,24 @@
+# pnpm 10 reads these settings from here, not from package.json's `pnpm`
+# field (which it now ignores with a warning).
+
+# Native postinstall scripts pnpm is allowed to run. Without this, sharp and
+# esbuild ship without their platform binaries and the Next build fails.
+onlyBuiltDependencies:
+  - sharp
+  - unrs-resolver
+  - esbuild
+
+# Pins transitive dependencies onto patched versions so
+# `pnpm audit --audit-level=high` can be a blocking CI step. Each entry exists
+# because a real advisory was reported against the version pnpm would otherwise
+# resolve; drop an entry once its parent has upgraded past it on its own.
+overrides:
+  # ReDoS, reached transitively through eslint and build tooling.
+  # Only brace-expansion is pinned: forcing minimatch to its latest major here
+  # drops the CommonJS default export that @eslint/eslintrc still imports, and
+  # ESLint stops loading its own config. No advisory required it.
+  brace-expansion: '>=5.0.8'
+  # Next bundles an older sharp; the advisory is in image processing.
+  sharp: '>=0.35.0'
+  # postcss parsing advisories; next pins an older copy transitively.
+  postcss: '>=8.5.18'

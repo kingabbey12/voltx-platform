@@ -1,0 +1,34 @@
+# ── Environment files (secrets, credentials) ──────────────────────────
+# Never commit .env files — they contain secrets (DB passwords, API
+# keys, JWT signing keys). Use .env.example as a template instead.
+.env
+.env.*
+!.env.example
+!.env.docker.test
+
+# deploy/ specific env files
+deploy/.env
+deploy/.env.staging
+
+# ── IDE / editor ──────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Build artifacts ────────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+coverage/
+.next/
+
+# ── Local tooling output ──────────────────────────────────────────────
+graphify-out/
+.opencode/
+.claude/worktrees/

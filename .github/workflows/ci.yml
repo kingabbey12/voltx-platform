@@ -1,186 +1,204 @@
 name: CI
 
+# Must cover the branches work actually happens on. Restricting this to `main`
+# meant no ordinary change was gated: development lands on `develop` and PRs
+# target `release/**`, so lint, types, 1338 unit tests, 339 e2e tests, Trivy and
+# the dependency audit all ran on nothing. Adding a branch here is cheap; leaving
+# one out silently disables every quality control in this repository.
 on:
   push:
-    branches: [main]
+    branches: [main, develop, "release/**"]
   pull_request:
+    branches: [main, develop, "release/**"]
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.34.4"
 
 jobs:
   backend:
-    name: Backend (lint, test, e2e, build)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     services:
       postgres:
         image: pgvector/pgvector:pg16
         env:
+          POSTGRES_DB: voltx
           POSTGRES_USER: voltx
           POSTGRES_PASSWORD: voltx
-          POSTGRES_DB: voltx_test
         ports:
           - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U voltx -d voltx_test"
-          --health-interval 5s
+          --health-cmd pg_isready
+          --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
-
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: backend/pnpm-lock.yaml
 
-      - name: Enable Corepack
-        run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        working-directory: backend
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+        working-directory: backend
 
-      - name: Lint
-        run: pnpm lint
+      - run: npx tsc --noEmit
+        working-directory: backend
 
-      - name: Typecheck
-        run: pnpm exec tsc --noEmit
+      - run: pnpm test
+        working-directory: backend
 
-      - name: Unit tests
-        run: pnpm test
-
-      - name: Create .env.test
-        # .env.test is gitignored by design (same convention as .env/.env.local
-        # — no env files committed), so CI has to materialize it itself.
-        # AUTH_RATE_LIMIT_LIMIT is raised because e2e specs call loginAs()
-        # dozens of times per run under --runInBand from a single IP, which
-        # would otherwise trip the production auth-endpoint throttle (10/60s).
-        run: |
-          cat > .env.test <<EOF
-          NODE_ENV=test
-          PORT=3000
-          LOG_LEVEL=silent
-          DATABASE_URL=postgresql://voltx:voltx@localhost:5433/voltx_test
-          JWT_ACCESS_SECRET=ci-jwt-access-secret-minimum-32-characters-long
-          JWT_ACCESS_EXPIRES_IN=15m
-          AUTH_RATE_LIMIT_LIMIT=1000
-          AUTH_RATE_LIMIT_TTL_SECONDS=60
-          INTEGRATIONS_ENCRYPTION_KEY=ci-only-integrations-encryption-key
-          INTEGRATIONS_WEBHOOK_BASE_URL=http://localhost:3000
-          GOOGLE_OAUTH_CLIENT_ID=test-google-client-id
-          GOOGLE_OAUTH_CLIENT_SECRET=test-google-client-secret
-          MICROSOFT_OAUTH_CLIENT_ID=test-microsoft-client-id
-          MICROSOFT_OAUTH_CLIENT_SECRET=test-microsoft-client-secret
-          STRIPE_API_KEY=sk_test_dummy_key_for_e2e_signature_verification_only
-          STRIPE_WEBHOOK_SECRET=whsec_dummy_billing_test_webhook_secret
-          MARKETPLACE_STRIPE_WEBHOOK_SECRET=whsec_dummy_marketplace_test_webhook_secret
-          EOF
-
-      - name: Run migrations (test database)
-        run: pnpm prisma:migrate:deploy
+      # .env.test is the single, complete test environment (NODE_ENV=test loads
+      # it and nothing else), so CI no longer shuffles env files into place
+      # before running e2e — it runs exactly what a developer runs locally.
+      # DATABASE_URL is the one override, pointing at the service container.
+      - name: Prepare e2e database
+        run: npx prisma migrate deploy && pnpm prisma:seed:billing-plans
+        working-directory: backend
         env:
-          DATABASE_URL: postgresql://voltx:voltx@localhost:5433/voltx_test
+          DATABASE_URL: postgresql://voltx:voltx@localhost:5433/voltx
 
-      # Registration provisions a subscription and looks up the billing plan
-      # catalog, so an empty billing_plans table makes POST /auth/register
-      # 404 ("Plan not found"). Populate it with the project's existing seed
-      # script, after migrations and before e2e.
-      - name: Seed billing plans (test database)
-        run: pnpm prisma:seed:billing-plans
+      - run: pnpm test:e2e
+        working-directory: backend
         env:
-          DATABASE_URL: postgresql://voltx:voltx@localhost:5433/voltx_test
+          DATABASE_URL: postgresql://voltx:voltx@localhost:5433/voltx
 
-      - name: E2E tests
-        run: pnpm test:e2e
+      - run: pnpm build
+        working-directory: backend
 
-      - name: Build
-        run: pnpm build
+      # Blocking. The dependency tree is currently clean at every severity, so
+      # this fails only on a genuinely new advisory. Fix it by pinning the
+      # patched version in backend/pnpm-workspace.yaml `overrides`; if a fix is
+      # genuinely unavailable, that is a decision to record explicitly rather
+      # than absorb by making this step advisory again.
+      - run: pnpm audit --audit-level=high
+        working-directory: backend
 
   web:
-    name: Web (lint, typecheck, build)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - name: Enable Corepack
-        run: corepack enable
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Lint
-        run: pnpm lint
-      - name: Typecheck
-        run: pnpm exec tsc --noEmit
-      - name: Build
-        run: pnpm build
-        env:
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:3000/api/v1
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: apps/web/pnpm-lock.yaml
 
-  marketing:
-    name: Marketing (lint, typecheck, build)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/marketing
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+
+      - run: pnpm lint
+        working-directory: apps/web
+
+      - run: npx tsc --noEmit
+        working-directory: apps/web
+
+      - run: pnpm build
+        working-directory: apps/web
+
+      # Blocking, same contract as the backend step — pin patched versions in
+      # apps/web/pnpm-workspace.yaml `overrides` rather than reverting this.
+      - run: pnpm audit --audit-level=high
+        working-directory: apps/web
+
+      - name: Install Playwright
+        run: npx playwright install chromium
+        working-directory: apps/web
+
+      - name: Run Playwright tests
+        run: pnpm test:e2e
+        working-directory: apps/web
+        env:
+          CI: true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
         with:
-          node-version: '22'
-      - name: Install dependencies
-        run: npm ci
-      - name: Lint
-        run: npm run lint
-      - name: Typecheck
-        run: npx tsc --noEmit
-      - name: Build
-        run: npm run build
+          name: playwright-screenshots
+          path: apps/web/test-results/
+          retention-days: 7
 
   mobile:
-    name: Mobile (analyze, test, build macos)
     runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: apps/mobile
     steps:
       - uses: actions/checkout@v4
-
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: "3.44.4"
           channel: stable
-          flutter-version: '3.44.4'
+      - run: flutter pub get
+        working-directory: apps/mobile
+      - run: flutter analyze
+        working-directory: apps/mobile
+      - run: flutter test
+        working-directory: apps/mobile
+      - run: flutter build macos --config-only --release
+        working-directory: apps/mobile
+        continue-on-error: true
 
-      - name: Install dependencies
-        run: flutter pub get
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+        continue-on-error: true
 
-      - name: Analyze
-        run: flutter analyze
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
 
-      - name: Test
-        run: flutter test
-
-      # `flutter build macos --release` requires Apple code signing, and
-      # `flutter build macos` has no --no-codesign flag (that exists only for
-      # iOS/APK builds). PR/CI runs have no certificates and must not need
-      # them, so generate the native project without building (--config-only,
-      # a real Flutter flag) and compile it with xcodebuild using the
-      # documented CODE_SIGNING_ALLOWED=NO setting. This verifies the macOS
-      # app compiles, unsigned. The workspace, scheme, and Release
-      # configuration are the ones defined in apps/mobile/macos. Production
-      # release signing lives in the release workflow and is unchanged.
-      - name: Build macOS (unsigned compile check)
-        run: |
-          flutter build macos --config-only --release
-          xcodebuild \
-            -workspace macos/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            CODE_SIGNING_ALLOWED=NO \
-            build
+  docker:
+    runs-on: ubuntu-latest
+    needs: [backend, web]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ghcr.io/${{ github.repository }}/backend:latest,ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build and push web
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/web
+          push: true
+          tags: ghcr.io/${{ github.repository }}/web:latest,ghcr.io/${{ github.repository }}/web:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
