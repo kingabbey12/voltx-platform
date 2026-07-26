@@ -1,6 +1,6 @@
 {
   "name": "voltx-backend",
-  "version": "0.0.1",
+  "version": "2.4.0-rc.1",
   "description": "Voltx platform NestJS backend",
   "private": true,
   "license": "UNLICENSED",
