@@ -28,8 +28,8 @@ inputs:
     default: ''
   health-url:
     description: >-
-      Absolute URL of the environment's health probe (e.g.
-      https://api.example.com/api/v1/health). The job fails if this is empty —
+      Absolute URL of the environment's readiness probe (e.g.
+      https://api.example.com/readiness). The job fails if this is empty —
       a deploy without a health target is not allowed.
     required: true
   registry-username:

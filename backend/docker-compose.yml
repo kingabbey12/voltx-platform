@@ -1,6 +1,9 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
+    cpus: "2.0"
+    mem_limit: 2g
+    mem_reservation: 1g
     restart: unless-stopped
     environment:
       POSTGRES_USER: voltx

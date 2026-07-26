@@ -1,6 +1,9 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
+    cpus: "2.0"
+    mem_limit: 2g
+    mem_reservation: 1g
     environment:
       POSTGRES_USER: voltx
       POSTGRES_PASSWORD: voltx
@@ -14,6 +17,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    cpus: "1.0"
+    mem_limit: 512m
+    mem_reservation: 256m
     volumes: [redis_data:/data]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -25,6 +31,9 @@ services:
     build:
       context: ./backend
       target: build
+    cpus: "1.0"
+    mem_limit: 1g
+    mem_reservation: 512m
     env_file: ./backend/.env.example
     environment:
       DATABASE_URL: postgresql://voltx:voltx@postgres:5432/voltx
@@ -39,6 +48,9 @@ services:
     build:
       context: ./backend
       target: build
+    cpus: "2.0"
+    mem_limit: 1g
+    mem_reservation: 512m
     env_file: ./backend/.env.example
     environment:
       NODE_ENV: development
@@ -50,7 +62,7 @@ services:
     depends_on:
       bootstrap: { condition: service_completed_successfully }
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/readiness').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -60,6 +72,9 @@ services:
       context: ./apps/web
       args:
         NEXT_PUBLIC_API_BASE_URL: http://localhost:3002/api/v1
+    cpus: "1.0"
+    mem_limit: 1g
+    mem_reservation: 512m
     ports: ["3001:3000"]
     depends_on:
       api: { condition: service_healthy }
@@ -69,6 +84,9 @@ services:
     build:
       context: ./backend
       target: build
+    cpus: "1.0"
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       NODE_ENV: test
       PORT: 3001
