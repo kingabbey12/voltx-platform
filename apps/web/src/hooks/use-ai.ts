@@ -8,6 +8,14 @@ export function useConversations(query: ListConversationsQuery = {}) {
   });
 }
 
+export function useConversation(id: string | null) {
+  return useQuery({
+    queryKey: ["ai", "conversations", id],
+    queryFn: () => aiApi.getConversation(id!),
+    enabled: !!id,
+  });
+}
+
 export function useConversationMessages(conversationId: string | null) {
   return useQuery({
     queryKey: ["ai", "conversations", conversationId, "messages"],
@@ -20,6 +28,27 @@ export function useCreateConversation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: aiApi.createConversation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai", "conversations"] });
+    },
+  });
+}
+
+export function useUpdateConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string; title?: string; pinned?: boolean; archived?: boolean }) =>
+      aiApi.updateConversation(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai", "conversations"] });
+    },
+  });
+}
+
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => aiApi.deleteConversation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai", "conversations"] });
     },

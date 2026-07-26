@@ -77,8 +77,9 @@ export class AgentApprovalRepository {
     agentRunId: string,
     toolName: string,
   ): Promise<AgentActionApprovalEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
     const record = await this.prisma.system.agentActionApproval.findFirst({
-      where: { agentRunId, toolName, status: 'PENDING' },
+      where: { agentRunId, toolName, organizationId: tenant.organizationId, status: 'PENDING' },
       orderBy: { createdAt: 'desc' },
     });
     return record ? toEntity(record) : null;
@@ -149,9 +150,10 @@ export class AgentApprovalRepository {
     id: string,
     data: DecideAgentActionApprovalData,
   ): Promise<AgentActionApprovalEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
     return this.prisma.system.$transaction(async (tx) => {
       const result = await tx.agentActionApproval.updateMany({
-        where: { id, status: 'PENDING' },
+        where: { id, organizationId: tenant.organizationId, status: 'PENDING' },
         data: {
           status: data.status,
           approverUserId: data.approverUserId,

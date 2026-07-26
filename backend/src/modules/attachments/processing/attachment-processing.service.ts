@@ -43,8 +43,9 @@ export class AttachmentProcessingService {
       this.logger.warn(`Attachment "${attachmentId}" not found — skipping processing`);
       return;
     }
+    const orgId = attachment.organizationId;
 
-    await this.attachmentRepository.update(attachmentId, { status: 'PROCESSING' });
+    await this.attachmentRepository.update(attachmentId, { status: 'PROCESSING' }, orgId);
 
     const stream = await this.storageProvider.getReadStream(attachment.storageKey);
     const buffer = await streamToBuffer(stream);
@@ -52,11 +53,15 @@ export class AttachmentProcessingService {
 
     const scanResult = await this.virusScanProvider.scan(buffer);
     if (!scanResult.clean) {
-      await this.attachmentRepository.update(attachmentId, {
-        status: 'QUARANTINED',
-        scanResult: scanResult.threat ?? 'unknown threat',
-        checksumSha256,
-      });
+      await this.attachmentRepository.update(
+        attachmentId,
+        {
+          status: 'QUARANTINED',
+          scanResult: scanResult.threat ?? 'unknown threat',
+          checksumSha256,
+        },
+        orgId,
+      );
       await this.auditService.recordWithExplicitActor({
         action: 'attachment.quarantined',
         resource: 'attachment',
@@ -81,14 +86,18 @@ export class AttachmentProcessingService {
         'image/webp',
       );
 
-      await this.attachmentRepository.update(attachmentId, {
-        status: 'READY',
-        scanResult: scanResultLabel,
-        thumbnailKey,
-        width: processed.dimensions.width,
-        height: processed.dimensions.height,
-        checksumSha256,
-      });
+      await this.attachmentRepository.update(
+        attachmentId,
+        {
+          status: 'READY',
+          scanResult: scanResultLabel,
+          thumbnailKey,
+          width: processed.dimensions.width,
+          height: processed.dimensions.height,
+          checksumSha256,
+        },
+        orgId,
+      );
       return;
     }
 
@@ -99,19 +108,27 @@ export class AttachmentProcessingService {
           contentType: extractorContentType,
           buffer,
         });
-        await this.attachmentRepository.update(attachmentId, {
-          status: 'READY',
-          scanResult: scanResultLabel,
-          extractedText,
-          checksumSha256,
-        });
+        await this.attachmentRepository.update(
+          attachmentId,
+          {
+            status: 'READY',
+            scanResult: scanResultLabel,
+            extractedText,
+            checksumSha256,
+          },
+          orgId,
+        );
       } catch (error) {
         this.logger.error({ err: error, attachmentId }, 'Text extraction failed');
-        await this.attachmentRepository.update(attachmentId, {
-          status: 'FAILED',
-          scanResult: scanResultLabel,
-          checksumSha256,
-        });
+        await this.attachmentRepository.update(
+          attachmentId,
+          {
+            status: 'FAILED',
+            scanResult: scanResultLabel,
+            checksumSha256,
+          },
+          orgId,
+        );
       }
       return;
     }
@@ -119,11 +136,15 @@ export class AttachmentProcessingService {
     // Supported at upload validation time but no processing step applies
     // (shouldn't happen given isSupportedMimeType gates uploads, but fail
     // safe rather than leaving the row stuck in PROCESSING forever).
-    await this.attachmentRepository.update(attachmentId, {
-      status: 'READY',
-      scanResult: scanResultLabel,
-      checksumSha256,
-    });
+    await this.attachmentRepository.update(
+      attachmentId,
+      {
+        status: 'READY',
+        scanResult: scanResultLabel,
+        checksumSha256,
+      },
+      orgId,
+    );
   }
 
   /** Best-effort — must never fail the quarantine itself over a notification-delivery problem. */

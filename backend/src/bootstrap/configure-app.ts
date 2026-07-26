@@ -30,13 +30,27 @@ export function configureApp(app: INestApplication): void {
   app.useLogger(app.get(Logger));
   app.use(
     helmet({
-      // The API serves only JSON to native/mobile clients plus the Swagger
-      // UI at /api/docs — CSP would need per-route relaxation for Swagger's
-      // inline scripts/styles and buys little for a non-HTML-rendering API,
-      // so it stays off. Every other helmet default (HSTS, X-Frame-Options,
-      // X-Content-Type-Options, etc.) still applies.
-      contentSecurityPolicy: false,
-      crossOriginResourcePolicy: false,
+      // The API primarily serves JSON, but also hosts the Swagger UI at
+      // /api/docs which needs inline scripts/styles. We apply a liberal
+      // CSP for Swagger compatibility — the real security boundary is at
+      // the ingress/reverse-proxy layer (see middleware.ts in the web app
+      // for the frontend's strict CSP). Native mobile clients never render
+      // HTML and are unaffected by CSP.
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          fontSrc: ["'self'"],
+          connectSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          upgradeInsecureRequests: [],
+        },
+      },
+      crossOriginResourcePolicy: { policy: 'same-origin' },
     }),
   );
   app.enableCors({

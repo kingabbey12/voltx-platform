@@ -87,19 +87,26 @@ export class PaymentMethodRepository {
   }
 
   async setDefault(billingAccountId: string, id: string): Promise<PaymentMethodEntity> {
+    const tenant = this.tenantContextService.get();
+    const setNotDefaultWhere = tenant?.organizationId
+      ? { billingAccountId, organizationId: tenant.organizationId }
+      : { billingAccountId };
     await this.prisma.system.paymentMethod.updateMany({
-      where: { billingAccountId },
+      where: setNotDefaultWhere,
       data: { isDefault: false },
     });
+    const pmTenant = tenant?.organizationId ? { organizationId: tenant.organizationId } : {};
     const record = await this.prisma.system.paymentMethod.update({
-      where: { id },
+      where: { id, ...pmTenant },
       data: { isDefault: true },
     });
     return toEntity(record);
   }
 
   async remove(id: string): Promise<PaymentMethodEntity> {
-    const record = await this.prisma.system.paymentMethod.delete({ where: { id } });
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
+    const record = await this.prisma.system.paymentMethod.delete({ where });
     return toEntity(record);
   }
 }

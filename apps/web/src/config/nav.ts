@@ -33,6 +33,7 @@ export const mainNav: NavItem[] = [
   { label: "Inbox", href: "/inbox", icon: Inbox, shortcut: "G I" },
   { label: "AI Chat", href: "/ai", icon: Bot, shortcut: "G A" },
   { label: "AI Operator", href: "/ai/operator", icon: Sparkles, shortcut: "G O" },
+  { label: "AI Workflows", href: "/ai/workflows", icon: Workflow, shortcut: "G F" },
   { label: "CRM", href: "/crm", icon: Building2, shortcut: "G C" },
   { label: "Workflows", href: "/workflows", icon: Workflow, shortcut: "G W" },
   { label: "Integrations", href: "/integrations", icon: Plug, shortcut: "G N" },

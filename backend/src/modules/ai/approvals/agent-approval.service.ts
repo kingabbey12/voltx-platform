@@ -37,12 +37,12 @@ export class AgentApprovalService {
     toolName: string,
     input: Record<string, unknown>,
   ): Promise<AgentActionApprovalEntity> {
+    const tenant = this.tenantContextService.getOrThrow();
     const existing = await this.approvalRepository.findPendingForRunAndTool(agentRunId, toolName);
     if (existing) {
       return existing;
     }
 
-    const tenant = this.tenantContextService.getOrThrow();
     const created = await this.approvalRepository.createUnscoped(tenant.organizationId, {
       agentRunId,
       toolName,

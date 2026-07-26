@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { OAuthApplicationStatus } from '@prisma/client';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import {
   OAuthApplicationEntity,
@@ -30,7 +31,10 @@ export interface UpdateOAuthApplicationData {
 
 @Injectable()
 export class OAuthApplicationRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async create(data: CreateOAuthApplicationData): Promise<OAuthApplicationWithRedirectUrisEntity> {
     return this.prisma.runInTransaction(async (tx) => {
@@ -108,8 +112,10 @@ export class OAuthApplicationRepository {
   }
 
   async update(id: string, data: UpdateOAuthApplicationData): Promise<OAuthApplicationEntity> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     const record = await this.prisma.system.oAuthApplication.update({
-      where: { id },
+      where,
       data,
     });
     return toOAuthApplicationEntity(record);
@@ -132,22 +138,28 @@ export class OAuthApplicationRepository {
     clientSecretHash: string,
     clientSecretPrefix: string,
   ): Promise<OAuthApplicationEntity> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     const record = await this.prisma.system.oAuthApplication.update({
-      where: { id },
+      where,
       data: { clientSecretHash, clientSecretPrefix },
     });
     return toOAuthApplicationEntity(record);
   }
 
   async setStatus(id: string, status: OAuthApplicationStatus): Promise<OAuthApplicationEntity> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     const record = await this.prisma.system.oAuthApplication.update({
-      where: { id },
+      where,
       data: { status },
     });
     return toOAuthApplicationEntity(record);
   }
 
   async delete(id: string): Promise<void> {
-    await this.prisma.system.oAuthApplication.delete({ where: { id } });
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
+    await this.prisma.system.oAuthApplication.delete({ where });
   }
 }

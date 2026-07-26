@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { WebhookEndpointStatus } from '@prisma/client';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { WebhookEndpointEntity, toWebhookEndpointEntity } from './entities/webhook-endpoint.entity';
 
@@ -20,7 +21,10 @@ export interface UpdateWebhookEndpointData {
 
 @Injectable()
 export class WebhookEndpointRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async create(data: CreateWebhookEndpointData): Promise<WebhookEndpointEntity> {
     const record = await this.prisma.system.webhookEndpoint.create({ data });
@@ -72,27 +76,35 @@ export class WebhookEndpointRepository {
   }
 
   async update(id: string, data: UpdateWebhookEndpointData): Promise<WebhookEndpointEntity> {
-    const record = await this.prisma.system.webhookEndpoint.update({ where: { id }, data });
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
+    const record = await this.prisma.system.webhookEndpoint.update({ where, data });
     return toWebhookEndpointEntity(record);
   }
 
   async rotateSecret(id: string, encryptedSecret: string): Promise<WebhookEndpointEntity> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     const record = await this.prisma.system.webhookEndpoint.update({
-      where: { id },
+      where,
       data: { encryptedSecret },
     });
     return toWebhookEndpointEntity(record);
   }
 
   async setStatus(id: string, status: WebhookEndpointStatus): Promise<WebhookEndpointEntity> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     const record = await this.prisma.system.webhookEndpoint.update({
-      where: { id },
+      where,
       data: { status },
     });
     return toWebhookEndpointEntity(record);
   }
 
   async delete(id: string): Promise<void> {
-    await this.prisma.system.webhookEndpoint.delete({ where: { id } });
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
+    await this.prisma.system.webhookEndpoint.delete({ where });
   }
 }

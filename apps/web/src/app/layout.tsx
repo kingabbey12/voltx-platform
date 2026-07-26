@@ -11,6 +11,17 @@ export const metadata: Metadata = {
   },
   description: "The AI Business Operating System.",
   robots: { index: false, follow: false },
+  applicationName: "Voltx",
+  keywords: ["AI", "business", "operating system", "automation", "workflow"],
+  authors: [{ name: "Voltx" }],
+  creator: "Voltx",
+  publisher: "Voltx",
+  openGraph: {
+    title: "Voltx",
+    description: "The AI Business Operating System.",
+    type: "website",
+    locale: "en_US",
+  },
 };
 
 export const viewport: Viewport = {

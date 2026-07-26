@@ -105,9 +105,9 @@ export class SubscriptionRepository {
   }
 
   async findById(id: string): Promise<SubscriptionEntity | null> {
-    const record = await this.prisma.system.subscription.findFirst({
-      where: { id },
-    });
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
+    const record = await this.prisma.system.subscription.findFirst({ where });
     return record ? toEntity(record) : null;
   }
 
@@ -143,8 +143,10 @@ export class SubscriptionRepository {
   }
 
   async update(id: string, data: UpdateSubscriptionData): Promise<SubscriptionEntity> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     const record = await this.prisma.system.subscription.update({
-      where: { id },
+      where,
       data: {
         ...(data.planId !== undefined ? { planId: data.planId } : {}),
         ...(data.status !== undefined ? { status: data.status } : {}),

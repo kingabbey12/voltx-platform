@@ -102,6 +102,7 @@ describe('AttachmentProcessingService', () => {
     expect(repository.update).toHaveBeenCalledWith(
       'attachment-1',
       expect.objectContaining({ status: 'QUARANTINED' }),
+      'org-1',
     );
     expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'attachment.quarantined' }),
@@ -135,6 +136,7 @@ describe('AttachmentProcessingService', () => {
     expect(repository.update).toHaveBeenCalledWith(
       'attachment-1',
       expect.objectContaining({ status: 'QUARANTINED' }),
+      'org-1',
     );
   });
 });

@@ -6,9 +6,16 @@
 // radius of an XSS token theft to that window. Revisit with an httpOnly
 // cookie + server-side proxy if this app later needs to defend against
 // XSS specifically (e.g. before handling more sensitive data).
+//
+// A non-httpOnly "session" cookie is kept in sync with localStorage so the
+// Next.js middleware can verify authentication on server-rendered page
+// navigations without hitting the backend on every request (see
+// apps/web/src/middleware.ts).
 const ACCESS_TOKEN_KEY = "voltx.accessToken";
 const REFRESH_TOKEN_KEY = "voltx.refreshToken";
 const IMPERSONATION_KEY = "voltx.impersonation";
+const SESSION_COOKIE_NAME = "session";
+const SESSION_COOKIE_MAX_AGE = 900; // 15 min, matches ACCESS_TOKEN_EXPIRES_IN
 
 export interface StoredTokens {
   accessToken: string;
@@ -25,6 +32,17 @@ export interface ImpersonationStash {
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
+}
+
+function setSessionCookie(accessToken: string): void {
+  if (!isBrowser()) return;
+  const secure = window.location.protocol === "https:";
+  document.cookie = `${SESSION_COOKIE_NAME}=${accessToken}; path=/; max-age=${SESSION_COOKIE_MAX_AGE}; SameSite=Lax${secure ? "; Secure" : ""}`;
+}
+
+function clearSessionCookie(): void {
+  if (!isBrowser()) return;
+  document.cookie = `${SESSION_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
 }
 
 export const tokenStorage = {
@@ -50,11 +68,13 @@ export const tokenStorage = {
     if (!isBrowser()) return;
     window.localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
     window.localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+    setSessionCookie(tokens.accessToken);
   },
 
   saveAccessToken(accessToken: string): void {
     if (!isBrowser()) return;
     window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    setSessionCookie(accessToken);
   },
 
   clear(): void {
@@ -62,6 +82,7 @@ export const tokenStorage = {
     window.localStorage.removeItem(ACCESS_TOKEN_KEY);
     window.localStorage.removeItem(REFRESH_TOKEN_KEY);
     window.localStorage.removeItem(IMPERSONATION_KEY);
+    clearSessionCookie();
   },
 
   /**
