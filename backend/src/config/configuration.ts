@@ -111,6 +111,12 @@ export default () => ({
     enabled: process.env.REDIS_ENABLED === 'true',
     url: process.env.REDIS_URL ?? 'redis://localhost:6379',
   },
+  metrics: {
+    // Bearer token Prometheus must present to scrape /metrics. Empty leaves
+    // the endpoint open (dev/test); required in production, enforced at boot
+    // by MetricsScrapeGuard.assertConfigured.
+    authToken: process.env.METRICS_AUTH_TOKEN ?? '',
+  },
   tracing: {
     enabled: process.env.OTEL_ENABLED === 'true',
     serviceName: process.env.OTEL_SERVICE_NAME ?? 'voltx-backend',

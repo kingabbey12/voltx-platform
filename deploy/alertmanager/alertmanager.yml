@@ -1,0 +1,80 @@
+# ── Alertmanager configuration ────────────────────────────────────────
+#
+# Routing destination is an operations/commercial decision (which paging
+# vendor, which rota), so it is kept out of this file. Alertmanager does NOT
+# expand environment variables in its config, so the receiver URL is read from
+# a mounted file via `url_file` — the mechanism upstream provides for exactly
+# this. Write your endpoint to deploy/alertmanager/webhook_url (git-ignored;
+# copy webhook_url.example). Supported receivers:
+#
+#   Slack          https://hooks.slack.com/services/...   (Incoming Webhook)
+#   PagerDuty      https://events.pagerduty.com/integration/<key>/enqueue
+#   Opsgenie       https://api.opsgenie.com/v1/json/prometheus?apiKey=<key>
+#   Anything else  any endpoint accepting Alertmanager's JSON POST
+#
+# The shipped example points at localhost, so alerts still fire and are visible
+# in the Alertmanager UI (:9093) but are delivered nowhere until a real URL is
+# written. That is a deliberate fail-visible default — a silently dropped page
+# is worse than an obviously unconfigured one.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: default
+  # Group by alertname and service so one bad deploy is one notification per
+  # affected service, not one per instance.
+  group_by: ["alertname", "service"]
+  # Wait briefly before the first notification so related alerts from the same
+  # incident arrive together.
+  group_wait: 30s
+  group_interval: 5m
+  # Re-notify while still firing. 4h is long enough not to be noise, short
+  # enough that an unacknowledged critical does not disappear for a shift.
+  repeat_interval: 4h
+
+  routes:
+    # Criticals page immediately and repeat more aggressively — these are the
+    # "customer impact now" class.
+    - matchers:
+        - severity = "critical"
+      receiver: critical
+      group_wait: 10s
+      repeat_interval: 1h
+
+    - matchers:
+        - severity = "warning"
+      receiver: warning
+
+inhibit_rules:
+  # If the API is down, its error-rate and latency alerts are consequences,
+  # not independent incidents. Suppress them so the page names the cause.
+  - source_matchers:
+      - alertname = "ApiDown"
+    target_matchers:
+      - severity =~ "warning|critical"
+    equal: ["service"]
+
+  # A critical for a given alert supersedes its warning-level twin
+  # (e.g. DiskSpaceCritical over DiskSpaceLow).
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
+    equal: ["alertname", "instance"]
+
+receivers:
+  - name: default
+    webhook_configs:
+      - url_file: /etc/alertmanager/webhook_url
+        send_resolved: true
+
+  - name: critical
+    webhook_configs:
+      - url_file: /etc/alertmanager/webhook_url
+        send_resolved: true
+
+  - name: warning
+    webhook_configs:
+      - url_file: /etc/alertmanager/webhook_url
+        send_resolved: true

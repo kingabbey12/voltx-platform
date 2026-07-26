@@ -78,6 +78,58 @@ pnpm prisma:seed                 # seed permissions/roles/etc via prisma/seed.ts
 
 All tests (unit **and** e2e) live under `backend/test/`, not colocated with `src/`. Jest distinguishes them by suffix: `*.spec.ts` (unit, run by `pnpm test`) vs `*.e2e-spec.ts` (run by `pnpm test:e2e`, needs Postgres up and `.env.test`).
 
+Infrastructure validation (e.g. Docker Compose YAML, deploy secrets) also live under `backend/test/` and use `js-yaml` (dev dependency) for YAML parsing. Run them with `pnpm test -- docker-compose-limits` or `pnpm test -- deploy-secrets-regression`.
+
+### Docker Compose
+
+All four compose files (`docker-compose.yml`, `backend/docker-compose.yml`, `backend/docker-compose.prod.yml`, `deploy/docker-compose.yml`) have resource limits on every long-running service:
+
+| Service | CPUs | Memory limit | Memory reservation |
+|---------|------|-------------|-------------------|
+| postgres (local) | 2.0 | 2g | 1g |
+| postgres (prod) | 2.0 | 4g | 2g |
+| postgres (staging) | 2.0 | 2g | 1g |
+| redis | 1.0 | 512m | 256m |
+| api | 2.0 | 1g | 512m |
+| web (dev) | 1.0 | 1g | 512m |
+| web (staging) | 1.0 | 512m | 256m |
+| nginx | 0.5 | 128m | 64m |
+| prometheus | 1.0 | 1g | 512m |
+| grafana | 0.5 | 256m | 128m |
+
+Note: `deploy.resources` (swarm mode) is NOT used — limits are top-level service fields (`cpus`, `mem_limit`, `mem_reservation`), which work with `docker compose` (non-swarm).
+
+### Secrets Management
+
+**Critical rule: never commit `.env` files.** All `.env` and `.env.*` files are excluded by the root `.gitignore` and per-directory `.gitignore` files. Template files (`.env.example`, `.env.staging`) use placeholder values only — actual secrets are injected at deploy time.
+
+**Current setup:** The staging deployment uses a `deploy/.env` file loaded by Docker Compose via `env_file: .env` and the deploy script's `--env-file` flag. This file is NOT tracked by git and should have `chmod 600` permissions. The `deploy/deploy.sh` script includes a security audit that:
+1. Verifies `.env` exists
+2. Checks file permissions (warn if not 600/640)
+3. Confirms `.env` is gitignored
+4. Supports `--strict` mode that fails on any security warning
+
+**Production migration path:**
+1. Replace `env_file: .env` with host environment variables: `export $(grep -v '^#' deploy/.env | xargs)` then `docker compose up -d`
+2. Use Docker secrets (`/run/secrets/*`) for sensitive values
+3. Integrate a secrets manager (Vault, AWS Secrets Manager, 1Password Connect) as the single source of truth
+4. Run `deploy/deploy.sh --strict` in CI to gate the deploy pipeline
+
+**Testing:** `pnpm test -- deploy-secrets-regression` validates gitignore coverage, `.env.example` has no real secrets, `.env` is not tracked, and the deploy script has security checks.
+
+### Database Backups
+
+**Critical rule: an unverified backup is not a backup — it's an assumption.** The backup infrastructure is organized under `deploy/`:
+
+- `deploy/scripts/backup.sh` — Docker-aware backup script. Run with `--docker` to back up via `docker compose exec pg_dump`, or `--direct DATABASE_URL` for standalone. Outputs gzip-compressed SQL files with integrity check and automatic retention pruning.
+- `deploy/deploy.sh` — automatically calls `backup.sh` before running migrations (Step 3.5). Supports `--skip-backup` to opt out. Shows restore instructions on completion.
+- `deploy/crontab` — daily 3:00 AM UTC backup schedule. Install with `crontab deploy/crontab`.
+- `docs/operations/backup-and-restore.md` — full documentation covering backup, restore, scheduled backups, verification, and disaster recovery.
+
+**Backward compatibility preserved:** `backend/scripts/backup-db.sh` remains functional for local dev (standalone pg_dump).
+
+**Testing:** `pnpm test -- database-backup-regression` validates backup.sh exists, is executable, supports both modes, has integrity checks, retention config, deploy script integration (--skip-backup flag, backup precedes migrations, restore output), crontab schedule, and documentation coverage.
+
 ### Architecture
 
 **Request pipeline** (see `src/bootstrap/configure-app.ts` and `src/app.module.ts`): every request gets a request ID, runs through Helmet/compression, a global `api` prefix with URI versioning (`/api/v1/...`, health/metrics endpoints excluded), a global `ValidationPipe` (whitelist + forbid-unknown + implicit conversion), a global exception filter, and logging/response/timeout interceptors. Responses are wrapped in a `{ success, data, meta: { requestId, timestamp, version } }` envelope (`src/common/dto/api-response.dto.ts`) — the mobile `ApiClient` unwraps this envelope on every call.
