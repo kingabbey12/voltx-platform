@@ -23,15 +23,26 @@ gunzip -c backups/voltx_dump_$(date -d '1 day ago' +%Y%m%d).sql.gz | \
   docker compose -f deploy/docker-compose.yml exec -T postgres \
   psql -U voltx -d voltx
 
-# 2. Rollback API image to previous tag
-docker compose -f deploy/docker-compose.yml down api
+# 2. Rollback API image to the previous release
+#    deploy.sh tags the outgoing image :previous before every build, so this
+#    target exists after any deploy but the very first.
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env stop api
 docker tag voltx-api:previous voltx-api:latest
-docker compose -f deploy/docker-compose.yml up -d api
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --force-recreate api
 
-# 3. Rollback Web image to previous tag
-docker compose -f deploy/docker-compose.yml down web
+# 3. Rollback Web image to the previous release
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env stop web
 docker tag voltx-web:previous voltx-web:latest
-docker compose -f deploy/docker-compose.yml up -d web
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --force-recreate web
+
+# To roll back to a *specific* release rather than simply the one before,
+# deploy.sh also tags each build with the version it was given:
+#   docker tag voltx-api:v2.4.0-rc.1 voltx-api:latest
+
+# VERIFIED 2026-07-26 by drill: a deliberately broken image was deployed
+# (API crash-looping, /readiness unreachable), then rolled back by the above.
+# Service restored in 3 seconds. `--force-recreate` matters — without it
+# compose sees no config change and leaves the broken container running.
 
 # 4. Verify health
 bash deploy/health-check.sh

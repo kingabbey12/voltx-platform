@@ -151,8 +151,30 @@ info "Starting PostgreSQL and Redis..."
 info "Database services healthy."
 
 # ── Step 3: Build services ────────────────────────────────────────────
+# Preserve the currently-deployed images as :previous BEFORE the build
+# overwrites :latest. Without this there is no version to roll back to —
+# recovery would mean rebuilding from an older commit, which is slow and
+# assumes that commit still builds.
+for img in voltx-api voltx-web; do
+  if docker image inspect "${img}:latest" >/dev/null 2>&1; then
+    docker tag "${img}:latest" "${img}:previous"
+    info "Preserved ${img}:latest as ${img}:previous (rollback target)."
+  else
+    warn "No existing ${img}:latest — first deploy, so no rollback target yet."
+  fi
+done
+
 info "Building API and Web images..."
 "${COMPOSE[@]}" build api web
+
+# Also tag this build with the release version, so a specific version can be
+# redeployed later rather than only "the one before this one".
+if [ -n "${DOCKER_TAG}" ] && [ "${DOCKER_TAG}" != "latest" ]; then
+  for img in voltx-api voltx-web; do
+    docker tag "${img}:latest" "${img}:${DOCKER_TAG}"
+  done
+  info "Tagged this build as ${DOCKER_TAG}."
+fi
 
 # ── Step 3.5: Pre-migration backup ────────────────────────────────────
 if [ "$SKIP_BACKUP" = false ]; then

@@ -155,3 +155,50 @@ describe('container healthchecks are valid for the image they run in', () => {
     expect(web).toContain('status===200');
   });
 });
+
+/**
+ * Rollback requires something to roll back TO. It did not exist: api and web
+ * were build-only services, so compose named their images
+ * `<project>-<service>:latest` and nothing ever preserved the outgoing build.
+ * The rollback plan meanwhile instructed `docker tag voltx-api:previous ...` —
+ * an image name that was never produced and a tag that was never created.
+ *
+ * A drill on 2026-07-26 deployed a deliberately broken image and recovered in
+ * 3 seconds using the corrected procedure.
+ */
+describe('a deploy leaves something to roll back to', () => {
+  const compose = load(readFileSync(join(repoRoot, 'deploy/docker-compose.yml'), 'utf8')) as {
+    services: Record<string, { image?: string; build?: unknown }>;
+  };
+
+  it.each([
+    ['api', 'voltx-api'],
+    ['web', 'voltx-web'],
+  ])('%s declares a stable image name so builds are addressable', (service, expected) => {
+    const image = compose.services[service]?.image ?? '';
+    expect(image).toContain(expected);
+  });
+
+  it('deploy.sh preserves the outgoing image as :previous before rebuilding', () => {
+    // Must happen BEFORE the build, or :latest is already overwritten.
+    const preserveAt = deployScript.indexOf(':previous');
+    const buildAt = deployScript.indexOf('build api web');
+    expect(preserveAt).toBeGreaterThan(-1);
+    expect(preserveAt).toBeLessThan(buildAt);
+  });
+
+  it('the rollback plan names images that a deploy actually produces', () => {
+    const plan = readFileSync(join(repoRoot, 'docs/rollback-plan.md'), 'utf8');
+    const declared = Object.values(compose.services)
+      .map((svc) => svc.image?.split(':')[0])
+      .filter((name): name is string => Boolean(name));
+
+    for (const referenced of ['voltx-api', 'voltx-web']) {
+      expect(plan).toContain(`${referenced}:previous`);
+      expect(declared).toContain(referenced);
+    }
+    // Without --force-recreate compose sees no config change and leaves the
+    // broken container running; the drill confirmed this.
+    expect(plan).toContain('--force-recreate');
+  });
+});

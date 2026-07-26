@@ -70,6 +70,10 @@ services:
       - tools
 
   api:
+    # Explicit, stable image name so a deploy produces something that can be
+    # rolled back to. VOLTX_TAG is set by deploy.sh; the outgoing image is
+    # retagged :previous before it is replaced.
+    image: voltx-api:${VOLTX_TAG:-latest}
     build:
       context: ../backend
       dockerfile: Dockerfile
@@ -101,6 +105,10 @@ services:
       - voltx
 
   web:
+    # Explicit, stable image name so a deploy produces something that can be
+    # rolled back to. VOLTX_TAG is set by deploy.sh; the outgoing image is
+    # retagged :previous before it is replaced.
+    image: voltx-web:${VOLTX_TAG:-latest}
     build:
       context: ../apps/web
       dockerfile: Dockerfile
