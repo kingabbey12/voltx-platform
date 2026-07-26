@@ -1,6 +1,11 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
+import {
+  cronTickKey,
+  DISTRIBUTED_LOCK_SERVICE,
+  DistributedLockService,
+} from '../../common/scheduling/distributed-lock.service';
 import { UsageRecordRepository } from './usage-record.repository';
 import { SubscriptionRepository } from './subscription.repository';
 import { SubscriptionService } from './subscription.service';
@@ -9,6 +14,8 @@ import { PaymentMethodRepository } from './payment-method.repository';
 
 const NIGHTLY_ROLLUP_CRON = '0 2 * * *';
 const HOURLY_TRIAL_SWEEP_CRON = '0 * * * *';
+/** Only has to outlive inter-replica clock skew — the tick itself is in the key. */
+const CRON_TICK_WINDOW_MS = 30 * 60_000;
 
 /**
  * Two background sweeps, registered the same way
@@ -35,6 +42,8 @@ export class BillingCronService implements OnModuleInit {
     private readonly subscriptionService: SubscriptionService,
     private readonly planService: PlanService,
     private readonly paymentMethodRepository: PaymentMethodRepository,
+    @Inject(DISTRIBUTED_LOCK_SERVICE)
+    private readonly distributedLock: DistributedLockService,
   ) {}
 
   onModuleInit(): void {
@@ -50,10 +59,15 @@ export class BillingCronService implements OnModuleInit {
     if (this.schedulerRegistry.doesExist('cron', name)) {
       this.schedulerRegistry.deleteCronJob(name);
     }
-    const job = new CronJob(cronExpression, () => {
-      void fn().catch((error: unknown) => {
-        this.logger.error({ err: error, job: name }, 'Billing cron job failed');
-      });
+    // Both sweeps write SubscriptionChange history and mutate subscription
+    // status, so a second replica running the same tick would duplicate a
+    // customer's billing record. The tick-scoped lock keeps it to one.
+    const job: CronJob = new CronJob(cronExpression, () => {
+      void this.distributedLock
+        .runOncePerWindow(cronTickKey(name, job.lastDate()), CRON_TICK_WINDOW_MS, fn)
+        .catch((error: unknown) => {
+          this.logger.error({ err: error, job: name }, 'Billing cron job failed');
+        });
     });
     this.schedulerRegistry.addCronJob(name, job);
     job.start();

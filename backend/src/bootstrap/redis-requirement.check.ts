@@ -10,6 +10,12 @@ const PING_TIMEOUT_MS = 5000;
  * REDIS_ENABLED isn't exactly "true" — acceptable for local dev/test, not
  * for production, where a transient failure in any of those background
  * jobs would otherwise be silently dropped with only a log line.
+ *
+ * It is also what makes cross-replica scheduler locking safe to default:
+ * DISTRIBUTED_LOCK_SERVICE degrades to an in-process lock without Redis,
+ * which would let every replica run every cron/@Interval sweep. Because
+ * production cannot boot without Redis, that degraded mode is unreachable
+ * there — do not relax this check without replacing that guarantee.
  */
 export async function assertRedisRequirement(): Promise<void> {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
