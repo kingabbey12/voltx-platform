@@ -38,7 +38,11 @@ export class LocalStorageProvider implements StorageProvider {
   }
 
   private pathFor(key: string): string {
-    return join(this.rootDir, key);
+    const full = resolve(this.rootDir, key);
+    if (!full.startsWith(this.rootDir)) {
+      throw new InternalServerErrorException('Invalid storage key');
+    }
+    return full;
   }
 
   private multipartDir(uploadId: string): string {

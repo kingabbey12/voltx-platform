@@ -1,7 +1,7 @@
 import { AttachmentUrlSignerService } from '../src/modules/attachments/storage/attachment-url-signer.service';
 
 function buildService(key = 'test-encryption-key-0123456789'): AttachmentUrlSignerService {
-  const configService = { get: jest.fn().mockReturnValue(key) };
+  const configService = { getOrThrow: jest.fn().mockReturnValue(key) };
   return new AttachmentUrlSignerService(configService as never);
 }
 

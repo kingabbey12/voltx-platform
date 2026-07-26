@@ -358,7 +358,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    await this.refreshTokenRepository.revokeById(storedToken.id);
+    if (storedToken.sessionId) {
+      await this.sessionRepository.revoke(storedToken.sessionId);
+    } else {
+      await this.refreshTokenRepository.revokeById(storedToken.id);
+    }
   }
 
   async getMe(currentUser: CurrentUser): Promise<AuthMeResponseDto> {
