@@ -100,6 +100,20 @@ jobs:
   web:
     name: Web (lint, types, build, e2e)
     runs-on: ubuntu-latest
+    # Declared once for the whole job rather than per step. Two separate steps
+    # start a Next server — `pnpm build`, and `pnpm test:e2e` via Playwright's
+    # `webServer: { command: "pnpm dev" }` — and both run scripts/validate-env.mjs
+    # from their prestart hook, which throws when this is unset. Setting it only
+    # on the build step (as before) left Playwright's server to die on boot with
+    # "NEXT_PUBLIC_API_BASE_URL is missing", which Playwright reports as the
+    # opaque "Process from config.webServer was not able to start".
+    #
+    # CI never calls the API: the value only has to satisfy validate-env.mjs and
+    # src/config/env.ts's build-time shape check (absolute URL, no
+    # /auth|/login|/health path segment). It is inlined into the client bundle,
+    # so it must never be a real production URL here.
+    env:
+      NEXT_PUBLIC_API_BASE_URL: https://api.ci.usevoltx.example/api/v1
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -122,12 +136,6 @@ jobs:
 
       - run: pnpm build
         working-directory: apps/web
-        env:
-          # CI never actually calls the API — this just has to satisfy
-          # apps/web/src/config/env.ts's build-time validation (a real
-          # absolute URL, no /auth|/login|/health path segment) since the
-          # value gets inlined into the client bundle at build time.
-          NEXT_PUBLIC_API_BASE_URL: https://api.ci.usevoltx.example/api/v1
 
       # Blocking, same contract as the backend step — pin patched versions in
       # apps/web/pnpm-workspace.yaml `overrides` rather than reverting this.
@@ -135,7 +143,9 @@ jobs:
         working-directory: apps/web
 
       - name: Install Playwright
-        run: npx playwright install chromium
+        # --with-deps installs the system libraries headless Chromium needs;
+        # without them the browser launches and immediately crashes.
+        run: npx playwright install --with-deps chromium
         working-directory: apps/web
 
       - name: Run Playwright tests
@@ -212,6 +222,14 @@ jobs:
         # falls back to localhost when that's unset, so building it here
         # would never actually validate what a real release build ships.
         # main_production.dart hardcodes the production environment instead.
+        #
+        # XCODE_XCCONFIG_FILE layers macos/CI.xcconfig over the project's own
+        # settings to skip code signing, which a hosted runner has no
+        # certificate or provisioning profile for. The compile and link of the
+        # Dart, the plugins and the native Runner target are unaffected — see
+        # that file for why this does not weaken the check.
+        env:
+          XCODE_XCCONFIG_FILE: ${{ github.workspace }}/apps/mobile/macos/CI.xcconfig
         run: flutter build macos --release -t lib/main_production.dart
 
   sdk-typescript:
@@ -320,24 +338,49 @@ jobs:
   security:
     name: Security (Trivy)
     runs-on: ubuntu-latest
+    # Uploading SARIF writes to the code-scanning API. Without this the upload
+    # step dies with "Resource not accessible by integration", because the
+    # default GITHUB_TOKEN for a push event is read-only on that endpoint.
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+
+      # Pinned to a release, not @master. The floating tag shipped a setup step
+      # whose `path` input rejects its own default, so every run failed before
+      # Trivy itself ever executed ("The 'path' input must be a literal path").
+      # A security gate that breaks on someone else's push is not a gate.
+      - name: Trivy scan (SARIF report)
+        uses: aquasecurity/trivy-action@0.35.0
         with:
-          scan-type: "fs"
-          scan-ref: "."
-          format: "sarif"
-          output: "trivy-results.sarif"
-          severity: "HIGH,CRITICAL"
-          exit-code: "1"
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+        # Report-only: this step's job is to produce the SARIF. Letting it fail
+        # here would skip the upload and lose the findings entirely. The gate
+        # below is what actually blocks the build.
         continue-on-error: true
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: "trivy-results.sarif"
+          sarif_file: trivy-results.sarif
+
+      # The blocking gate. Reuses the vulnerability DB the step above cached,
+      # so this is a re-scan of already-downloaded data, not a second download.
+      # Findings must be fixed by upgrading, or by pinning a patched version in
+      # the relevant pnpm-workspace.yaml `overrides` — never by relaxing this.
+      - name: Trivy scan (blocking gate)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
 
   docker:
     name: Docker (build & publish)

@@ -1,0 +1,29 @@
+// Code-signing overrides for CI only. Applied via xcodebuild's documented
+// XCODE_XCCONFIG_FILE environment variable, which layers this on top of the
+// project's own configuration without modifying it — so a developer's local
+// build and a real signed release are completely unaffected by this file.
+//
+// Why it is needed: macos/Runner.xcodeproj pins the Release configuration to
+// CODE_SIGN_STYLE = Manual with DEVELOPMENT_TEAM 3UC8WFTV3Y and an
+// "Apple Development" identity. A GitHub-hosted runner has no keychain, no
+// certificate and no provisioning profile, so the build died with:
+//
+//   error: No profiles for 'com.voltx.voltxMobile' were found: Xcode couldn't
+//   find any Mac App Development provisioning profiles matching
+//   'com.voltx.voltxMobile'.
+//
+// Signing is a distribution concern, not a correctness one. Everything CI is
+// actually checking — that the Dart, the plugins and the native Runner target
+// all compile and link for release — still runs in full. The only thing
+// skipped is attaching a signature the runner could not produce anyway.
+//
+// Do NOT include this file in a build that is meant to be distributed: the
+// resulting .app is unsigned and will be refused by Gatekeeper.
+
+CODE_SIGN_IDENTITY =
+CODE_SIGN_ENTITLEMENTS =
+CODE_SIGN_STYLE = Manual
+CODE_SIGNING_REQUIRED = NO
+CODE_SIGNING_ALLOWED = NO
+DEVELOPMENT_TEAM =
+PROVISIONING_PROFILE_SPECIFIER =
