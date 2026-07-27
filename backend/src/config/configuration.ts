@@ -116,6 +116,12 @@ export default () => ({
     enabled: process.env.REDIS_ENABLED === 'true',
     url: process.env.REDIS_URL ?? 'redis://localhost:6379',
   },
+  metrics: {
+    // Bearer token Prometheus must present to scrape /metrics. Empty leaves
+    // the endpoint open (dev/test); required in production, enforced at boot
+    // by MetricsScrapeGuard.assertConfigured.
+    authToken: process.env.METRICS_AUTH_TOKEN ?? '',
+  },
   tracing: {
     enabled: process.env.OTEL_ENABLED === 'true',
     serviceName: process.env.OTEL_SERVICE_NAME ?? 'voltx-backend',
@@ -168,6 +174,45 @@ export default () => ({
         apiKey: process.env.GOOGLE_AI_API_KEY ?? '',
         baseUrl:
           process.env.GOOGLE_AI_BASE_URL ?? 'https://generativelanguage.googleapis.com/v1beta',
+      },
+      // OpenAI-compatible provider adapters (chat/completions + embeddings).
+      xai: {
+        enabled: process.env.XAI_ENABLED === 'true',
+        apiKey: process.env.XAI_API_KEY ?? '',
+        baseUrl: process.env.XAI_BASE_URL ?? 'https://api.x.ai/v1',
+      },
+      groq: {
+        enabled: process.env.GROQ_ENABLED === 'true',
+        apiKey: process.env.GROQ_API_KEY ?? '',
+        baseUrl: process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
+      },
+      mistral: {
+        enabled: process.env.MISTRAL_ENABLED === 'true',
+        apiKey: process.env.MISTRAL_API_KEY ?? '',
+        baseUrl: process.env.MISTRAL_BASE_URL ?? 'https://api.mistral.ai/v1',
+      },
+      deepseek: {
+        enabled: process.env.DEEPSEEK_ENABLED === 'true',
+        apiKey: process.env.DEEPSEEK_API_KEY ?? '',
+        baseUrl: process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com/v1',
+      },
+      // Ollama runs locally with no API key.
+      ollama: {
+        enabled: process.env.OLLAMA_ENABLED === 'true',
+        apiKey: process.env.OLLAMA_API_KEY ?? '',
+        baseUrl: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/v1',
+      },
+      openrouter: {
+        enabled: process.env.OPENROUTER_ENABLED === 'true',
+        apiKey: process.env.OPENROUTER_API_KEY ?? '',
+        baseUrl: process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1',
+      },
+      // Azure OpenAI: baseUrl is the resource endpoint; models map to deployments.
+      azureOpenai: {
+        enabled: process.env.AZURE_OPENAI_ENABLED === 'true',
+        apiKey: process.env.AZURE_OPENAI_API_KEY ?? '',
+        baseUrl: process.env.AZURE_OPENAI_ENDPOINT ?? '',
+        apiVersion: process.env.AZURE_OPENAI_API_VERSION ?? '2024-10-21',
       },
     },
   },

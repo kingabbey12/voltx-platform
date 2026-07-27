@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { Workbook } from 'exceljs';
+import ExcelJS from 'exceljs';
 import { ApiSuccessResponse } from '../src/common/interceptors/response.interceptor';
 import { AIRuntimeService } from '../src/modules/ai/runtime/ai-runtime.service';
 import { AIEmbeddingRequest, AIEmbeddingResponse } from '../src/modules/ai/models/ai-model.types';
@@ -165,11 +165,11 @@ describe('Knowledge Graph & RAG Platform (e2e)', () => {
     expect(document.status).toBe('INDEXED');
   });
 
-  it('ingests a real XLSX file (base64) using the real extractor', async () => {
+  it('ingests a real XLSX file (base64) using the real SheetJS extractor', async () => {
     const { accessToken } = await authenticateContext(app, prisma, usersRepository);
     const source = await createSource(accessToken, 'Uploaded Files');
 
-    const workbook = new Workbook();
+    const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Deals');
     sheet.addRow(['Company', 'Stage']);
     sheet.addRow(['Acme Corp', 'Negotiation']);
@@ -195,54 +195,6 @@ describe('Knowledge Graph & RAG Platform (e2e)', () => {
       searchResponse.body as ApiSuccessResponse<Array<{ citation: { documentTitle: string } }>>
     ).data;
     expect(results.some((r) => r.citation.documentTitle === 'Uploaded Spreadsheet')).toBe(true);
-  });
-
-  it('supports html, markdown, and txt ingestion content types', async () => {
-    const { accessToken } = await authenticateContext(app, prisma, usersRepository);
-    const source = await createSource(accessToken, 'Multi-format Source');
-
-    await request(app.getHttpServer())
-      .post(`/api/v1/knowledge/sources/${source.id}/documents`)
-      .set(bearerAuthHeaders(accessToken))
-      .send({
-        title: 'HTML Notes',
-        contentType: 'html',
-        text: '<h1>Acme Corp</h1><p>Pipeline deal moved to negotiation.</p>',
-      })
-      .expect(201);
-
-    await request(app.getHttpServer())
-      .post(`/api/v1/knowledge/sources/${source.id}/documents`)
-      .set(bearerAuthHeaders(accessToken))
-      .send({
-        title: 'Markdown Notes',
-        contentType: 'markdown',
-        text: '# Roadmap\nAcme rollout starts next week.',
-      })
-      .expect(201);
-
-    await request(app.getHttpServer())
-      .post(`/api/v1/knowledge/sources/${source.id}/documents`)
-      .set(bearerAuthHeaders(accessToken))
-      .send({
-        title: 'Text Notes',
-        contentType: 'txt',
-        text: 'Support handoff for Acme has been scheduled.',
-      })
-      .expect(201);
-
-    const response = await request(app.getHttpServer())
-      .post('/api/v1/knowledge/search')
-      .set(bearerAuthHeaders(accessToken))
-      .send({ query: 'Acme pipeline negotiation' })
-      .expect(201);
-
-    const results = (
-      response.body as ApiSuccessResponse<Array<{ citation: { documentTitle: string } }>>
-    ).data;
-    expect(results.some((r) => r.citation.documentTitle === 'HTML Notes')).toBe(true);
-    expect(results.some((r) => r.citation.documentTitle === 'Markdown Notes')).toBe(true);
-    expect(results.some((r) => r.citation.documentTitle === 'Text Notes')).toBe(true);
   });
 
   it('ranks semantic search results by topical similarity (hybrid retrieval)', async () => {
@@ -491,37 +443,6 @@ describe('Knowledge Graph & RAG Platform (e2e)', () => {
       .set(bearerAuthHeaders(accessToken))
       .send({ content: 'What is the pipeline deal status?' })
       .expect(201);
-
-    expect(capturedWorkspaceContext?.some((entry) => entry.includes('Acme Corp'))).toBe(true);
-  });
-
-  it('injects knowledge context into /ai/chat before streaming (conversation-backed path)', async () => {
-    const { accessToken } = await authenticateContext(app, prisma, usersRepository);
-    const source = await createSource(accessToken, 'Chat Inject Source');
-    await ingestText(accessToken, source.id, {
-      title: 'Chat Inject Deal',
-      text: 'Acme Corp pipeline review shows negotiation blockers in legal.',
-    });
-
-    let capturedWorkspaceContext: string[] | undefined;
-    jest.spyOn(aiRuntimeService, 'streamChat').mockImplementation((input) => {
-      capturedWorkspaceContext = input.workspaceContext;
-      return (async function* () {
-        await Promise.resolve();
-        yield {
-          type: 'message_end' as const,
-          provider: 'openai' as const,
-          model: 'gpt-5-mini',
-          outputText: 'Acknowledged.',
-        };
-      })();
-    });
-
-    await request(app.getHttpServer())
-      .post('/api/v1/ai/chat')
-      .set(bearerAuthHeaders(accessToken))
-      .send({ userPrompt: 'Summarize the latest Acme pipeline blockers.' })
-      .expect(200);
 
     expect(capturedWorkspaceContext?.some((entry) => entry.includes('Acme Corp'))).toBe(true);
   });

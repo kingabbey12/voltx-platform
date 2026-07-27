@@ -2,12 +2,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authApi } from "@/lib/api/auth";
 import { tokenStorage } from "@/lib/api/token-storage";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { usersApi } from "@/lib/api/users";
 
 export function useMyOrganizations() {
   const status = useAuthStore((state) => state.status);
   return useQuery({
     queryKey: ["my-organizations"],
     queryFn: () => authApi.myOrganizations(),
+    enabled: status === "authenticated",
+  });
+}
+
+export function useUsers(query: Parameters<typeof usersApi.list>[0] = {}) {
+  const status = useAuthStore((state) => state.status);
+  return useQuery({
+    queryKey: ["users", query],
+    queryFn: () => usersApi.list(query),
     enabled: status === "authenticated",
   });
 }

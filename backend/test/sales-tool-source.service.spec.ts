@@ -251,7 +251,7 @@ describe('SalesToolSourceService', () => {
         body: 'Check on it',
         actionUrl: undefined,
       });
-      expect(result).toEqual({ id: 'notif-1' });
+      expect(result).toEqual({ id: 'notif-1', title: 'Deal at risk' });
     });
 
     it('rejects a missing userId/title', async () => {

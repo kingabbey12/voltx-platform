@@ -1,28 +1,37 @@
 name: CI
 
+# Must cover the branches work actually happens on. Restricting this to `main`
+# meant no ordinary change was gated: development lands on `develop` and PRs
+# target `release/**`, so lint, types, the unit and e2e suites, Trivy and the
+# dependency audit all ran on nothing. Adding a branch here is cheap; leaving
+# one out silently disables every quality control in this repository.
 on:
   push:
-    branches: [main]
+    branches: [main, develop, "release/**"]
   pull_request:
+    branches: [main, develop, "release/**"]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.34.4"
+
 jobs:
   backend:
-    name: Backend (lint, test, e2e, build)
+    name: Backend (lint, types, test, e2e, build)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     services:
       postgres:
+        # Database name must match backend/.env.test's DATABASE_URL — that
+        # file is committed and drives the e2e run.
         image: pgvector/pgvector:pg16
         env:
+          POSTGRES_DB: voltx_test
           POSTGRES_USER: voltx
           POSTGRES_PASSWORD: voltx
-          POSTGRES_DB: voltx_test
         ports:
           - 5433:5432
         options: >-
@@ -30,87 +39,89 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
-
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: backend/pnpm-lock.yaml
 
-      - name: Enable Corepack
-        run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        working-directory: backend
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+        working-directory: backend
 
-      - name: Lint
-        run: pnpm lint
+      - run: npx tsc --noEmit
+        working-directory: backend
 
-      - name: Unit tests
-        run: pnpm test
+      - run: pnpm test
+        working-directory: backend
 
-      - name: Create .env.test
-        # .env.test is gitignored by design (same convention as .env/.env.local
-        # — no env files committed), so CI has to materialize it itself.
-        # AUTH_RATE_LIMIT_LIMIT is raised because e2e specs call loginAs()
-        # dozens of times per run under --runInBand from a single IP, which
-        # would otherwise trip the production auth-endpoint throttle (10/60s).
-        # DATABASE_SEED_ON_BOOTSTRAP=false: the e2e harness seeds deterministically
-        # via resetAndSeedAuthTestData() in beforeEach — the boot-time auto-repair
-        # (DatabaseSeedBootstrapService) is a production/staging safety net and
-        # must not race with the test harness's own controlled seed/reset cycle.
-        run: |
-          cat > .env.test <<EOF
-          NODE_ENV=test
-          PORT=3000
-          LOG_LEVEL=silent
-          DATABASE_URL=postgresql://voltx:voltx@localhost:5433/voltx_test
-          DIRECT_URL=postgresql://voltx:voltx@localhost:5433/voltx_test
-          JWT_ACCESS_SECRET=ci-jwt-access-secret-minimum-32-characters-long
-          JWT_ACCESS_EXPIRES_IN=15m
-          AUTH_RATE_LIMIT_LIMIT=1000
-          AUTH_RATE_LIMIT_TTL_SECONDS=60
-          INTEGRATIONS_ENCRYPTION_KEY=ci-only-integrations-encryption-key
-          INTEGRATIONS_WEBHOOK_BASE_URL=http://localhost:3000
-          DATABASE_SEED_ON_BOOTSTRAP=false
-          EOF
-
-      - name: Run migrations (test database)
-        run: pnpm prisma:migrate:deploy
+      # backend/.env.test is committed and is the single, complete test
+      # environment (NODE_ENV=test loads it and nothing else), so CI no longer
+      # materializes it — it runs exactly what a developer runs locally.
+      #
+      # The Prisma CLI reads .env, not .env.test, so the migration step needs
+      # these passed explicitly. DIRECT_URL is not optional: schema.prisma
+      # declares `directUrl = env("DIRECT_URL")` for Neon's pooled endpoint,
+      # and the migration engine fails without it. Both must name the same
+      # database as backend/.env.test, or e2e migrates one database and then
+      # runs against another.
+      - name: Prepare e2e database
+        run: npx prisma migrate deploy && pnpm prisma:seed:billing-plans
+        working-directory: backend
         env:
           DATABASE_URL: postgresql://voltx:voltx@localhost:5433/voltx_test
           DIRECT_URL: postgresql://voltx:voltx@localhost:5433/voltx_test
 
-      - name: E2E tests
-        run: pnpm test:e2e
+      - run: pnpm test:e2e
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://voltx:voltx@localhost:5433/voltx_test
+          DIRECT_URL: postgresql://voltx:voltx@localhost:5433/voltx_test
 
-      - name: Build
-        run: pnpm build
+      - run: pnpm build
+        working-directory: backend
+
+      # Blocking. The dependency tree is currently clean at every severity, so
+      # this fails only on a genuinely new advisory. Fix it by pinning the
+      # patched version in backend/pnpm-workspace.yaml `overrides`; if a fix is
+      # genuinely unavailable, that is a decision to record explicitly rather
+      # than absorb by making this step advisory again.
+      - run: pnpm audit --audit-level=high
+        working-directory: backend
 
   web:
-    name: Web (lint, build)
+    name: Web (lint, types, build, e2e)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
-
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: apps/web/pnpm-lock.yaml
 
-      - name: Enable Corepack
-        run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/web
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+        working-directory: apps/web
 
-      - name: Lint
-        run: pnpm lint
+      - run: npx tsc --noEmit
+        working-directory: apps/web
 
-      - name: Build
-        run: pnpm build
+      - run: pnpm build
+        working-directory: apps/web
         env:
           # CI never actually calls the API — this just has to satisfy
           # apps/web/src/config/env.ts's build-time validation (a real
@@ -118,8 +129,32 @@ jobs:
           # value gets inlined into the client bundle at build time.
           NEXT_PUBLIC_API_BASE_URL: https://api.ci.usevoltx.example/api/v1
 
+      # Blocking, same contract as the backend step — pin patched versions in
+      # apps/web/pnpm-workspace.yaml `overrides` rather than reverting this.
+      - run: pnpm audit --audit-level=high
+        working-directory: apps/web
+
+      - name: Install Playwright
+        run: npx playwright install chromium
+        working-directory: apps/web
+
+      - name: Run Playwright tests
+        run: pnpm test:e2e
+        working-directory: apps/web
+        env:
+          CI: true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-screenshots
+          path: apps/web/test-results/
+          retention-days: 7
+
+  # apps/marketing uses npm (not pnpm) and has its own lockfile, matching how
+  # it is deployed.
   marketing:
-    name: Marketing (lint, build)
+    name: Marketing (lint, types, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -129,7 +164,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: apps/marketing/package-lock.json
 
@@ -139,8 +174,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Typecheck
+        run: npx tsc --noEmit
+
       - name: Build
         run: npm run build
+
+      - name: Audit
+        run: npm audit --audit-level=high
 
   mobile:
     name: Mobile (analyze, test, build macos)
@@ -184,7 +225,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
         # No lockfile is committed for this package — npm install, not npm ci.
@@ -211,7 +252,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Build the local @voltx/sdk dependency
         # packages/cli depends on @voltx/sdk via a `file:../sdk-typescript`
@@ -275,3 +316,64 @@ jobs:
 
       - name: Test
         run: flutter test
+
+  security:
+    name: Security (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+        continue-on-error: true
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  docker:
+    name: Docker (build & publish)
+    runs-on: ubuntu-latest
+    needs: [backend, web]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ghcr.io/${{ github.repository }}/backend:latest,ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build and push web
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/web
+          push: true
+          # Required: the API URL is compiled into the client bundle. The
+          # published image is therefore environment-specific — this one is
+          # built for production and must not be reused for another
+          # environment. See docs/operations/web-deployment.md.
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+            NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+          tags: ghcr.io/${{ github.repository }}/web:latest,ghcr.io/${{ github.repository }}/web:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

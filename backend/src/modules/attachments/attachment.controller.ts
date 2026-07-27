@@ -211,7 +211,10 @@ export class AttachmentController {
   ): Promise<void> {
     const { stream, attachment } = await this.attachmentService.getReadStreamForDownload(id);
     res.setHeader('Content-Type', attachment.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${attachment.fileName}"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${sanitizeFileName(attachment.fileName)}"`,
+    );
     stream.pipe(res);
   }
 
@@ -241,7 +244,10 @@ export class AttachmentController {
   ): Promise<void> {
     const { stream, attachment } = await this.attachmentService.getReadStreamForDownloadAsAdmin(id);
     res.setHeader('Content-Type', attachment.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${attachment.fileName}"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${sanitizeFileName(attachment.fileName)}"`,
+    );
     stream.pipe(res);
   }
 
@@ -265,4 +271,8 @@ export class AttachmentController {
     await this.attachmentService.delete(id);
     return { deleted: true };
   }
+}
+
+function sanitizeFileName(fileName: string): string {
+  return fileName.replace(/[\r\n\0"\\]/g, '_');
 }

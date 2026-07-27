@@ -475,11 +475,22 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    await this.refreshTokenRepository.revokeById(storedToken.id);
-
+    // Resolve the audit context BEFORE revoking. sessionRepository.revoke()
+    // sets revokedAt, and findActiveById filters on `revokedAt: null` — so
+    // looking the organization up afterwards would return null and the logout
+    // would silently go unaudited.
     const organizationId = storedToken.sessionId
       ? (await this.sessionRepository.findActiveById(storedToken.sessionId))?.organizationId
       : (await this.authContextRepository.findActiveMembershipContext(userId))?.organizationId;
+
+    // Revoking the session also revokes every refresh token issued under it,
+    // so logging out of one device cannot leave sibling tokens usable.
+    // Tokens with no session (legacy issuance) are revoked individually.
+    if (storedToken.sessionId) {
+      await this.sessionRepository.revoke(storedToken.sessionId);
+    } else {
+      await this.refreshTokenRepository.revokeById(storedToken.id);
+    }
 
     if (organizationId) {
       await this.auditService.recordWithExplicitActor({

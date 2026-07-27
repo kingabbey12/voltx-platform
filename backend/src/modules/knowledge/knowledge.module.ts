@@ -85,6 +85,8 @@ const queueProcessors = redisEnabled ? [KnowledgeIngestionProcessor] : [];
     KnowledgeStatsService,
     KnowledgeSourceRepository,
     TextExtractorRegistry,
+    // Consumed by the Ask record resolver (ai/ask) to open knowledge doors.
+    KnowledgeService,
   ],
 })
 export class KnowledgeModule {}

@@ -17,12 +17,15 @@ import { AuditModule } from './modules/audit/audit.module';
 import { MailModule } from './modules/mail/mail.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AgentModule } from './modules/ai/agents/agent.module';
+import { AskModule } from './modules/ai/ask/ask.module';
+import { TenantAiCredentialsModule } from './modules/ai/credentials/tenant-ai-credentials.module';
 import { AIModule } from './modules/ai/ai.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { BrandingModule } from './modules/branding/branding.module';
 import { BackgroundJobsModule } from './modules/background-jobs/background-jobs.module';
 import { DeveloperPlatformModule } from './modules/developer-platform/developer-platform.module';
 import { CacheModule } from './modules/cache/cache.module';
+import { SchedulerLockModule } from './common/scheduling/scheduler-lock.module';
 import { CommunicationsModule } from './modules/communications/communications.module';
 import { ComplianceModule } from './modules/compliance/compliance.module';
 import { HealthModule } from './modules/health/health.module';
@@ -58,6 +61,8 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { WorkflowModule } from './modules/workflows/workflow.module';
 import { WorkflowEventsModule } from './modules/workflows/scheduling/workflow-events.module';
 import { EncryptionModule } from './modules/integrations/security/encryption.module';
+import { CompanyModule } from './modules/company/company.module';
+import { PromisesModule } from './modules/promises/promises.module';
 
 @Module({
   imports: [
@@ -65,10 +70,16 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
       isGlobal: true,
       load: [configuration],
       validate,
-      envFilePath:
-        process.env.NODE_ENV === 'test'
-          ? ['.env.test', '.env.local', '.env']
-          : ['.env.local', '.env'],
+      // Tests load `.env.test` and nothing else. Falling through to
+      // `.env.local`/`.env` made every run depend on the developer's personal,
+      // git-ignored config: it silently supplied 80+ variables the test env
+      // never declares — including REDIS_ENABLED (which switches queue-backed
+      // work from inline to asynchronous and makes suites that assert on
+      // completed state fail) and live ANTHROPIC/OPENAI/STRIPE keys and a
+      // Sentry DSN (which a test run could bill or report to for real).
+      // The result was a suite that passed in CI and failed locally for
+      // reasons invisible in the repository. Keep this hermetic.
+      envFilePath: process.env.NODE_ENV === 'test' ? ['.env.test'] : ['.env.local', '.env'],
     }),
     LoggerModule.forRootAsync({
       imports: [ConfigModule],
@@ -91,6 +102,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     DatabaseModule,
     MetricsModule,
     CacheModule,
+    SchedulerLockModule,
     TenantModule,
     AuditModule,
     MailModule,
@@ -98,12 +110,15 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     EncryptionModule,
     AIModule,
     AgentModule,
+    AskModule,
+    TenantAiCredentialsModule,
     AttachmentsModule,
     BackgroundJobsModule,
     BillingModule,
     BrandingModule,
     AuthModule,
     CommunicationsModule,
+    CompanyModule,
     DeveloperPlatformModule,
     OAuthProviderModule,
     WebhooksModule,
@@ -129,6 +144,7 @@ import { EncryptionModule } from './modules/integrations/security/encryption.mod
     SupportSessionModule,
     PlatformSystemHealthModule,
     PlatformUserModule,
+    PromisesModule,
     ReferenceDataModule,
     RolesModule,
     ScimModule,

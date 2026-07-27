@@ -1,22 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Inter, Space_Grotesk } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk",
-  display: "swap",
-});
-const ibmPlexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-ibm-plex-mono",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -25,6 +11,17 @@ export const metadata: Metadata = {
   },
   description: "The AI Business Operating System.",
   robots: { index: false, follow: false },
+  applicationName: "Voltx",
+  keywords: ["AI", "business", "operating system", "automation", "workflow"],
+  authors: [{ name: "Voltx" }],
+  creator: "Voltx",
+  publisher: "Voltx",
+  openGraph: {
+    title: "Voltx",
+    description: "The AI Business Operating System.",
+    type: "website",
+    locale: "en_US",
+  },
 };
 
 export const viewport: Viewport = {
@@ -33,10 +30,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${spaceGrotesk.variable} ${ibmPlexMono.variable}`}
-    >
+    <html lang="en">
       <body>
         <QueryProvider>
           <AuthProvider>

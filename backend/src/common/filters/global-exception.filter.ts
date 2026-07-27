@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
 import { captureException } from '../../error-reporting';
 import {
@@ -72,30 +73,25 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    // AIProviderError is a plain Error (not an HttpException, since it's
-    // thrown from deep inside provider/runtime code with no HTTP context),
-    // so without this check it would fall through to a generic 500 —
-    // hiding the real, actionable cause (quota exceeded, provider rate
-    // limited, provider outage) from every caller, including the mobile
-    // app's error-message mapping and any on-call engineer reading a
-    // client-reported error rather than the server log. exception.message
-    // on an AIProviderError is always the pre-classified, user-safe text
-    // (see provider-error-classifier.ts) — the raw provider response lives
-    // separately on .providerDetail and is only ever logged, never
-    // returned in the response body below.
+    const prismaResult = this.classifyPrismaError(exception);
+
     const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : exception instanceof AIProviderError
-          ? AI_ERROR_STATUS_BY_CATEGORY[exception.category]
-          : HttpStatus.INTERNAL_SERVER_ERROR;
+      prismaResult !== null
+        ? prismaResult.status
+        : exception instanceof HttpException
+          ? exception.getStatus()
+          : exception instanceof AIProviderError
+            ? AI_ERROR_STATUS_BY_CATEGORY[exception.category]
+            : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const exceptionResponse: unknown =
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : exception instanceof AIProviderError
-          ? { code: AI_ERROR_CODE_BY_CATEGORY[exception.category], message: exception.message }
-          : 'Internal server error';
+      prismaResult !== null
+        ? { code: prismaResult.code, message: prismaResult.message }
+        : exception instanceof HttpException
+          ? exception.getResponse()
+          : exception instanceof AIProviderError
+            ? { code: AI_ERROR_CODE_BY_CATEGORY[exception.category], message: exception.message }
+            : 'Internal server error';
 
     const requestIdHeader = request.headers[REQUEST_ID_HEADER];
     const requestId = typeof requestIdHeader === 'string' ? requestIdHeader : undefined;
@@ -214,6 +210,45 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     return undefined;
+  }
+
+  private classifyPrismaError(
+    exception: unknown,
+  ): { status: number; code: ErrorCode; message: string } | null {
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      switch (exception.code) {
+        case 'P2002':
+          return {
+            status: HttpStatus.CONFLICT,
+            code: ERROR_CODES.conflict,
+            message: 'A record with that value already exists',
+          };
+        case 'P2025':
+          return {
+            status: HttpStatus.NOT_FOUND,
+            code: ERROR_CODES.notFound,
+            message: 'Record not found',
+          };
+        case 'P2003':
+          return {
+            status: HttpStatus.CONFLICT,
+            code: ERROR_CODES.conflict,
+            message: 'Operation conflicts with a related record',
+          };
+        default:
+          return null;
+      }
+    }
+
+    if (exception instanceof Prisma.PrismaClientValidationError) {
+      return {
+        status: HttpStatus.BAD_REQUEST,
+        code: ERROR_CODES.badRequest,
+        message: 'Invalid query parameters',
+      };
+    }
+
+    return null;
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {

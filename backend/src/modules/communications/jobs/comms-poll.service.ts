@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import {
+  DISTRIBUTED_LOCK_SERVICE,
+  DistributedLockService,
+} from '../../../common/scheduling/distributed-lock.service';
 import { AuthContextRepository } from '../../auth/auth-context.repository';
 import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 import { ChannelConnectionRepository } from '../channel-connections/channel-connection.repository';
@@ -10,6 +14,8 @@ import { ConversationService } from '../conversation/conversation.service';
 import { AiProcessQueueService } from './ai-process-queue.service';
 
 const POLL_SWEEP_INTERVAL_MS = 2 * 60_000;
+/** Auto-extended while a sweep runs, so a slow sweep still blocks a second replica. */
+const POLL_SWEEP_LOCK_TTL_MS = 5 * 60_000;
 
 /**
  * Background sweep for every polling-only channel (Gmail, Outlook — no
@@ -33,10 +39,23 @@ export class CommsPollService {
     private readonly authContextRepository: AuthContextRepository,
     private readonly tenantContextService: TenantContextService,
     private readonly aiProcessQueueService: AiProcessQueueService,
+    @Inject(DISTRIBUTED_LOCK_SERVICE)
+    private readonly distributedLock: DistributedLockService,
   ) {}
 
+  /**
+   * Every replica runs this timer. Polling a channel twice ingests each
+   * inbound message twice, which queues a second AI reply — the customer
+   * receives a duplicate — so only the lock holder sweeps.
+   */
   @Interval(POLL_SWEEP_INTERVAL_MS)
   async sweep(): Promise<void> {
+    await this.distributedLock.runExclusive('comms-poller:sweep', POLL_SWEEP_LOCK_TTL_MS, () =>
+      this.runSweep(),
+    );
+  }
+
+  private async runSweep(): Promise<void> {
     const pollableChannels = this.channelProviderRegistry
       .list()
       .filter((provider) => provider.supportsPolling)

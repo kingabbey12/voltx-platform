@@ -4,9 +4,9 @@ coverage
 .env
 .env.*
 !.env.example
+!.env.docker.test
 *.log
 .git
 .gitignore
 README.md
-test
 *.md

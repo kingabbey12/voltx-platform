@@ -132,10 +132,12 @@ describe('ToolStepExecutor', () => {
 
 describe('ApiStepExecutor', () => {
   let executor: ApiStepExecutor;
+  let outboundHttpGuard: { assertUrlIsSafeDestination: jest.Mock };
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    executor = new ApiStepExecutor();
+    outboundHttpGuard = { assertUrlIsSafeDestination: jest.fn().mockResolvedValue(undefined) };
+    executor = new ApiStepExecutor(outboundHttpGuard as never);
   });
 
   afterEach(() => {
@@ -182,14 +184,33 @@ describe('ApiStepExecutor', () => {
       'Only HTTP and HTTPS URLs are allowed',
     );
   });
+
+  it('blocks requests to private/internal IP ranges (SSRF protection)', async () => {
+    outboundHttpGuard.assertUrlIsSafeDestination.mockRejectedValue(
+      new Error('not a permitted destination'),
+    );
+    const metadataStep: ApiStepDefinition = {
+      ...step,
+      config: { ...step.config, url: 'http://169.254.169.254/latest/meta-data/' },
+    };
+
+    await expect(executor.execute(metadataStep, contextFixture())).rejects.toThrow(
+      'not a permitted destination',
+    );
+    expect(outboundHttpGuard.assertUrlIsSafeDestination).toHaveBeenCalledWith(
+      'http://169.254.169.254/latest/meta-data/',
+    );
+  });
 });
 
 describe('WebhookStepExecutor', () => {
   let executor: WebhookStepExecutor;
+  let outboundHttpGuard: { assertUrlIsSafeDestination: jest.Mock };
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    executor = new WebhookStepExecutor();
+    outboundHttpGuard = { assertUrlIsSafeDestination: jest.fn().mockResolvedValue(undefined) };
+    executor = new WebhookStepExecutor(outboundHttpGuard as never);
   });
 
   afterEach(() => {
@@ -228,6 +249,20 @@ describe('WebhookStepExecutor', () => {
     }) as never;
 
     await expect(executor.execute(step, contextFixture())).rejects.toThrow('status 503');
+  });
+
+  it('blocks requests to private/internal IP ranges (SSRF protection)', async () => {
+    outboundHttpGuard.assertUrlIsSafeDestination.mockRejectedValue(
+      new Error('not a permitted destination'),
+    );
+    const internalStep: WebhookStepDefinition = {
+      ...step,
+      config: { ...step.config, url: 'http://10.0.0.1/internal' },
+    };
+
+    await expect(executor.execute(internalStep, contextFixture())).rejects.toThrow(
+      'not a permitted destination',
+    );
   });
 });
 

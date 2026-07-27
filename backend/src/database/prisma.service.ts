@@ -83,6 +83,15 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient;
   }
 
+  /**
+   * Tenant-scoped client for organization-scoped operations. All 96 models
+   * that have an `organizationId` field are auto-scoped by the Prisma
+   * extension — prefer this over `system` for domain-level queries.
+   */
+  get scoped(): PrismaClient {
+    return this.scopedClient;
+  }
+
   get organization(): PrismaClient['organization'] {
     return this.scopedClient.organization;
   }
@@ -119,15 +128,8 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.verificationToken;
   }
 
-  /**
-   * Enterprise Identity (v2.2) models — unscoped, like role/permission
-   * above: IdentityProvider is org-scoped in the domain sense, but that
-   * scoping isn't one the tenant extension enforces (it only wraps
-   * organization/user/membership), so every repository method querying
-   * these must filter by organizationId explicitly.
-   */
   get identityProvider(): PrismaClient['identityProvider'] {
-    return this.baseClient.identityProvider;
+    return this.scopedClient.identityProvider;
   }
 
   get samlConfiguration(): PrismaClient['samlConfiguration'] {
@@ -138,122 +140,96 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.oidcConfiguration;
   }
 
-  /** SCIM 2.0 (v2.2 Phase 2) models — unscoped, same rationale as identityProvider above. */
   get scimToken(): PrismaClient['scimToken'] {
-    return this.baseClient.scimToken;
+    return this.scopedClient.scimToken;
   }
 
   get scimProvisionJob(): PrismaClient['scimProvisionJob'] {
-    return this.baseClient.scimProvisionJob;
+    return this.scopedClient.scimProvisionJob;
   }
 
-  /**
-   * Enterprise Organization Hierarchy (v2.2 Phase 3) models — unscoped,
-   * same rationale as identityProvider above. `organization` itself stays
-   * tenant-scoped (see the `organization` getter earlier in this file) —
-   * `Organization.parentOrganizationId` is metadata read only by the
-   * platform-admin-gated reporting endpoints, never by normal traffic.
-   */
   get businessUnit(): PrismaClient['businessUnit'] {
-    return this.baseClient.businessUnit;
+    return this.scopedClient.businessUnit;
   }
 
   get department(): PrismaClient['department'] {
-    return this.baseClient.department;
+    return this.scopedClient.department;
   }
 
   get team(): PrismaClient['team'] {
-    return this.baseClient.team;
+    return this.scopedClient.team;
   }
 
   get costCenter(): PrismaClient['costCenter'] {
-    return this.baseClient.costCenter;
+    return this.scopedClient.costCenter;
   }
 
-  /**
-   * Compliance Center (v2.2 Phase 5) models — unscoped, same reasoning as
-   * identityProvider/samlConfiguration/oidcConfiguration above: these are
-   * org-scoped in the domain sense, but that isn't a scope the tenant
-   * extension enforces, so every repository method querying these must
-   * filter by organizationId explicitly.
-   */
   get auditExport(): PrismaClient['auditExport'] {
-    return this.baseClient.auditExport;
+    return this.scopedClient.auditExport;
   }
 
   get legalHold(): PrismaClient['legalHold'] {
-    return this.baseClient.legalHold;
+    return this.scopedClient.legalHold;
   }
 
   get retentionPolicy(): PrismaClient['retentionPolicy'] {
-    return this.baseClient.retentionPolicy;
+    return this.scopedClient.retentionPolicy;
   }
 
   get consentRecord(): PrismaClient['consentRecord'] {
-    return this.baseClient.consentRecord;
+    return this.scopedClient.consentRecord;
   }
 
-  /**
-   * v2.2 Security Center models — same convention as identityProvider above:
-   * org/user-scoped in the domain sense, but not scoped by the tenant
-   * extension, so every repository method filters by organizationId/userId
-   * explicitly.
-   */
   get session(): PrismaClient['session'] {
-    return this.baseClient.session;
+    return this.scopedClient.session;
   }
 
   get trustedDevice(): PrismaClient['trustedDevice'] {
-    return this.baseClient.trustedDevice;
+    return this.scopedClient.trustedDevice;
   }
 
   get apiKey(): PrismaClient['apiKey'] {
-    return this.baseClient.apiKey;
+    return this.scopedClient.apiKey;
   }
 
-  /** White-label (v2.2 Phase 6) models — unscoped, same rationale as identityProvider above. */
   get brandTheme(): PrismaClient['brandTheme'] {
-    return this.baseClient.brandTheme;
+    return this.scopedClient.brandTheme;
   }
 
   get customDomain(): PrismaClient['customDomain'] {
-    return this.baseClient.customDomain;
+    return this.scopedClient.customDomain;
   }
 
-  /** Platform Console (v2.2 Phase 7) models — unscoped, same rationale as identityProvider above. */
   get platformAlert(): PrismaClient['platformAlert'] {
-    return this.baseClient.platformAlert;
+    return this.scopedClient.platformAlert;
   }
 
   get featureFlag(): PrismaClient['featureFlag'] {
     return this.baseClient.featureFlag;
   }
 
-  /** Customer Success (v2.2 Phase 9) models — unscoped, same rationale as identityProvider above. */
   get supportSession(): PrismaClient['supportSession'] {
     return this.baseClient.supportSession;
   }
 
   get supportNote(): PrismaClient['supportNote'] {
-    return this.baseClient.supportNote;
+    return this.scopedClient.supportNote;
   }
 
-  /** Developer Platform (v2.3 Phase 1) models — unscoped, same rationale as identityProvider above. */
   get personalAccessToken(): PrismaClient['personalAccessToken'] {
     return this.baseClient.personalAccessToken;
   }
 
   get serviceAccount(): PrismaClient['serviceAccount'] {
-    return this.baseClient.serviceAccount;
+    return this.scopedClient.serviceAccount;
   }
 
   get serviceAccountToken(): PrismaClient['serviceAccountToken'] {
     return this.baseClient.serviceAccountToken;
   }
 
-  /** Developer Platform (v2.3 Phase 2) models — unscoped, same rationale as identityProvider above. */
   get oAuthApplication(): PrismaClient['oAuthApplication'] {
-    return this.baseClient.oAuthApplication;
+    return this.scopedClient.oAuthApplication;
   }
 
   get oAuthRedirectUri(): PrismaClient['oAuthRedirectUri'] {
@@ -272,16 +248,14 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.baseClient.oAuthRefreshToken;
   }
 
-  /** Developer Platform (v2.3 Phase 3) models — unscoped, same rationale as identityProvider above. */
   get webhookEndpoint(): PrismaClient['webhookEndpoint'] {
-    return this.baseClient.webhookEndpoint;
+    return this.scopedClient.webhookEndpoint;
   }
 
   get webhookDelivery(): PrismaClient['webhookDelivery'] {
     return this.baseClient.webhookDelivery;
   }
 
-  /** Developer Platform (v2.3 Phase 7) models — unscoped, same rationale as identityProvider above. */
   get marketplaceApp(): PrismaClient['marketplaceApp'] {
     return this.baseClient.marketplaceApp;
   }
@@ -299,7 +273,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   }
 
   get developerConnectAccount(): PrismaClient['developerConnectAccount'] {
-    return this.baseClient.developerConnectAccount;
+    return this.scopedClient.developerConnectAccount;
   }
 
   get marketplaceRevenueShare(): PrismaClient['marketplaceRevenueShare'] {
@@ -329,10 +303,14 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.runInTransaction(fn);
   }
 
+  /** Tenant-scoped transaction — uses the extended client so the extension
+   *  auto-injects organizationId into every query within the transaction. */
   runInTransaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
-    return this.baseClient.$transaction(fn, this.transactionOptions);
+    return this.scopedClient.$transaction(fn, this.transactionOptions);
   }
 
+  /** System-level unscoped transaction — bypasses the tenant extension.
+   *  Use only for auth, registration, and platform-admin operations. */
   runInSystemTransaction<T>(fn: (tx: PrismaTransactionClient) => Promise<T>): Promise<T> {
     return this.baseClient.$transaction(fn, this.transactionOptions);
   }

@@ -1,4 +1,5 @@
 import { Type } from 'class-transformer';
+import { MemoryBelief, readBelief } from '../belief';
 import {
   IsInt,
   IsNumber,
@@ -108,6 +109,18 @@ export class MemoryResponseDto {
   @ApiProperty({ example: '2026-07-04T00:05:00.000Z' })
   updatedAt!: string;
 
+  @ApiProperty({
+    description:
+      'The inspectable belief layer: confidence, justifying records, and confirmation history. Beliefs are never evidence.',
+    example: {
+      confidence: 0.7,
+      sourceRecordIds: ['sales.opportunity:550e8400-e29b-41d4-a716-446655440000'],
+      lastConfirmedAt: null,
+      lastContradictedAt: null,
+    },
+  })
+  belief!: MemoryBelief;
+
   static fromEntity(entity: MemoryEntity): MemoryResponseDto {
     const dto = new MemoryResponseDto();
     dto.id = entity.id;
@@ -117,6 +130,7 @@ export class MemoryResponseDto {
     dto.content = entity.content;
     dto.embeddingId = entity.embeddingId;
     dto.metadata = entity.metadata;
+    dto.belief = readBelief(entity.metadata, entity.importance);
     dto.createdAt = entity.createdAt.toISOString();
     dto.updatedAt = entity.updatedAt.toISOString();
     return dto;

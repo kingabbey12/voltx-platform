@@ -114,9 +114,15 @@ export class AttachmentRepository {
     return records.map(toEntity);
   }
 
-  async update(id: string, data: UpdateAttachmentData): Promise<AttachmentEntity> {
+  async update(
+    id: string,
+    data: UpdateAttachmentData,
+    organizationId?: string,
+  ): Promise<AttachmentEntity> {
+    const tenant = organizationId ? { organizationId } : this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     const record = await this.prisma.system.attachment.update({
-      where: { id },
+      where,
       data: {
         ...(data.status !== undefined ? { status: data.status } : {}),
         ...(data.scanResult !== undefined ? { scanResult: data.scanResult } : {}),

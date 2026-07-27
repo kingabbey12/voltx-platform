@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type { User } from "./auth";
+import type { PaginatedResult } from "./types";
 
 export interface UpdateCurrentUserInput {
   firstName?: string;
@@ -9,5 +10,7 @@ export interface UpdateCurrentUserInput {
 }
 
 export const usersApi = {
+  list: (query: { page?: number; limit?: number; search?: string } = {}) =>
+    apiClient.get<PaginatedResult<User>>("/users", { query: { page: 1, limit: 100, ...query } }),
   updateMe: (input: UpdateCurrentUserInput) => apiClient.patch<User>("/users/me", input),
 };

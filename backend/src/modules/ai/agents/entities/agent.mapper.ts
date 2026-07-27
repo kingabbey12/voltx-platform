@@ -96,6 +96,13 @@ function toProviderName(value: string): AIProviderName {
     case 'anthropic':
     case 'google':
     case 'openai':
+    case 'xai':
+    case 'groq':
+    case 'mistral':
+    case 'deepseek':
+    case 'ollama':
+    case 'openrouter':
+    case 'azure-openai':
       return value;
     default:
       return 'openai';

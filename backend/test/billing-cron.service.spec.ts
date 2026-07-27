@@ -5,6 +5,7 @@ import { SubscriptionRepository } from '../src/modules/billing/subscription.repo
 import { SubscriptionService } from '../src/modules/billing/subscription.service';
 import { PlanService } from '../src/modules/billing/plan.service';
 import { PaymentMethodRepository } from '../src/modules/billing/payment-method.repository';
+import { InProcessDistributedLockService } from '../src/common/scheduling/distributed-lock.service';
 
 describe('BillingCronService', () => {
   let schedulerRegistry: jest.Mocked<SchedulerRegistry>;
@@ -14,6 +15,14 @@ describe('BillingCronService', () => {
   let planService: jest.Mocked<PlanService>;
   let paymentMethodRepository: jest.Mocked<PaymentMethodRepository>;
   let service: BillingCronService;
+
+  /** registerJob calls job.start() itself, so every job a test registers keeps a
+   *  live timer that would otherwise hold the Jest worker open after the run. */
+  const stopRegisteredJobs = (registry: jest.Mocked<SchedulerRegistry>): void => {
+    for (const [, job] of registry.addCronJob.mock.calls) {
+      (job as unknown as { stop: () => void }).stop();
+    }
+  };
 
   beforeEach(() => {
     schedulerRegistry = {
@@ -46,7 +55,12 @@ describe('BillingCronService', () => {
       subscriptionService,
       planService,
       paymentMethodRepository,
+      new InProcessDistributedLockService(),
     );
+  });
+
+  afterEach(() => {
+    stopRegisteredJobs(schedulerRegistry);
   });
 
   describe('onModuleInit', () => {
@@ -61,6 +75,52 @@ describe('BillingCronService', () => {
         'billing-trial-expiry-hourly',
         expect.anything(),
       );
+    });
+
+    // Every replica registers these jobs and wakes on the same tick. Both
+    // sweeps write SubscriptionChange history, so a tick that executes twice
+    // duplicates a customer's billing record — hence the shared-lock guard.
+    it('runs a cron tick once even when several replicas fire it', async () => {
+      const sharedLock = new InProcessDistributedLockService();
+      const replicas = [0, 1].map(() => {
+        const registry = {
+          doesExist: jest.fn().mockReturnValue(false),
+          addCronJob: jest.fn(),
+          deleteCronJob: jest.fn(),
+        } as never as jest.Mocked<SchedulerRegistry>;
+        const replica = new BillingCronService(
+          registry,
+          usageRecordRepository,
+          subscriptionRepository,
+          subscriptionService,
+          planService,
+          paymentMethodRepository,
+          sharedLock,
+        );
+        replica.onModuleInit();
+        return registry;
+      });
+
+      const nightlyJobs = replicas.map(
+        (registry) =>
+          registry.addCronJob.mock.calls.find(
+            ([name]) => name === 'billing-usage-snapshot-nightly',
+          )?.[1] as { fireOnTick: () => Promise<void> },
+      );
+
+      jest.useFakeTimers({ now: new Date('2026-02-01T02:00:00.000Z') });
+      try {
+        for (const job of nightlyJobs) {
+          await job.fireOnTick();
+        }
+      } finally {
+        jest.useRealTimers();
+        replicas.forEach(stopRegisteredJobs);
+      }
+
+      expect(
+        usageRecordRepository.sumOpenPeriodsGroupedByOrganizationAndFeature,
+      ).toHaveBeenCalledTimes(1);
     });
   });
 

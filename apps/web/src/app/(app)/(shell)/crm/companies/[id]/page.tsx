@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CopilotButton } from "@/components/ai/copilot-button";
+import { RecordTimeline } from "@/components/company/record-timeline";
 import { companiesApi } from "@/lib/api/sales";
 import { useDeleteCompany, useContacts, useActivities } from "@/hooks/use-sales";
 import { formatDate, formatRelativeTime } from "@/lib/format";
@@ -125,6 +126,11 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       <p className="mt-6 text-xs text-muted-foreground">Added {formatDate(company.createdAt)}</p>
+
+      <div className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold">Timeline</h2>
+        <RecordTimeline recordType="sales.company" recordId={id} />
+      </div>
     </div>
   );
 }

@@ -18,6 +18,10 @@ describe('LocalStorageProvider', () => {
         if (key === 'attachments.signedUrlTtlSeconds') return 900;
         return fallback;
       }),
+      getOrThrow: jest.fn((key: string) => {
+        if (key === 'integrations.encryptionKey') return 'test-encryption-key';
+        throw new Error(`Unexpected config key: ${key}`);
+      }),
     };
     const urlSigner = new AttachmentUrlSignerService(configService as never);
     provider = new LocalStorageProvider(configService as never, urlSigner);

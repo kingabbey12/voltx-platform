@@ -1,4 +1,5 @@
 import { ArgumentsHost, BadRequestException, ForbiddenException, HttpStatus } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
 import { AIProviderError } from '../src/modules/ai/providers/ai-provider.interface';
 
@@ -108,6 +109,81 @@ describe('GlobalExceptionFilter', () => {
       featureKey: 'ai_requests',
       limit: 100,
       currentUsage: 100,
+    });
+  });
+
+  describe('Prisma errors', () => {
+    it('maps P2002 (unique constraint) to 409 Conflict', () => {
+      const { host, response } = buildHost();
+      const error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '5.0.0',
+      });
+
+      filter.catch(error, host);
+
+      expect(response.status).toHaveBeenCalledWith(HttpStatus.CONFLICT);
+      const body = firstResponseBody(response);
+      expect(body.error.code).toBe('CONFLICT');
+      expect(body.error.message).toBe('A record with that value already exists');
+    });
+
+    it('maps P2025 (record not found) to 404 Not Found', () => {
+      const { host, response } = buildHost();
+      const error = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found.',
+        { code: 'P2025', clientVersion: '5.0.0' },
+      );
+
+      filter.catch(error, host);
+
+      expect(response.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
+      const body = firstResponseBody(response);
+      expect(body.error.code).toBe('NOT_FOUND');
+      expect(body.error.message).toBe('Record not found');
+    });
+
+    it('maps P2003 (foreign key constraint) to 409 Conflict', () => {
+      const { host, response } = buildHost();
+      const error = new Prisma.PrismaClientKnownRequestError('Foreign key constraint failed', {
+        code: 'P2003',
+        clientVersion: '5.0.0',
+      });
+
+      filter.catch(error, host);
+
+      expect(response.status).toHaveBeenCalledWith(HttpStatus.CONFLICT);
+      const body = firstResponseBody(response);
+      expect(body.error.code).toBe('CONFLICT');
+    });
+
+    it('maps PrismaClientValidationError to 400 Bad Request', () => {
+      const { host, response } = buildHost();
+      const error = new Prisma.PrismaClientValidationError(
+        'Invalid `prisma.user.create()` invocation',
+        {
+          clientVersion: '5.0.0',
+        },
+      );
+
+      filter.catch(error, host);
+
+      expect(response.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+      const body = firstResponseBody(response);
+      expect(body.error.code).toBe('BAD_REQUEST');
+      expect(body.error.message).toBe('Invalid query parameters');
+    });
+
+    it('falls through to 500 for unclassified Prisma error codes', () => {
+      const { host, response } = buildHost();
+      const error = new Prisma.PrismaClientKnownRequestError('Connection pool exhausted', {
+        code: 'P2024',
+        clientVersion: '5.0.0',
+      });
+
+      filter.catch(error, host);
+
+      expect(response.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 });

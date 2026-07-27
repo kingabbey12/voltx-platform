@@ -1,0 +1,99 @@
+# ── Prometheus configuration ──────────────────────────────────────────
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Without these two blocks Prometheus collects metrics and notifies nobody:
+# rules are never evaluated and there is no route for a firing alert. That was
+# the state before — dashboards existed, but detection depended on a human
+# happening to look at them.
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: "voltx-api"
+    scrape_interval: 10s
+    metrics_path: /metrics
+    # /metrics is token-protected whenever METRICS_AUTH_TOKEN is set, and that
+    # variable is mandatory in production. Write the same value to
+    # deploy/prometheus/metrics_token (git-ignored) or scrapes return 401.
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics_token
+    static_configs:
+      - targets: ["api:3000"]
+        labels:
+          service: "voltx-backend"
+
+  # The web app is Next.js and exposes no Prometheus endpoint — it has no
+  # prom-client dependency, and /metrics resolves to a page, not a metrics
+  # exposition. Scraping it as a metrics target could never succeed, so the
+  # target sat permanently DOWN and WebDown fired permanently. Availability is
+  # measured with an HTTP probe instead, which is what we actually wanted.
+  - job_name: "blackbox-internal"
+    scrape_interval: 15s
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://web:3000/health
+        labels:
+          service: "voltx-web"
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: "postgres"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          service: "postgres"
+
+  - job_name: "redis"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+        labels:
+          service: "redis"
+
+  - job_name: "node"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          service: "node"
+
+  # Probes the public HTTPS endpoint from outside the app containers. This is
+  # what produces `probe_ssl_earliest_cert_expiry` (certificate monitoring) and
+  # `probe_success` — an end-to-end check that survives the case where the API
+  # scrapes healthy internally but nginx or TLS is broken from the outside.
+  - job_name: "blackbox"
+    scrape_interval: 60s
+    metrics_path: /probe
+    params:
+      module: [https_2xx]
+    static_configs:
+      - targets:
+          - https://api-staging.voltx.ai/readiness
+          - https://app-staging.voltx.ai
+    relabel_configs:
+      # Standard blackbox pattern: the scrape target becomes the probe's
+      # `target` parameter, and `instance` is relabelled to the probed URL so
+      # alerts name the endpoint rather than the exporter.
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

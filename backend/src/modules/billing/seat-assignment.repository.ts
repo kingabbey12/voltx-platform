@@ -49,8 +49,10 @@ export class SeatAssignmentRepository {
   }
 
   async release(id: string): Promise<SeatAssignmentEntity> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     const record = await this.prisma.system.seatAssignment.update({
-      where: { id },
+      where,
       data: { releasedAt: new Date() },
     });
     return toEntity(record);

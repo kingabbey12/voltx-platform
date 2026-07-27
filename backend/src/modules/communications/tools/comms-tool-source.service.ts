@@ -121,6 +121,20 @@ export class CommsToolSourceService implements DynamicToolSource, OnModuleInit {
         });
         return { id: sent.id, status: sent.status };
       },
+      ground(input) {
+        const args = input as { conversationId: string };
+        return {
+          summary: 'Sent the reply',
+          records: [{ type: 'conversation', id: args.conversationId, label: 'the conversation' }],
+          events: [
+            {
+              description: 'Reply sent into the conversation',
+              recordType: 'conversation',
+              recordId: args.conversationId,
+            },
+          ],
+        };
+      },
     };
   }
 
@@ -160,6 +174,20 @@ export class CommsToolSourceService implements DynamicToolSource, OnModuleInit {
           senderId: userId,
         });
         return { id: sent.id, conversationId, status: sent.status };
+      },
+      ground(_input, output) {
+        const data = output as { conversationId: string };
+        return {
+          summary: `Sent the ${displayName} message`,
+          records: [{ type: 'conversation', id: data.conversationId, label: 'the conversation' }],
+          events: [
+            {
+              description: `${displayName} message sent`,
+              recordType: 'conversation',
+              recordId: data.conversationId,
+            },
+          ],
+        };
       },
     };
   }
@@ -201,6 +229,14 @@ export class CommsToolSourceService implements DynamicToolSource, OnModuleInit {
           .catch(() => undefined);
         return { ...result, previousSummary: existing?.summary ?? null };
       },
+      ground(input) {
+        const args = input as { conversationId: string };
+        return {
+          summary: 'Read and summarized the conversation',
+          records: [{ type: 'conversation', id: args.conversationId, label: 'the conversation' }],
+          events: [],
+        };
+      },
     };
   }
 
@@ -238,6 +274,14 @@ export class CommsToolSourceService implements DynamicToolSource, OnModuleInit {
           context,
         );
         return { draft: draft.trim() };
+      },
+      ground(input) {
+        const args = input as { conversationId: string };
+        return {
+          summary: 'Drafted a reply — nothing was sent',
+          records: [{ type: 'conversation', id: args.conversationId, label: 'the conversation' }],
+          events: [],
+        };
       },
     };
   }
@@ -295,6 +339,21 @@ export class CommsToolSourceService implements DynamicToolSource, OnModuleInit {
           firstName: contact.firstName,
           lastName: contact.lastName,
           email: contact.email,
+        };
+      },
+      ground(_input, output) {
+        const data = output as { id: string; firstName: string; lastName: string };
+        const label = `${data.firstName} ${data.lastName}`.trim();
+        return {
+          summary: `Created contact — ${label}`,
+          records: [{ type: 'sales.contact', id: data.id, label }],
+          events: [
+            {
+              description: `Created contact from the conversation: ${label}`,
+              recordType: 'sales.contact',
+              recordId: data.id,
+            },
+          ],
         };
       },
     };

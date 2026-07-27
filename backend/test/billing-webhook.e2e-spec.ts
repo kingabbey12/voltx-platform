@@ -8,7 +8,7 @@ import { AuthMeResponseDto, LoginResponseDto } from '../src/modules/auth/dto/aut
 import { createTestApp } from './create-test-app';
 import { resetAndSeedAuthTestData } from './helpers/users-test.helper';
 
-const WEBHOOK_SECRET = 'whsec_dummy_test_webhook_secret';
+const WEBHOOK_SECRET = 'whsec_dummy_billing_test_webhook_secret';
 
 /**
  * Real signature verification, end to end: uses the actual `stripe` SDK

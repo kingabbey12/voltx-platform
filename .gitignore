@@ -1,7 +1,45 @@
-# macOS filesystem metadata — never belongs in the repository.
+# ── Environment files (secrets, credentials) ──────────────────────────
+# Never commit .env files — they contain secrets (DB passwords, API
+# keys, JWT signing keys). Use .env.example as a template instead.
+.env
+.env.*
+!.env.example
+!.env.docker.test
+
+# deploy/ specific env files
+deploy/.env
+deploy/.env.staging
+
+# ── IDE / editor ──────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS ─────────────────────────────────────────────────────────────────
 .DS_Store
+Thumbs.db
+
+# ── Build artifacts ────────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+coverage/
+.next/
+
+# ── Local tooling output ──────────────────────────────────────────────
+graphify-out/
+.opencode/
 
 # Claude Code local state (per-machine settings and worktrees).
 .claude/settings.local.json
 .claude/worktrees/
 .claude/launch.json
+
+# ── Nested independent repositories ───────────────────────────────────
+# voltx-website/ is its own git repository (kingabbey12/voltx-website) with
+# its own Vercel deployment, checked out inside this working tree. Staging it
+# from here would commit a gitlink pointing at a commit this repo does not
+# contain. The marketing site that ships with the platform is apps/marketing.
+voltx-website/

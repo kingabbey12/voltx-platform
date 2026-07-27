@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Invitation, InvitationStatus, Prisma } from '@prisma/client';
+import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../../database/prisma.service';
 import { InvitationEntity, InvitationPreviewEntity } from './invitation.entity';
 
@@ -40,7 +41,10 @@ export interface PaginatedInvitations {
 
 @Injectable()
 export class InvitationRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   async create(data: CreateInvitationData): Promise<InvitationEntity> {
     const record = await this.prisma.system.invitation.create({
@@ -125,15 +129,19 @@ export class InvitationRepository {
   }
 
   async markRevoked(id: string): Promise<void> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     await this.prisma.system.invitation.update({
-      where: { id },
+      where,
       data: { status: InvitationStatus.REVOKED, revokedAt: new Date() },
     });
   }
 
   async refreshTokenAndExpiry(id: string, tokenHash: string, expiresAt: Date): Promise<void> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     await this.prisma.system.invitation.update({
-      where: { id },
+      where,
       data: { tokenHash, expiresAt },
     });
   }

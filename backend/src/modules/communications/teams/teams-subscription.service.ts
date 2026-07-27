@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
+import {
+  DISTRIBUTED_LOCK_SERVICE,
+  DistributedLockService,
+} from '../../../common/scheduling/distributed-lock.service';
 import { EncryptionService } from '../../integrations/security/encryption.service';
 import { MicrosoftTeamsConnector } from '../../integrations/connectors/teams/microsoft-teams.connector';
 import { AuditService } from '../../audit/audit.service';
@@ -11,6 +15,8 @@ import { CommsChannelCredentialRepository } from '../channel-connections/channel
 import { CommsCredentialValue } from '../channels/channel-provider.interface';
 
 const RENEWAL_SWEEP_INTERVAL_MS = 15 * 60_000;
+/** Auto-extended while a sweep runs, so a slow sweep still blocks a second replica. */
+const RENEWAL_SWEEP_LOCK_TTL_MS = 10 * 60_000;
 // Renew once within 10 minutes of expiry rather than waiting until the
 // last possible moment — a missed renewal means silently losing every
 // inbound Teams message until someone notices and re-subscribes.
@@ -43,6 +49,8 @@ export class TeamsSubscriptionService {
     private readonly encryptionService: EncryptionService,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
+    @Inject(DISTRIBUTED_LOCK_SERVICE)
+    private readonly distributedLock: DistributedLockService,
   ) {}
 
   async subscribeToChannel(
@@ -100,8 +108,21 @@ export class TeamsSubscriptionService {
     return (credential.extra as { teamsClientState?: string } | undefined)?.teamsClientState;
   }
 
+  /**
+   * Every replica runs this timer. Concurrent renewals of the same Graph
+   * subscription race on the config write, so the connection can be left
+   * recording an expiry that does not match the one Graph actually issued.
+   */
   @Interval(RENEWAL_SWEEP_INTERVAL_MS)
   async renewExpiringSubscriptions(): Promise<void> {
+    await this.distributedLock.runExclusive(
+      'teams-subscription:renewal-sweep',
+      RENEWAL_SWEEP_LOCK_TTL_MS,
+      () => this.runRenewalSweep(),
+    );
+  }
+
+  private async runRenewalSweep(): Promise<void> {
     const connections = await this.channelConnectionRepository.listTeamsWithSubscriptionUnscoped();
 
     for (const connection of connections) {

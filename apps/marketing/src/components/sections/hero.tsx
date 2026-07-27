@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { type MouseEvent, useRef } from "react";
 import {
   motion,
@@ -11,7 +12,6 @@ import {
 import { ArrowRight, Cloud, Globe2, Lock, Play, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardMockup } from "@/components/sections/dashboard-mockup";
-import { siteConfig } from "@/config/site";
 
 const trustBadges = [
   { icon: Lock, label: "Enterprise Security" },
@@ -116,16 +116,22 @@ export function Hero() {
           className="mt-10 flex flex-col items-center gap-3 sm:flex-row"
         >
           <Button size="lg" asChild>
-            <a href={siteConfig.appUrl}>
-              Start Free
+            <Link href="/join-beta">
+              Join the Beta
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </a>
+            </Link>
           </Button>
+          {/* Previously pointed at /contact, which was a dead end for someone
+              who came here to see the product. Two routes out instead: book a
+              real demo, or scroll straight into the tour on this page. */}
           <Button size="lg" variant="secondary" asChild>
-            <a href="#tour">
-              <Play className="h-4 w-4" fill="currentColor" />
-              See the product tour
-            </a>
+            <Link href="/book-demo">
+              <Play className="h-4 w-4" fill="currentColor" aria-hidden />
+              Book a Live Demo
+            </Link>
+          </Button>
+          <Button size="lg" variant="ghost" asChild>
+            <a href="#tour">See the product tour</a>
           </Button>
         </motion.div>
 
@@ -135,7 +141,7 @@ export function Hero() {
           transition={{ duration: 0.7, delay: 0.4 }}
           className="mt-5 text-xs text-muted-foreground"
         >
-          No credit card required &bull; Setup in under 5 minutes
+          Free during beta &bull; No credit card required
         </motion.p>
 
         <motion.ul

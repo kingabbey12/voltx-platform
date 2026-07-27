@@ -5,6 +5,7 @@ import { StatsBar } from "@/components/sections/stats-bar";
 import { FeatureGrid } from "@/components/sections/feature-grid";
 import { ProductTour } from "@/components/sections/product-tour";
 import { FeatureShowcase } from "@/components/sections/feature-showcase";
+import { WorkflowShowcase } from "@/components/sections/workflow-showcase";
 import { DemoLibrary } from "@/components/sections/demo-library";
 import { PricingSection } from "@/components/sections/pricing-section";
 import { EnterpriseSection } from "@/components/sections/enterprise-section";
@@ -156,10 +157,16 @@ export default function HomePage() {
         video={demoVideos.mobileApp}
       />
 
+      {/* Composed automation, shown after the individual capability
+          deep-dives above have established what each piece does. */}
+      <WorkflowShowcase />
+
       <DemoLibrary />
       <PricingSection />
       <EnterpriseSection />
-      <FaqSection />
+      {/* A subset only — the full list lives on /faq, which also carries the
+          FAQPage structured data so the rich result points there. */}
+      <FaqSection limit={5} showViewAll />
       <CtaSection />
     </>
   );

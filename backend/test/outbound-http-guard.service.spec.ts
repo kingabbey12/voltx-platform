@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { promises as dns } from 'node:dns';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { TenantContextService } from '../src/common/tenant/tenant-context.service';
 import {
@@ -83,6 +84,10 @@ describe('OutboundHttpGuardService', () => {
     jest.restoreAllMocks();
   });
 
+  beforeEach(() => {
+    jest.spyOn(dns, 'lookup').mockResolvedValue([{ address: '93.184.216.34' }] as never);
+  });
+
   it('blocks a request to the cloud metadata address before any fetch happens', async () => {
     await build();
     const fetchSpy = jest.fn();
@@ -102,7 +107,7 @@ describe('OutboundHttpGuardService', () => {
 
   it('blocks a request to a hostname that resolves to a private IP', async () => {
     await build();
-    // "localhost" reliably resolves to a loopback address in every test env.
+    jest.spyOn(dns, 'lookup').mockResolvedValueOnce([{ address: '127.0.0.1' }] as never);
     await expect(
       service.fetch('http://localhost:1/', 'http_get', { method: 'GET' }),
     ).rejects.toBeInstanceOf(ToolExecutionError);

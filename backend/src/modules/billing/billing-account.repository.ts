@@ -61,8 +61,10 @@ export class BillingAccountRepository {
   }
 
   async setStripeCustomerId(id: string, stripeCustomerId: string): Promise<BillingAccountEntity> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     const record = await this.prisma.system.billingAccount.update({
-      where: { id },
+      where,
       data: { stripeCustomerId },
     });
     return toEntity(record);
@@ -72,8 +74,10 @@ export class BillingAccountRepository {
     id: string,
     defaultPaymentMethodId: string | null,
   ): Promise<BillingAccountEntity> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     const record = await this.prisma.system.billingAccount.update({
-      where: { id },
+      where,
       data: { defaultPaymentMethodId },
     });
     return toEntity(record);

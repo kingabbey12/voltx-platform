@@ -46,6 +46,15 @@ import { FinanceToolSourceService } from './tools/finance-tool-source.service';
     ActivitiesRepository,
     ActivitiesService,
   ],
-  exports: [SalesAiService, ContactsService],
+  exports: [
+    SalesAiService,
+    ContactsService,
+    // Consumed by the Ask record resolver (ai/ask) to open doors onto
+    // canonical sales records under the caller's tenant and permissions.
+    CompaniesService,
+    LeadsService,
+    OpportunitiesService,
+    ActivitiesService,
+  ],
 })
 export class SalesModule {}

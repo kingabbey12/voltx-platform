@@ -61,6 +61,27 @@ export function createPinoConfig(configService: ConfigService): Params {
         res.setHeader(REQUEST_ID_HEADER, generated);
         return generated;
       },
+      // pino-http's default serializers dump every request AND response
+      // header on every line. Helmet sets a ~600-byte CSP on each response,
+      // which made a single request log ~1450 bytes; at 3.5k req/s that is
+      // ~5 MB/s written to stdout. Docker's json-file driver cannot drain
+      // that, so the pending writes accumulated in the V8 heap until it hit
+      // its 524 MB ceiling and the process died mid-load (see
+      // docs/operations/incident-2026-07-26-api-oom.md).
+      //
+      // These serializers keep everything actually used for debugging — the
+      // request id, method, url and status code, alongside responseTime and
+      // the trace/span ids from the mixin — and drop the header dumps. They
+      // also make header redaction structurally unnecessary rather than
+      // configured: no header is serialised at all, so none can leak.
+      serializers: {
+        req: (req: IncomingMessage & { id?: string }) => ({
+          id: req.id,
+          method: req.method,
+          url: req.url,
+        }),
+        res: (res: ServerResponse) => ({ statusCode: res.statusCode }),
+      },
       redact: {
         paths: ['req.headers.authorization', 'req.headers.cookie'],
         remove: true,

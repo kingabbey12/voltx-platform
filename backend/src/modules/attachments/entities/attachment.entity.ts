@@ -9,7 +9,8 @@ export type AttachmentReferenceType =
   | 'CRM_LEAD'
   | 'CRM_OPPORTUNITY'
   | 'CRM_ACTIVITY'
-  | 'COMMS_MESSAGE';
+  | 'COMMS_MESSAGE'
+  | 'PROMISE';
 
 export interface AttachmentEntity {
   id: string;

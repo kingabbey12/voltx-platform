@@ -354,6 +354,52 @@ class EnvironmentVariables {
   @IsString()
   GOOGLE_AI_BASE_URL?: string;
 
+  // ————— OpenAI-compatible provider adapters —————
+
+  @IsOptional() @IsString() XAI_ENABLED?: string;
+  @ValidateIf((o: EnvironmentVariables) => o.XAI_ENABLED === 'true')
+  @IsString()
+  XAI_API_KEY?: string;
+  @IsOptional() @IsString() XAI_BASE_URL?: string;
+
+  @IsOptional() @IsString() GROQ_ENABLED?: string;
+  @ValidateIf((o: EnvironmentVariables) => o.GROQ_ENABLED === 'true')
+  @IsString()
+  GROQ_API_KEY?: string;
+  @IsOptional() @IsString() GROQ_BASE_URL?: string;
+
+  @IsOptional() @IsString() MISTRAL_ENABLED?: string;
+  @ValidateIf((o: EnvironmentVariables) => o.MISTRAL_ENABLED === 'true')
+  @IsString()
+  MISTRAL_API_KEY?: string;
+  @IsOptional() @IsString() MISTRAL_BASE_URL?: string;
+
+  @IsOptional() @IsString() DEEPSEEK_ENABLED?: string;
+  @ValidateIf((o: EnvironmentVariables) => o.DEEPSEEK_ENABLED === 'true')
+  @IsString()
+  DEEPSEEK_API_KEY?: string;
+  @IsOptional() @IsString() DEEPSEEK_BASE_URL?: string;
+
+  // Ollama runs locally without an API key, so the key stays optional even when enabled.
+  @IsOptional() @IsString() OLLAMA_ENABLED?: string;
+  @IsOptional() @IsString() OLLAMA_API_KEY?: string;
+  @IsOptional() @IsString() OLLAMA_BASE_URL?: string;
+
+  @IsOptional() @IsString() OPENROUTER_ENABLED?: string;
+  @ValidateIf((o: EnvironmentVariables) => o.OPENROUTER_ENABLED === 'true')
+  @IsString()
+  OPENROUTER_API_KEY?: string;
+  @IsOptional() @IsString() OPENROUTER_BASE_URL?: string;
+
+  @IsOptional() @IsString() AZURE_OPENAI_ENABLED?: string;
+  @ValidateIf((o: EnvironmentVariables) => o.AZURE_OPENAI_ENABLED === 'true')
+  @IsString()
+  AZURE_OPENAI_API_KEY?: string;
+  @ValidateIf((o: EnvironmentVariables) => o.AZURE_OPENAI_ENABLED === 'true')
+  @IsString()
+  AZURE_OPENAI_ENDPOINT?: string;
+  @IsOptional() @IsString() AZURE_OPENAI_API_VERSION?: string;
+
   @IsOptional()
   @IsString()
   KNOWLEDGE_EMBEDDING_PROVIDER?: string;
@@ -633,7 +679,34 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
   });
 
   if (errors.length > 0) {
-    throw new Error(errors.toString());
+    const guidance: Record<string, string> = {
+      DATABASE_URL:
+        'Use the local Compose value from backend/.env.example, or obtain the database URL from the deployment owner.',
+      JWT_ACCESS_SECRET: 'Generate one with `openssl rand -base64 48`.',
+      INTEGRATIONS_ENCRYPTION_KEY:
+        'Generate one with `openssl rand -base64 32` and store it in your secret manager.',
+      REDIS_URL:
+        'Use `redis://localhost:6379` locally, or obtain the managed Redis URL from the deployment owner.',
+      OPENAI_API_KEY: 'Create an API key in the OpenAI project configured for this environment.',
+      ANTHROPIC_API_KEY:
+        'Create an API key in the Anthropic Console configured for this environment.',
+      GOOGLE_AI_API_KEY: 'Create an API key in Google AI Studio configured for this environment.',
+    };
+    const details = errors
+      .flatMap((error) =>
+        Object.values(error.constraints ?? {}).map((message) => ({
+          property: error.property,
+          message,
+        })),
+      )
+      .map(
+        ({ property, message }) =>
+          `- ${property}: ${message}${guidance[property] ? ` ${guidance[property]}` : ''}`,
+      )
+      .join('\n');
+    throw new Error(
+      `Environment validation failed before startup:\n${details}\nSee ENVIRONMENT.md for all variables.`,
+    );
   }
 
   return validatedConfig;

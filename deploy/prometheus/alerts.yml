@@ -1,0 +1,285 @@
+# ── Voltx alert rules ─────────────────────────────────────────────────
+#
+# Every expression here references a series that is actually produced:
+# `voltx_*` come from backend/src/modules/metrics/metrics.service.ts,
+# `pg_*` / `redis_*` / `node_*` / `probe_*` from the exporters declared in
+# deploy/docker-compose.yml. test/monitoring-config.spec.ts fails if a
+# rule references a metric no producer emits, so a renamed metric surfaces as a
+# failing test rather than an alert that can never fire.
+#
+# Severity contract:
+#   critical — customer impact now or imminent; pages a human.
+#   warning  — degradation or a trend that will become critical; notifies.
+#
+# Runbook: docs/operations/monitoring-and-alerting.md
+
+groups:
+  # ── Availability ────────────────────────────────────────────────────
+  - name: voltx-availability
+    rules:
+      - alert: ApiDown
+        expr: up{job="voltx-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: voltx-backend
+        annotations:
+          summary: "API is not being scraped ({{ $labels.instance }})"
+          description: >-
+            Prometheus cannot reach the API. Either the process is down or it
+            cannot serve /metrics. Check `docker compose ps api` and the
+            container logs.
+          runbook: docs/operations/monitoring-and-alerting.md#apidown
+
+      - alert: WebDown
+        # Measured by HTTP probe, not by scraping: Next.js exposes no metrics
+        # endpoint, so the old `up{job="voltx-web"}` could never be 1 and this
+        # alert fired permanently on a healthy system.
+        expr: probe_success{job="blackbox-internal"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: voltx-web
+        annotations:
+          summary: "Web app health probe failing ({{ $labels.instance }})"
+          runbook: docs/operations/monitoring-and-alerting.md#webdown
+
+      - alert: ExporterDown
+        # Catches the failure mode this repository actually had: scrape targets
+        # configured for exporters that were never deployed, so the dashboards
+        # fed by them were silently empty.
+        expr: up{job=~"postgres|redis|node|blackbox"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Exporter {{ $labels.job }} is down — its dashboards and alerts are blind"
+          runbook: docs/operations/monitoring-and-alerting.md#exporterdown
+
+  # ── Request health ──────────────────────────────────────────────────
+  - name: voltx-http
+    rules:
+      - alert: HighServerErrorRate
+        expr: >-
+          sum(rate(voltx_http_requests_total{status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(voltx_http_requests_total[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Over 5% of requests are returning 5xx"
+          description: "Current 5xx ratio: {{ $value | humanizePercentage }}."
+          runbook: docs/operations/monitoring-and-alerting.md#highservererrorrate
+
+      - alert: ElevatedServerErrorRate
+        expr: >-
+          sum(rate(voltx_http_requests_total{status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(voltx_http_requests_total[5m])), 0.001)
+          > 0.01
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "5xx rate above 1% for 10 minutes"
+          runbook: docs/operations/monitoring-and-alerting.md#highservererrorrate
+
+      - alert: HighRequestLatencyP99
+        expr: >-
+          histogram_quantile(
+            0.99,
+            sum(rate(voltx_http_request_duration_ms_bucket[5m])) by (le)
+          ) > 2500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p99 request latency above 2.5s"
+          description: "p99 is {{ $value | humanize }}ms."
+          runbook: docs/operations/monitoring-and-alerting.md#highrequestlatencyp99
+
+  # ── Background work ─────────────────────────────────────────────────
+  - name: voltx-queues
+    rules:
+      - alert: QueueBacklogGrowing
+        expr: voltx_queue_depth{state="waiting"} > 500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue {{ $labels.queue }} has a sustained backlog"
+          description: "{{ $value }} jobs waiting. Workers may be saturated or stalled."
+          runbook: docs/operations/monitoring-and-alerting.md#queuebackloggrowing
+
+      - alert: QueueJobsFailing
+        expr: increase(voltx_queue_depth{state="failed"}[15m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Queue {{ $labels.queue }} is accumulating failed jobs"
+          description: >-
+            Failed jobs have exhausted their retries and are dead-lettered.
+            Work is being lost until this is addressed.
+          runbook: docs/operations/monitoring-and-alerting.md#queuejobsfailing
+
+      - alert: QueueStalled
+        # Waiting work that never becomes active means no worker is consuming —
+        # the silent failure mode, since nothing errors.
+        expr: >-
+          voltx_queue_depth{state="waiting"} > 0
+          and on(queue) voltx_queue_depth{state="active"} == 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Queue {{ $labels.queue }} has waiting jobs but no active worker"
+          runbook: docs/operations/monitoring-and-alerting.md#queuestalled
+
+  # ── Datastores ──────────────────────────────────────────────────────
+  - name: voltx-datastores
+    rules:
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is unreachable"
+          runbook: docs/operations/monitoring-and-alerting.md#postgresdown
+
+      - alert: PostgresConnectionsSaturating
+        expr: >-
+          sum(pg_stat_activity_count) by (instance)
+          /
+          clamp_min(sum(pg_settings_max_connections) by (instance), 1)
+          > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL connection pool over 80% utilised"
+          description: >-
+            New connections will start being refused. Check for connection
+            leaks or raise the pool ceiling.
+          runbook: docs/operations/monitoring-and-alerting.md#postgresconnectionssaturating
+
+      - alert: RedisDown
+        # Redis is a hard production dependency: queues AND the distributed
+        # scheduler lock. Losing it stops background work platform-wide.
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is unreachable — queues and scheduler locks are stopped"
+          description: >-
+            Scheduled sweeps fail closed by design, so nothing duplicates, but
+            no background work runs until Redis returns.
+          runbook: docs/operations/monitoring-and-alerting.md#redisdown
+
+      - alert: RedisMemoryHigh
+        # `redis_memory_max_bytes` is 0 when no `maxmemory` is configured,
+        # which is the default. An earlier clamp_min(...,1) guard turned that
+        # into used_bytes/1 — a ratio in the millions — so this alert fired
+        # permanently on a healthy Redis. Gate on the limit existing instead:
+        # with no maxmemory there is no ratio to evaluate, and RedisDown plus
+        # the host memory alerts cover the failure mode.
+        expr: >-
+          redis_memory_max_bytes > 0
+          and
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory above 85% of its limit"
+          description: "Eviction will begin, which can drop queued jobs and scheduler locks."
+          runbook: docs/operations/monitoring-and-alerting.md#redismemoryhigh
+
+  # ── Host ────────────────────────────────────────────────────────────
+  - name: voltx-host
+    rules:
+      - alert: DiskSpaceLow
+        # See the selector note below: filtering on fstype alone matched Docker
+        # Desktop's /run/jfs and /run/rosetta pseudo-mounts, which report zero
+        # bytes available and made this fire permanently.
+        expr: >-
+          node_filesystem_readonly{fstype!~"tmpfs|overlay|squashfs|ramfs|iso9660|autofs|devtmpfs",mountpoint!~"^/(run|sys|proc|dev|host)($|/).*"} == 0
+          and
+          node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|iso9660|autofs|devtmpfs",mountpoint!~"^/(run|sys|proc|dev|host)($|/).*"} > 1e9
+          and
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|iso9660|autofs|devtmpfs",mountpoint!~"^/(run|sys|proc|dev|host)($|/).*"}
+          /
+          node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|iso9660|autofs|devtmpfs",mountpoint!~"^/(run|sys|proc|dev|host)($|/).*"} < 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Less than 15% disk free on {{ $labels.mountpoint }}"
+          description: "Postgres stops accepting writes when the volume fills."
+          runbook: docs/operations/monitoring-and-alerting.md#diskspacelow
+
+      - alert: DiskSpaceCritical
+        expr: >-
+          node_filesystem_readonly{fstype!~"tmpfs|overlay|squashfs|ramfs|iso9660|autofs|devtmpfs",mountpoint!~"^/(run|sys|proc|dev|host)($|/).*"} == 0
+          and
+          node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|iso9660|autofs|devtmpfs",mountpoint!~"^/(run|sys|proc|dev|host)($|/).*"} > 1e9
+          and
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|iso9660|autofs|devtmpfs",mountpoint!~"^/(run|sys|proc|dev|host)($|/).*"}
+          /
+          node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|iso9660|autofs|devtmpfs",mountpoint!~"^/(run|sys|proc|dev|host)($|/).*"} < 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Less than 5% disk free on {{ $labels.mountpoint }}"
+          runbook: docs/operations/monitoring-and-alerting.md#diskspacelow
+
+      - alert: HostMemoryPressure
+        expr: >-
+          node_memory_MemAvailable_bytes
+          /
+          clamp_min(node_memory_MemTotal_bytes, 1) < 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Under 10% host memory available"
+          runbook: docs/operations/monitoring-and-alerting.md#hostmemorypressure
+
+  # ── TLS ─────────────────────────────────────────────────────────────
+  - name: voltx-tls
+    rules:
+      - alert: CertificateExpiringSoon
+        expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 21
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS certificate for {{ $labels.instance }} expires in under 21 days"
+          description: "{{ $value | humanize }} days remaining. Renewal is manual today."
+          runbook: docs/operations/monitoring-and-alerting.md#certificateexpiringsoon
+
+      - alert: CertificateExpiringCritical
+        expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 7
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "TLS certificate for {{ $labels.instance }} expires in under 7 days"
+          runbook: docs/operations/monitoring-and-alerting.md#certificateexpiringsoon
+
+      - alert: EndpointProbeFailing
+        expr: probe_success == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "External probe of {{ $labels.instance }} is failing"
+          description: >-
+            The endpoint is unreachable from outside the compose network, even
+            if internal scrapes look healthy.
+          runbook: docs/operations/monitoring-and-alerting.md#endpointprobefailing

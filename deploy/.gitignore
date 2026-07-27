@@ -1,0 +1,15 @@
+
+
+# Alertmanager receiver endpoint — may embed a vendor key (Slack/PagerDuty).
+alertmanager/webhook_url
+prometheus/metrics_token
+
+# ── TLS material ──────────────────────────────────────────────────────
+# Private keys and certificates are provisioned on the host, never in git.
+nginx/ssl/
+*.pem
+*.key
+
+# ── Database dumps ────────────────────────────────────────────────────
+# backup.sh writes here; these contain live customer data.
+backups/

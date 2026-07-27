@@ -182,6 +182,16 @@ export class ExtensionAiToolSourceService implements DynamicToolSource, OnModule
 
         return parsed;
       },
+      // Extension endpoints are third-party code with declared-but-untyped
+      // response schemas; the grounding is honestly generic and claims no
+      // canonical records.
+      ground() {
+        return {
+          summary: `Ran the custom tool ${tool.name}`,
+          records: [],
+          events: [{ description: `Custom tool ${tool.name} executed` }],
+        };
+      },
     };
   }
 }

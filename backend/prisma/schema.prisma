@@ -192,11 +192,13 @@ model Organization {
   memories                Memory[]
   agents                  Agent[]
   aiUsageLogs             AiUsageLog[]
+  aiProviderCredentials   AiProviderCredential[]
   salesCompanies          SalesCompany[]
   salesContacts           SalesContact[]
   salesLeads              SalesLead[]
   salesOpportunities      SalesOpportunity[]
   salesActivities         SalesActivity[]
+  promises                Promise[]
   knowledgeSources        KnowledgeSource[]
   knowledgeEntities       KnowledgeEntity[]
   workflows               Workflow[]
@@ -296,6 +298,9 @@ model User {
   trustedDevices          TrustedDevice[]
   personalAccessTokens    PersonalAccessToken[]
   serviceAccount          ServiceAccount?
+  ownedPromises           Promise[]
+  promiseParties          PromiseParty[]        @relation("PromisePartyUser")
+  promiseEventsActed      PromiseEvent[]        @relation("PromiseEventActor")
 
   @@index([status])
   @@index([type])
@@ -490,6 +495,10 @@ model AgentActionApproval {
   agentRunId     String                    @map("agent_run_id") @db.Uuid
   toolName       String                    @map("tool_name")
   input          Json                      @default("{}")
+  /// Owner-facing sentence describing the held work, written at creation
+  /// from the tool's grounding vocabulary — the frontend renders this and
+  /// never invents summaries (docs/design/ASK.md §5).
+  summary        String?
   status         AgentActionApprovalStatus @default(PENDING)
   approverUserId String?                   @map("approver_user_id") @db.Uuid
   comment        String?
@@ -573,6 +582,47 @@ model AiUsageLog {
   @@index([requestType])
   @@index([createdAt])
   @@map("ai_usage_logs")
+}
+
+enum AiProviderCredentialStatus {
+  ACTIVE
+  DISABLED
+}
+
+/// Per-organization "bring your own key" AI provider credentials for the AI
+/// Gateway. The API key is encrypted at rest with EncryptionService
+/// (AES-256-GCM, self-describing) — plaintext never leaves the credentials
+/// module, and only masked previews are ever returned over the API. Rows are
+/// tenant-isolated (organizationId), RBAC-guarded, and every change is
+/// audited. TenantAiCredentialResolver decrypts an ACTIVE credential for the
+/// gateway to use in place of the env-configured key. `metadata` carries
+/// provider-specific extras (e.g. Azure apiVersion). Unique per
+/// (organization, provider, label) so one org can hold multiple providers
+/// and multiple named keys per provider.
+model AiProviderCredential {
+  id              String                     @id @default(uuid()) @db.Uuid
+  organizationId  String                     @map("organization_id") @db.Uuid
+  provider        String
+  label           String                     @default("default")
+  encryptedApiKey String                     @map("encrypted_api_key") @db.Text
+  baseUrl         String?                    @map("base_url")
+  metadata        Json                       @default("{}")
+  status          AiProviderCredentialStatus @default(ACTIVE)
+  lastRotatedAt   DateTime?                  @map("last_rotated_at")
+  lastTestedAt    DateTime?                  @map("last_tested_at")
+  lastTestStatus  String?                    @map("last_test_status")
+  lastTestError   String?                    @map("last_test_error")
+  createdByUserId String?                    @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+  deletedAt       DateTime?                  @map("deleted_at")
+  organization    Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider, label])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([deletedAt])
+  @@map("ai_provider_credentials")
 }
 
 model VerificationToken {
@@ -813,6 +863,7 @@ model SalesContact {
   commsConversations     CommsConversation[]
   commsParticipants      CommsParticipant[]
   commsChannelIdentities CommsChannelIdentity[]
+  promiseParties         PromiseParty[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -920,6 +971,94 @@ model SalesActivity {
   @@index([deletedAt])
   @@index([createdAt])
   @@map("sales_activities")
+}
+
+// Promise (docs/design/COMPANY.md §2): the central primitive — a
+// commitment between two parties with terms and a lifecycle (proposed,
+// standing, kept, broken, released). This is the first module built
+// directly on the primitive itself rather than approximated through
+// SalesLead/SalesOpportunity (COMPANY.md §9's provisional mapping for
+// promises-in-formation) — see RecordResolverService and
+// PromisesToolSourceService for how it plugs into Ask without a second
+// runtime or index.
+enum PromiseStatus {
+  PROPOSED
+  STANDING
+  FULFILLED
+  RELEASED
+  BROKEN
+}
+
+enum PromisePartyRole {
+  OBLIGOR
+  OBLIGEE
+}
+
+enum PromiseEventType {
+  CREATED
+  STATUS_CHANGED
+  AI_RECOMMENDATION
+  NOTE_ADDED
+}
+
+model Promise {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  title          String
+  status         PromiseStatus  @default(PROPOSED)
+  ownerId        String         @map("owner_id") @db.Uuid
+  dueAt          DateTime?      @map("due_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  deletedAt      DateTime?      @map("deleted_at")
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner          User           @relation(fields: [ownerId], references: [id])
+  parties        PromiseParty[]
+  events         PromiseEvent[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([ownerId])
+  @@index([dueAt])
+  @@index([deletedAt])
+  @@map("promises")
+}
+
+model PromiseParty {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  promiseId      String           @map("promise_id") @db.Uuid
+  role           PromisePartyRole
+  contactId      String?          @map("contact_id") @db.Uuid
+  userId         String?          @map("user_id") @db.Uuid
+  createdAt      DateTime         @default(now()) @map("created_at")
+  promise        Promise          @relation(fields: [promiseId], references: [id], onDelete: Cascade)
+  contact        SalesContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  user           User?            @relation("PromisePartyUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([promiseId])
+  @@index([contactId])
+  @@index([userId])
+  @@map("promise_parties")
+}
+
+model PromiseEvent {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  promiseId      String           @map("promise_id") @db.Uuid
+  type           PromiseEventType
+  actorId        String?          @map("actor_id") @db.Uuid
+  payload        Json             @default("{}")
+  occurredAt     DateTime         @default(now()) @map("occurred_at")
+  promise        Promise          @relation(fields: [promiseId], references: [id], onDelete: Cascade)
+  actor          User?            @relation("PromiseEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([promiseId])
+  @@index([type])
+  @@index([occurredAt])
+  @@map("promise_events")
 }
 
 enum KnowledgeSourceType {
@@ -2371,6 +2510,7 @@ enum AttachmentReferenceType {
   CRM_OPPORTUNITY
   CRM_ACTIVITY
   COMMS_MESSAGE
+  PROMISE
 }
 
 /// A single stored file. `storageKey` is opaque to callers — only the

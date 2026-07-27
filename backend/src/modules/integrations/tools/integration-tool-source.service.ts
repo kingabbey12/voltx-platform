@@ -69,6 +69,22 @@ export class IntegrationToolSourceService implements DynamicToolSource, OnModule
           signal: context.signal,
         });
       },
+      // Connector outputs are provider-shaped and untyped here, so the
+      // grounding is honestly generic: what ran, and whether it acted.
+      // No records are claimed — a claim without a canonical id is not made.
+      ground() {
+        return {
+          summary:
+            action.mutates === false
+              ? `Read from ${providerDisplayName} (${action.name})`
+              : `Acted through ${providerDisplayName} (${action.name})`,
+          records: [],
+          events:
+            action.mutates === false
+              ? []
+              : [{ description: `${providerDisplayName}: ${action.name} executed` }],
+        };
+      },
     };
   }
 }

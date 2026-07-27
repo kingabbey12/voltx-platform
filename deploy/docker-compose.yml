@@ -1,0 +1,347 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    cpus: "2.0"
+    mem_limit: 2g
+    mem_reservation: 1g
+    restart: unless-stopped
+    shm_size: 1g
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-voltx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-voltx}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-voltx} -d ${POSTGRES_DB:-voltx}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - voltx
+
+  redis:
+    image: redis:7-alpine
+    cpus: "1.0"
+    mem_limit: 512m
+    mem_reservation: 256m
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      --save 60 1
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - voltx
+
+  migrate:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: build
+    cpus: "1.0"
+    mem_limit: 1g
+    mem_reservation: 512m
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-voltx}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-voltx}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    entrypoint: ["sh", "-c", "pnpm prisma:migrate:deploy && pnpm prisma:seed && pnpm prisma:seed:billing-plans"]
+    networks:
+      - voltx
+    profiles:
+      - tools
+
+  api:
+    # Explicit, stable image name so a deploy produces something that can be
+    # rolled back to. VOLTX_TAG is set by deploy.sh; the outgoing image is
+    # retagged :previous before it is replaced.
+    image: voltx-api:${VOLTX_TAG:-latest}
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: production
+    cpus: "2.0"
+    mem_limit: 1g
+    mem_reservation: 512m
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-voltx}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-voltx}
+      REDIS_ENABLED: "true"
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+    ports:
+      - "${API_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/readiness').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    networks:
+      - voltx
+
+  web:
+    # Explicit, stable image name so a deploy produces something that can be
+    # rolled back to. VOLTX_TAG is set by deploy.sh; the outgoing image is
+    # retagged :previous before it is replaced.
+    image: voltx-web:${VOLTX_TAG:-latest}
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+      # NEXT_PUBLIC_* are compiled into the client bundle, so they must be
+      # supplied here at build time. Putting them under `environment:` below
+      # does nothing for the bundle — the image would still carry whatever it
+      # was built with. This is also why a web image is environment-specific
+      # and cannot be promoted from staging to production.
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?NEXT_PUBLIC_API_BASE_URL is required to build the web app}
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+    cpus: "1.0"
+    mem_limit: 512m
+    mem_reservation: 256m
+    # The only long-running service that lacked one: the customer-facing web
+    # tier did not come back after a crash or a host reboot, while every other
+    # service did. `migrate` is correctly excluded — it is a one-off job.
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "${WEB_PORT:-3001}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # Uses node rather than wget, matching the api service's healthcheck.
+      # BusyBox wget (Alpine) follows redirects and has no flag to stop it —
+      # `--max-redirect` is GNU-only and BusyBox exits 1 on the unknown option,
+      # which marked the container permanently unhealthy. `redirect: 'manual'`
+      # keeps a 307 as a 307, so /health falling out of PUBLIC_PATHS and
+      # redirecting to /login (which returns 200) fails the check instead of
+      # silently passing it.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health',{redirect:'manual'}).then((r)=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    networks:
+      - voltx
+
+  # ── Monitoring Stack ───────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    cpus: "1.0"
+    mem_limit: 1g
+    mem_reservation: 512m
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      # Bearer token for scraping the API's protected /metrics. Git-ignored —
+      # copy metrics_token.example and set it to METRICS_AUTH_TOKEN's value.
+      - ./prometheus/metrics_token:/etc/prometheus/metrics_token:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - alertmanager
+    networks:
+      - voltx
+    profiles:
+      - monitoring
+
+  # Routes firing alerts to a human. Without this Prometheus evaluates rules
+  # and has nowhere to send the result.
+  alertmanager:
+    image: prom/alertmanager:latest
+    cpus: "0.25"
+    mem_limit: 256m
+    mem_reservation: 128m
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      # Receiver URL lives in its own file because Alertmanager does not expand
+      # environment variables in its config. Git-ignored — copy
+      # webhook_url.example and put your real endpoint in it.
+      - ./alertmanager/webhook_url:/etc/alertmanager/webhook_url:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    ports:
+      - "9093:9093"
+    networks:
+      - voltx
+    profiles:
+      - monitoring
+
+  # ── Exporters ──────────────────────────────────────────────────────
+  # prometheus.yml scraped all three of these before they existed, so their
+  # targets were permanently down and every dashboard panel fed by them was
+  # empty. Declaring them is what makes the datastore and host alerts able to
+  # fire at all.
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    cpus: "0.25"
+    mem_limit: 128m
+    mem_reservation: 64m
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-voltx}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-voltx}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - voltx
+    profiles:
+      - monitoring
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    cpus: "0.25"
+    mem_limit: 128m
+    mem_reservation: 64m
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      # redis is started with --requirepass; without this the exporter connects
+      # but every INFO call is rejected and redis_up stays 0.
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - voltx
+    profiles:
+      - monitoring
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    cpus: "0.25"
+    mem_limit: 128m
+    mem_reservation: 64m
+    restart: unless-stopped
+    # Host filesystem is mounted read-only so DiskSpaceLow measures the real
+    # volume rather than the container's own overlay.
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    networks:
+      - voltx
+    profiles:
+      - monitoring
+
+  # Probes the public endpoints from outside the app containers — the source of
+  # certificate-expiry and external-reachability signal.
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    cpus: "0.25"
+    mem_limit: 128m
+    mem_reservation: 64m
+    restart: unless-stopped
+    volumes:
+      - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml
+    networks:
+      - voltx
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    cpus: "0.5"
+    mem_limit: 256m
+    mem_reservation: 128m
+    restart: unless-stopped
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    ports:
+      - "3002:3000"
+    networks:
+      - voltx
+    profiles:
+      - monitoring
+
+  nginx:
+    image: nginx:alpine
+    environment:
+      WEB_HOST: ${WEB_HOST:?WEB_HOST is required (e.g. staging.voltx.ai)}
+      API_HOST: ${API_HOST:?API_HOST is required (e.g. api-staging.voltx.ai)}
+      NGINX_ENVSUBST_FILTER: "^(WEB|API)_HOST$$"
+    cpus: "0.5"
+    mem_limit: 128m
+    mem_reservation: 64m
+    restart: unless-stopped
+    volumes:
+      # Template, not a final config: the entrypoint runs envsubst over
+      # /etc/nginx/templates/*.template so the hostnames below are applied at
+      # container start. Mounting a static conf.d file would bypass that.
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    networks:
+      - voltx
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
+
+networks:
+  voltx:
+    driver: bridge

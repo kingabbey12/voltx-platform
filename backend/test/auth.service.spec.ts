@@ -853,13 +853,46 @@ describe('AuthService', () => {
 
     await service.logout('user-id', 'refresh-token');
 
-    expect(refreshTokenRepository.revokeById).toHaveBeenCalledWith('token-id');
+    // Revoking the session also revokes every refresh token issued under it,
+    // so logging out one device cannot leave sibling tokens usable. Revoking
+    // this one token by id would not achieve that.
+    expect(sessionRepository.revoke).toHaveBeenCalledWith('session-id');
+    expect(refreshTokenRepository.revokeById).not.toHaveBeenCalled();
     expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'auth.logout',
         organizationId: 'org-id',
         userId: 'user-id',
       }),
+    );
+  });
+
+  it('revokes the lone token when it predates session tracking', async () => {
+    jest.spyOn(refreshTokenUtil, 'hashRefreshToken').mockReturnValue('refresh-hash');
+    refreshTokenRepository.findValidByTokenHash.mockResolvedValue({
+      id: 'token-id',
+      userId: 'user-id',
+      tokenHash: 'refresh-hash',
+      expiresAt: new Date('2026-08-01'),
+      revokedAt: null,
+      createdAt: new Date(),
+      sessionId: null,
+    });
+    authContextRepository.findActiveMembershipContext.mockResolvedValue({
+      id: 'membership-id',
+      organizationId: 'org-id',
+      userId: 'user-id',
+      roleId: 'role-id',
+      roleKey: 'member',
+      roleName: 'Member',
+    });
+
+    await service.logout('user-id', 'refresh-token');
+
+    expect(refreshTokenRepository.revokeById).toHaveBeenCalledWith('token-id');
+    expect(sessionRepository.revoke).not.toHaveBeenCalled();
+    expect(auditService.recordWithExplicitActor).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'auth.logout', organizationId: 'org-id' }),
     );
   });
 

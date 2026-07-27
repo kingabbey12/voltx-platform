@@ -1,3 +1,5 @@
+import type { ToolGrounding } from './tool-result.types';
+
 export interface ToolParameterSchema {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array';
   description: string;
@@ -34,6 +36,24 @@ export interface AITool<
   readonly requiredPermission?: string | null;
 
   execute(input: TInput, context: ToolExecutionContext): Promise<TOutput>;
+
+  /**
+   * Optional grounding hook (Ask pipeline): given the input and the output
+   * of a successful execution, return the owner-facing summary, the
+   * canonical records the result rests on, and the events the execution
+   * caused — or null when nothing meaningful can be claimed. Must be pure
+   * over its arguments (no I/O): it runs after execute() on the same data.
+   */
+  ground?(input: TInput, output: TOutput): ToolGrounding | null;
+
+  /**
+   * Optional approval-summary hook (Ask pipeline): an owner-facing sentence
+   * describing what this call would do, computed from input alone — used
+   * when the call is held for approval, before any output exists. Tools
+   * without it get the generic backend describer; the frontend never
+   * invents summaries.
+   */
+  describe?(input: TInput): string | null;
 }
 
 export class ToolExecutionError extends Error {

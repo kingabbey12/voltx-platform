@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { AITool, ToolSchema } from '../../ai/tools/tool.interface';
+import { mutationGrounding, searchGrounding } from '../../ai/tools/grounding.helpers';
 import { DynamicToolSource, ToolRegistry } from '../../ai/tools/tool.registry';
 import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 import { WorkflowService } from '../workflow.service';
@@ -110,6 +111,11 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
 
         return { id: workflow.id, name: workflow.name, status: workflow.status };
       },
+      ground: mutationGrounding<{ id: string; name: string }>({
+        recordType: 'workflow',
+        action: 'Created workflow',
+        record: (output) => ({ id: output.id, label: output.name }),
+      }),
     };
   }
 
@@ -152,6 +158,24 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
           })),
         };
       },
+      ground(_input, output) {
+        const data = output as {
+          total: number;
+          failedRuns: Array<{ workflowId: string; workflowName: string }>;
+        };
+        const seen = new Set<string>();
+        const records = data.failedRuns
+          .filter((run) => (seen.has(run.workflowId) ? false : (seen.add(run.workflowId), true)))
+          .map((run) => ({ type: 'workflow', id: run.workflowId, label: run.workflowName }));
+        return {
+          summary:
+            data.total === 0
+              ? 'No failed workflow runs'
+              : `Read ${data.total} failed ${data.total === 1 ? 'run' : 'runs'}`,
+          records,
+          events: [],
+        };
+      },
     };
   }
 
@@ -192,6 +216,11 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
           })),
         };
       },
+      ground: searchGrounding<{ workflows: Array<{ id: string; name: string }> }>({
+        recordType: 'workflow',
+        noun: ['workflow', 'workflows'],
+        items: (output) => output.workflows.map((w) => ({ id: w.id, label: w.name })),
+      }),
     };
   }
 
@@ -221,6 +250,14 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
           publishedVersion: workflow.publishedVersion,
           latestVersion: latest?.version ?? null,
           definition: latest?.definition ?? { steps: [] },
+        };
+      },
+      ground(_input, output) {
+        const data = output as { id: string; name: string };
+        return {
+          summary: `Read the definition of ${data.name}`,
+          records: [{ type: 'workflow', id: data.id, label: data.name }],
+          events: [],
         };
       },
     };
@@ -256,6 +293,11 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
         });
         return { id: updated.id, name: updated.name, status: updated.status };
       },
+      ground: mutationGrounding<{ id: string; name: string }>({
+        recordType: 'workflow',
+        action: 'Updated workflow definition',
+        record: (output) => ({ id: output.id, label: output.name }),
+      }),
     };
   }
 
@@ -281,10 +323,16 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
         const workflow = await workflowService.publishWorkflow(input.workflowId);
         return {
           id: workflow.id,
+          name: workflow.name,
           status: workflow.status,
           publishedVersion: workflow.publishedVersion,
         };
       },
+      ground: mutationGrounding<{ id: string; name: string; publishedVersion: number | null }>({
+        recordType: 'workflow',
+        action: 'Published workflow',
+        record: (output) => ({ id: output.id, label: output.name }),
+      }),
     };
   }
 
@@ -341,6 +389,21 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
           nextRunAt: schedule.nextRunAt,
         };
       },
+      ground(input, output) {
+        const args = input as { workflowId: string };
+        const data = output as { triggerType: string };
+        return {
+          summary: `Scheduled the workflow (${data.triggerType})`,
+          records: [{ type: 'workflow', id: args.workflowId, label: 'the scheduled workflow' }],
+          events: [
+            {
+              description: `Created a ${data.triggerType} schedule`,
+              recordType: 'workflow',
+              recordId: args.workflowId,
+            },
+          ],
+        };
+      },
     };
   }
 
@@ -373,6 +436,14 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
           input.comment,
         );
         return { id: approval.id, status: approval.status, decidedAt: approval.decidedAt };
+      },
+      ground(_input, output) {
+        const data = output as { id: string; status: string };
+        return {
+          summary: `Decided a workflow approval — ${data.status.toLowerCase()}`,
+          records: [],
+          events: [{ description: `Workflow approval ${data.status.toLowerCase()}` }],
+        };
       },
     };
   }
@@ -428,6 +499,11 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
           stepCount: definition.steps.length,
         };
       },
+      ground: mutationGrounding<{ id: string; name: string }>({
+        recordType: 'workflow',
+        action: 'Generated workflow',
+        record: (output) => ({ id: output.id, label: output.name }),
+      }),
     };
   }
 
@@ -452,6 +528,14 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
       async execute(input: { workflowId: string }) {
         const explanation = await workflowAiService.explainWorkflow(input.workflowId);
         return { explanation };
+      },
+      ground(input) {
+        const args = input as { workflowId: string };
+        return {
+          summary: 'Explained the workflow',
+          records: [{ type: 'workflow', id: args.workflowId, label: 'the workflow' }],
+          events: [],
+        };
       },
     };
   }
@@ -478,6 +562,14 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
         const diagnosis = await workflowAiService.debugWorkflow(input.workflowId);
         return { diagnosis };
       },
+      ground(input) {
+        const args = input as { workflowId: string };
+        return {
+          summary: 'Diagnosed recent failures of the workflow',
+          records: [{ type: 'workflow', id: args.workflowId, label: 'the workflow' }],
+          events: [],
+        };
+      },
     };
   }
 
@@ -502,6 +594,14 @@ export class WorkflowToolSourceService implements DynamicToolSource, OnModuleIni
       async execute(input: { workflowId: string }) {
         const suggestions = await workflowAiService.optimizeWorkflow(input.workflowId);
         return { suggestions };
+      },
+      ground(input) {
+        const args = input as { workflowId: string };
+        return {
+          summary: 'Reviewed the workflow for optimizations',
+          records: [{ type: 'workflow', id: args.workflowId, label: 'the workflow' }],
+          events: [],
+        };
       },
     };
   }

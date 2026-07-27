@@ -11,6 +11,7 @@ export interface CreateAgentActionApprovalData {
   agentRunId: string;
   toolName: string;
   input: Record<string, unknown>;
+  summary?: string;
   expiresAt?: Date;
 }
 
@@ -51,6 +52,7 @@ export class AgentApprovalRepository {
         agentRunId: data.agentRunId,
         toolName: data.toolName,
         input: data.input as Prisma.InputJsonValue,
+        summary: data.summary ?? null,
         expiresAt: data.expiresAt,
       },
     });
@@ -75,8 +77,9 @@ export class AgentApprovalRepository {
     agentRunId: string,
     toolName: string,
   ): Promise<AgentActionApprovalEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
     const record = await this.prisma.system.agentActionApproval.findFirst({
-      where: { agentRunId, toolName, status: 'PENDING' },
+      where: { agentRunId, toolName, organizationId: tenant.organizationId, status: 'PENDING' },
       orderBy: { createdAt: 'desc' },
     });
     return record ? toEntity(record) : null;
@@ -108,6 +111,33 @@ export class AgentApprovalRepository {
   }
 
   /**
+   * Approval history for a specific resource (e.g. a promise): every
+   * hand-written mutating tool's input carries the id of the record it
+   * acts on (see PromisesToolSourceService), so filtering by tool name +
+   * a JSON path on `input` finds every approval — pending or decided —
+   * ever requested for that resource, without a new approval table or a
+   * resourceType/resourceId column on AgentActionApproval.
+   */
+  async findByToolNamesAndInputId(
+    organizationId: string,
+    toolNames: string[],
+    inputKey: string,
+    inputValue: string,
+    limit = 50,
+  ): Promise<AgentActionApprovalEntity[]> {
+    const records = await this.prisma.system.agentActionApproval.findMany({
+      where: {
+        organizationId,
+        toolName: { in: toolNames },
+        input: { path: [inputKey], equals: inputValue },
+      },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
+    return records.map(toEntity);
+  }
+
+  /**
    * Atomic compare-and-swap: the WHERE clause only matches a row still in
    * PENDING status, so of two concurrent decide() calls for the same
    * approval, Postgres's row-level locking on the UPDATE guarantees at
@@ -120,9 +150,10 @@ export class AgentApprovalRepository {
     id: string,
     data: DecideAgentActionApprovalData,
   ): Promise<AgentActionApprovalEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
     return this.prisma.system.$transaction(async (tx) => {
       const result = await tx.agentActionApproval.updateMany({
-        where: { id, status: 'PENDING' },
+        where: { id, organizationId: tenant.organizationId, status: 'PENDING' },
         data: {
           status: data.status,
           approverUserId: data.approverUserId,
@@ -147,6 +178,7 @@ function toEntity(record: {
   agentRunId: string;
   toolName: string;
   input: Prisma.JsonValue;
+  summary: string | null;
   status: AgentActionApprovalStatus;
   approverUserId: string | null;
   comment: string | null;
@@ -160,6 +192,7 @@ function toEntity(record: {
     agentRunId: record.agentRunId,
     toolName: record.toolName,
     input: toObject(record.input),
+    summary: record.summary,
     status: record.status,
     approverUserId: record.approverUserId,
     comment: record.comment,

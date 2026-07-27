@@ -241,6 +241,7 @@ describe('AgentLoopService', () => {
         createdAt: new Date(),
       },
       result: { toolName: 'datetime', content: '{"iso":"noon"}' },
+      grounding: null,
       message: messageEntity({ role: 'tool', content: '{"iso":"noon"}' }) as never,
     });
 
@@ -319,6 +320,7 @@ describe('AgentLoopService', () => {
         createdAt: new Date(),
       },
       result: { toolName: 'datetime', content: '{"iso":"noon"}' },
+      grounding: null,
       message: messageEntity({ role: 'tool', content: '{"iso":"noon"}' }) as never,
     });
 

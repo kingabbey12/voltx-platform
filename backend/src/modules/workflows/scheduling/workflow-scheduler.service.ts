@@ -1,7 +1,12 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Interval, SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { randomUUID } from 'node:crypto';
+import {
+  cronTickKey,
+  DISTRIBUTED_LOCK_SERVICE,
+  DistributedLockService,
+} from '../../../common/scheduling/distributed-lock.service';
 import { AuthContextRepository } from '../../auth/auth-context.repository';
 import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 import { WorkflowScheduleEntity } from '../entities/workflow-support.entity';
@@ -11,6 +16,10 @@ import { WorkflowService } from '../workflow.service';
 import { WorkflowEventBusService } from './workflow-event-bus.service';
 
 const DELAYED_POLL_INTERVAL_MS = 30_000;
+/** Comfortably longer than a poll sweep, auto-extended if one runs long. */
+const DELAYED_POLL_LOCK_TTL_MS = 5 * 60_000;
+/** Only has to outlive inter-replica clock skew — the tick itself is in the key. */
+const CRON_TICK_WINDOW_MS = 5 * 60_000;
 
 /**
  * The runtime side of Scheduling: registers a live cron job per enabled
@@ -35,12 +44,21 @@ export class WorkflowSchedulerService implements OnModuleInit {
     private readonly workflowEventBusService: WorkflowEventBusService,
     private readonly authContextRepository: AuthContextRepository,
     private readonly tenantContextService: TenantContextService,
+    @Inject(DISTRIBUTED_LOCK_SERVICE)
+    private readonly distributedLock: DistributedLockService,
   ) {}
 
   async onModuleInit(): Promise<void> {
-    const cronSchedules = await this.workflowScheduleRepository.listEnabledByType('CRON');
-    for (const schedule of cronSchedules) {
-      this.registerCronSchedule(schedule);
+    try {
+      const cronSchedules = await this.workflowScheduleRepository.listEnabledByType('CRON');
+      for (const schedule of cronSchedules) {
+        this.registerCronSchedule(schedule);
+      }
+    } catch (error: unknown) {
+      this.logger.warn(
+        { err: error },
+        'Could not load CRON schedules on init — the workflow_schedules table may not exist yet',
+      );
     }
 
     this.workflowEventBusService.onEvent((eventName, payload) => {
@@ -50,11 +68,27 @@ export class WorkflowSchedulerService implements OnModuleInit {
 
   @Interval(DELAYED_POLL_INTERVAL_MS)
   async pollDueDelayedSchedules(): Promise<void> {
-    const due = await this.workflowScheduleRepository.listDue(new Date());
-    for (const schedule of due.filter((item) => item.triggerType === 'DELAYED')) {
-      await this.workflowScheduleRepository.setEnabled(schedule.id, false);
-      await this.fireSchedule(schedule, {});
-    }
+    // listDue → setEnabled(false) → fire is a read-then-write claim, so two
+    // replicas polling concurrently would both see the same DELAYED schedule
+    // as due and both fire it. The lock makes the whole sweep single-writer.
+    await this.distributedLock.runExclusive(
+      'workflow-scheduler:delayed-poll',
+      DELAYED_POLL_LOCK_TTL_MS,
+      async () => {
+        try {
+          const due = await this.workflowScheduleRepository.listDue(new Date());
+          for (const schedule of due.filter((item) => item.triggerType === 'DELAYED')) {
+            await this.workflowScheduleRepository.setEnabled(schedule.id, false);
+            await this.fireSchedule(schedule, {});
+          }
+        } catch (error: unknown) {
+          this.logger.warn(
+            { err: error },
+            'Could not poll due delayed schedules — the workflow_schedules table may not exist yet',
+          );
+        }
+      },
+    );
   }
 
   registerCronSchedule(schedule: WorkflowScheduleEntity): void {
@@ -66,8 +100,15 @@ export class WorkflowSchedulerService implements OnModuleInit {
       return;
     }
 
-    const job = new CronJob(schedule.cronExpression, () => {
-      void this.fireSchedule(schedule, {});
+    // Every replica registers this same job, so all of them wake on each tick.
+    // Keying the lock on the tick lets exactly one replica fire it while still
+    // allowing the next tick through, however frequent the cron expression is.
+    const job: CronJob = new CronJob(schedule.cronExpression, () => {
+      void this.distributedLock.runOncePerWindow(
+        cronTickKey(`workflow-schedule:${schedule.id}`, job.lastDate()),
+        CRON_TICK_WINDOW_MS,
+        () => this.fireSchedule(schedule, {}),
+      );
     });
     this.schedulerRegistry.addCronJob(jobName, job);
     job.start();

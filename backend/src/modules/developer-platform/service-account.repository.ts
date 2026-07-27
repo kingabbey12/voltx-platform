@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { MembershipStatus, ServiceAccountStatus, UserStatus, UserType } from '@prisma/client';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import {
   ServiceAccountEntity,
@@ -27,7 +28,10 @@ export interface CreateServiceAccountTokenData {
 
 @Injectable()
 export class ServiceAccountRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContextService: TenantContextService,
+  ) {}
 
   /**
    * Creates the synthetic User row, its real Membership (so RBAC works
@@ -98,8 +102,10 @@ export class ServiceAccountRepository {
   }
 
   async setStatus(id: string, status: ServiceAccountStatus): Promise<ServiceAccountEntity> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId ? { id, organizationId: tenant.organizationId } : { id };
     const record = await this.prisma.system.serviceAccount.update({
-      where: { id },
+      where,
       data: { status },
     });
     return toServiceAccountEntity(record);
@@ -141,15 +147,23 @@ export class ServiceAccountRepository {
   }
 
   async touchTokenLastUsedAt(id: string): Promise<void> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId
+      ? { id, serviceAccount: { organizationId: tenant.organizationId }, revokedAt: null }
+      : { id, revokedAt: null };
     await this.prisma.system.serviceAccountToken.updateMany({
-      where: { id, revokedAt: null },
+      where,
       data: { lastUsedAt: new Date() },
     });
   }
 
   async revokeToken(id: string): Promise<void> {
+    const tenant = this.tenantContextService.get();
+    const where = tenant?.organizationId
+      ? { id, serviceAccount: { organizationId: tenant.organizationId } }
+      : { id };
     await this.prisma.system.serviceAccountToken.update({
-      where: { id },
+      where,
       data: { revokedAt: new Date() },
     });
   }

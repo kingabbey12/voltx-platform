@@ -36,6 +36,12 @@ export class AgentApprovalResponseDto {
   @ApiProperty() agentRunId!: string;
   @ApiProperty() toolName!: string;
   @ApiProperty({ type: Object }) input!: Record<string, unknown>;
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Owner-facing sentence written at creation — clients render this, never their own.',
+  })
+  summary!: string | null;
   @ApiProperty() status!: string;
   @ApiPropertyOptional({ nullable: true }) approverUserId!: string | null;
   @ApiPropertyOptional({ nullable: true }) comment!: string | null;
@@ -48,6 +54,7 @@ export class AgentApprovalResponseDto {
     dto.agentRunId = entity.agentRunId;
     dto.toolName = entity.toolName;
     dto.input = entity.input;
+    dto.summary = entity.summary;
     dto.status = entity.status;
     dto.approverUserId = entity.approverUserId;
     dto.comment = entity.comment;

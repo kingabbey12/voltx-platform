@@ -73,13 +73,13 @@ export class AnthropicProvider implements AIProvider {
   }
 
   async chat(request: AIProviderChatRequest): Promise<AIChatResponse> {
-    this.assertConfigured();
+    const { apiKey, baseUrl } = this.resolveCredential(request);
 
     const payload = await fetchJsonObject(
-      `${this.baseUrl}/messages`,
+      `${baseUrl}/messages`,
       {
         method: 'POST',
-        headers: this.buildHeaders(),
+        headers: this.buildHeaders(apiKey),
         body: JSON.stringify({
           model: request.model,
           messages: toAnthropicMessages(request.messages),
@@ -114,7 +114,7 @@ export class AnthropicProvider implements AIProvider {
   }
 
   async *stream(request: AIProviderChatRequest): AsyncIterable<AIStreamEvent> {
-    this.assertConfigured();
+    const { apiKey, baseUrl } = this.resolveCredential(request);
 
     const messageId = randomUUID();
     let outputText = '';
@@ -127,10 +127,10 @@ export class AnthropicProvider implements AIProvider {
     };
 
     const stream = await createStreamingResponse(
-      `${this.baseUrl}/messages`,
+      `${baseUrl}/messages`,
       {
         method: 'POST',
-        headers: this.buildHeaders(),
+        headers: this.buildHeaders(apiKey),
         body: JSON.stringify({
           model: request.model,
           messages: toAnthropicMessages(request.messages),
@@ -226,12 +226,29 @@ export class AnthropicProvider implements AIProvider {
     return Promise.resolve(ANTHROPIC_MODELS);
   }
 
-  private buildHeaders(): Record<string, string> {
+  private buildHeaders(apiKey: string): Record<string, string> {
     return {
-      'x-api-key': this.apiKey,
+      'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
       'Content-Type': 'application/json',
     };
+  }
+
+  /**
+   * Effective credential for one call: a tenant's per-request override (from
+   * the Tenant AI Credentials module) supersedes the env-configured key. The
+   * configured-provider guard runs only without an override.
+   */
+  private resolveCredential(request: AIProviderChatRequest | AIEmbeddingRequest): {
+    apiKey: string;
+    baseUrl: string;
+  } {
+    const override = request.credentialOverride;
+    if (override) {
+      return { apiKey: override.apiKey, baseUrl: override.baseUrl ?? this.baseUrl };
+    }
+    this.assertConfigured();
+    return { apiKey: this.apiKey, baseUrl: this.baseUrl };
   }
 
   private assertConfigured(): void {

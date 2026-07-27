@@ -1,23 +1,37 @@
 # Render Blueprint (Infrastructure as Code) for the Voltx backend API.
 #
-# Deploy model: this repo's .github/workflows/deploy.yml builds the backend's
-# production Docker image, pushes it to GHCR, runs `prisma migrate deploy` +
-# `prisma:seed` against the target database, and only THEN tells Render to
-# deploy that exact image — deliberately NOT relying on Render's own
-# build-from-Dockerfile or auto-deploy-on-push, for two reasons:
-#   1. The production image is pruned to prod-only dependencies (see
-#      backend/Dockerfile's final stage) and does not contain the Prisma
-#      CLI, so a Render "Pre-Deploy Command" running inside that image
-#      cannot run migrations itself — they have to run from a full
-#      checkout with devDependencies, which is what the GitHub Actions job
-#      already does.
-#   2. Auto-deploying on every push risks the app deploying before its own
-#      migration has run against the database. `autoDeploy: false` below
-#      makes deploys strictly CI-triggered, after migrations succeed.
+# Deploy model: .github/workflows/deploy.yml builds the backend's production
+# image, pushes it to GHCR, and then tells Render to deploy that exact image.
+# `autoDeploy: false` keeps deploys strictly CI-triggered rather than firing
+# on every push.
+#
+# MIGRATIONS — how this changed, and why
+#
+# This file previously stated that a Render Pre-Deploy Command could not run
+# migrations, because the pruned production image did not contain the Prisma
+# CLI. That was true then and is no longer true: `prisma` is now a runtime
+# dependency (backend/package.json), so it survives `pnpm prune --prod`, and
+# backend/Dockerfile fails the build if it is ever missing again.
+#
+# Delegating migrations to deploy.yml turned out to be the reason production
+# ran on an unmigrated database. That job's migrate step failed on every one
+# of its runs with P1012 — `DATABASE_URL resolved to an empty string`, because
+# the GitHub Environment it targets has no secrets set. Migrations therefore
+# never ran even once, and the app booted against an empty schema and threw
+# Prisma P2021.
+#
+# `preDeployCommand` removes that dependency on CI secrets. It runs inside the
+# image being deployed, against the live database, BEFORE traffic shifts to the
+# new version. A non-zero exit aborts the deploy and the previous version keeps
+# serving. `prisma migrate deploy` only applies pending migrations in filename
+# order and records them in _prisma_migrations — it never generates, resets or
+# invents schema, and aborts on a checksum mismatch.
 #
 # Owner action required to activate:
 #   1. In the Render dashboard: New -> Blueprint -> connect this repo. Render
-#      will read this file and create the service below.
+#      will read this file and create the service below. NOTE: Render only
+#      reads render.yaml for services created from (or synced to) a Blueprint —
+#      a manually-created service ignores this file entirely.
 #   2. If the GHCR package is private, add registry credentials for
 #      ghcr.io on the service (Render dashboard -> service -> Settings ->
 #      Docker Registry Credentials).
@@ -25,12 +39,11 @@
 #      (see backend/.env.example for what each one does).
 #   4. Add DATABASE_URL (Neon pooled connection string) and DIRECT_URL
 #      (Neon direct/unpooled connection string) as Render env vars — both
-#      come from the Neon dashboard for the target database.
-#   5. Add these as GitHub Actions secrets so deploy.yml's migrate step and
-#      final Render-deploy trigger can reach the right database/service:
-#      DATABASE_URL, DIRECT_URL, RENDER_API_KEY, RENDER_SERVICE_ID (the
-#      latter two only needed once deploy.yml's placeholder Deploy step is
-#      wired to Render's Deploy API — see that file's inline comment).
+#      come from the Neon dashboard for the target database. DIRECT_URL is
+#      NOT optional: the migration engine cannot run through Neon's
+#      transaction-mode pooler, so preDeployCommand fails without it.
+#   5. Add RENDER_API_KEY and RENDER_SERVICE_ID as GitHub Actions secrets so
+#      deploy.yml's final Render-deploy step can trigger the deploy.
 #   6. Point api.usevoltx.com's DNS at the Render service (Render dashboard
 #      -> service -> Settings -> Custom Domains gives the exact CNAME/A
 #      record to add at your DNS registrar).
@@ -45,6 +58,13 @@ services:
     region: oregon
     healthCheckPath: /api/v1/health
     autoDeploy: false
+
+    # Applies pending migrations before the new version receives traffic.
+    # Supported on paid instance types for image-backed services (this is
+    # `plan: starter`); not available on free instances. Requires the Prisma
+    # CLI inside the image — see the MIGRATIONS note above.
+    preDeployCommand: node_modules/.bin/prisma migrate deploy
+
     envVars:
       - key: NODE_ENV
         value: production
@@ -56,11 +76,20 @@ services:
         value: https://app.usevoltx.com
       - key: DATABASE_URL
         sync: false
+      # Read only by the migration engine. preDeployCommand fails without it
+      # on Neon, because migrations cannot run over the pooled endpoint.
       - key: DIRECT_URL
         sync: false
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: INTEGRATIONS_ENCRYPTION_KEY
+        generateValue: true
+      # NOT optional in production. main.ts calls
+      # MetricsScrapeGuard.assertConfigured, which throws at boot when this is
+      # unset or shorter than 32 characters — /metrics would otherwise be open
+      # to anyone who can reach the port. Render's generated value satisfies
+      # both conditions.
+      - key: METRICS_AUTH_TOKEN
         generateValue: true
       # NOT optional in production. src/bootstrap/redis-requirement.check.ts
       # refuses to boot with NODE_ENV=production unless REDIS_ENABLED=true —
@@ -81,6 +110,10 @@ services:
       - key: ATTACHMENTS_S3_BUCKET
         sync: false
       - key: ATTACHMENTS_S3_REGION
+        sync: false
+      - key: ATTACHMENTS_S3_ENDPOINT
+        sync: false
+      - key: ATTACHMENTS_S3_FORCE_PATH_STYLE
         sync: false
       - key: ATTACHMENTS_S3_ACCESS_KEY_ID
         sync: false

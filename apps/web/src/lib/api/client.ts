@@ -3,6 +3,12 @@ import { tokenStorage } from "./token-storage";
 import { ApiError } from "./api-error";
 import type { ApiEnvelope } from "./types";
 
+/** Default request timeout in milliseconds — all apiFetch calls use this
+ * unless overridden via options. Picked to balance responsiveness against
+ * legitimate long-running operations (AI agent runs are exempted via their
+ * own streaming/SSE paths). */
+const REQUEST_TIMEOUT_MS = 30_000;
+
 interface RequestOptions {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
@@ -11,6 +17,15 @@ interface RequestOptions {
   authenticated?: boolean;
   /** Internal — prevents infinite refresh loops. */
   _isRetry?: boolean;
+  /** AbortSignal for external cancellation (e.g. React Query's
+   * AbortSignal, user-initiated cancellation via a Cancel button, or
+   * component unmount). */
+  signal?: AbortSignal;
+  /** Per-request timeout override in milliseconds. When unset the default
+   * REQUEST_TIMEOUT_MS applies. Set to 0 to disable the timeout entirely
+   * (for long-running operations like large file uploads that manage their
+   * own cancellation via a separate AbortSignal). */
+  timeoutMs?: number;
 }
 
 /** Invoked when a refresh attempt fails — the auth layer registers this to
@@ -48,6 +63,11 @@ function buildUrl(path: string, query?: RequestOptions["query"]): string {
 // only one refresh call fires and all 5 await the same promise.
 let refreshPromise: Promise<string> | null = null;
 
+/** Shorter timeout for the refresh call — a slow refresh should never
+ * block a retry indefinitely (the user gets a "Session expired" result
+ * faster and can re-login instead of staring at a spinner). */
+const REFRESH_TIMEOUT_MS = 10_000;
+
 async function refreshAccessToken(): Promise<string> {
   if (refreshPromise) {
     return refreshPromise;
@@ -59,26 +79,37 @@ async function refreshAccessToken(): Promise<string> {
       throw new ApiError("No refresh token available", 401);
     }
 
-    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(new ApiError("Refresh timed out", 408, "REFRESH_TIMEOUT")),
+      REFRESH_TIMEOUT_MS,
+    );
 
-    const json = (await response.json()) as ApiEnvelope<{
-      accessToken: string;
-      refreshToken: string;
-    }>;
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+        signal: controller.signal,
+      });
 
-    if (!response.ok || !json.success) {
-      throw new ApiError("Session expired", 401);
+      const json = (await response.json()) as ApiEnvelope<{
+        accessToken: string;
+        refreshToken: string;
+      }>;
+
+      if (!response.ok || !json.success) {
+        throw new ApiError("Session expired", 401);
+      }
+
+      tokenStorage.save({
+        accessToken: json.data.accessToken,
+        refreshToken: json.data.refreshToken,
+      });
+      return json.data.accessToken;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    tokenStorage.save({
-      accessToken: json.data.accessToken,
-      refreshToken: json.data.refreshToken,
-    });
-    return json.data.accessToken;
   })();
 
   try {
@@ -89,7 +120,7 @@ async function refreshAccessToken(): Promise<string> {
 }
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, query, authenticated = true, _isRetry = false } = options;
+  const { method = "GET", body, query, authenticated = true, _isRetry = false, signal: externalSignal, timeoutMs = REQUEST_TIMEOUT_MS } = options;
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -104,6 +135,20 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     }
   }
 
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  if (timeoutMs > 0) {
+    timeoutId = setTimeout(() => controller.abort(new ApiError("Request timed out", 408, "REQUEST_TIMEOUT")), timeoutMs);
+  }
+
+  if (externalSignal) {
+    const onExternalAbort = () => controller.abort(externalSignal.reason);
+    externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+  }
+
+  const signal = controller.signal;
+
   let response: Response;
   try {
     const requestUrl = buildUrl(path, query);
@@ -112,9 +157,16 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if ((error as Error)?.name === "AbortError") {
+      throw new ApiError("Request was cancelled or timed out", 408, "REQUEST_TIMEOUT");
+    }
     throw new ApiError("Network request failed", null);
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   let json: ApiEnvelope<T> | null = null;

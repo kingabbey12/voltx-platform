@@ -1,0 +1,31 @@
+# ── Blackbox exporter modules ─────────────────────────────────────────
+# Referenced by the `blackbox` scrape job in prometheus/prometheus.yml.
+modules:
+  https_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200]
+      method: GET
+      follow_redirects: true
+      # Certificates must be genuinely valid: this probe is the only thing
+      # producing probe_ssl_earliest_cert_expiry, and skipping verification
+      # would let an expired or mismatched certificate probe as healthy.
+      tls_config:
+        insecure_skip_verify: false
+      preferred_ip_protocol: ip4
+
+  # Plain-HTTP probe for services reachable only inside the compose network,
+  # where there is no TLS to verify.
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200]
+      method: GET
+      # Deliberately does NOT follow redirects: an auth redirect to /login
+      # returns 200 and would mask an unhealthy app.
+      follow_redirects: false
+      preferred_ip_protocol: ip4

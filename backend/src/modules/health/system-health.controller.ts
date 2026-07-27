@@ -1,8 +1,14 @@
-import { Controller, Get, VERSION_NEUTRAL } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, HttpStatus, Res, VERSION_NEUTRAL } from '@nestjs/common';
+import {
+  ApiOkResponse,
+  ApiOperation,
+  ApiServiceUnavailableResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
+import { Response } from 'express';
 import { LivenessCheckDataDto, ReadinessCheckDataDto } from './dto/health-check.dto';
-import { HealthService, LivenessCheckResult, ReadinessCheckResult } from './health.service';
+import { HealthService, LivenessCheckResult } from './health.service';
 
 @ApiTags('System')
 @Controller({ path: '', version: VERSION_NEUTRAL })
@@ -13,11 +19,16 @@ export class SystemHealthController {
   @SkipThrottle()
   @ApiOperation({ summary: 'Readiness probe' })
   @ApiOkResponse({
-    description: 'Application readiness state',
+    description: 'Application is ready to serve traffic',
     type: ReadinessCheckDataDto,
   })
-  readiness(): Promise<ReadinessCheckResult> {
-    return this.healthService.readiness();
+  @ApiServiceUnavailableResponse({
+    description: 'Application is not ready — a required dependency is down',
+  })
+  async readiness(@Res() response: Response): Promise<void> {
+    const result = await this.healthService.readiness();
+    const status = result.status === 'ready' ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
+    response.status(status).json(result);
   }
 
   @Get('liveness')
