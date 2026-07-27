@@ -1,3 +1,15 @@
+# ── Voltx reverse proxy ───────────────────────────────────────────────
+# This is a TEMPLATE. nginx:alpine's entrypoint runs envsubst over
+# /etc/nginx/templates/*.template and writes the result to
+# /etc/nginx/conf.d/, so ${WEB_HOST} and ${API_HOST} are substituted at
+# container start from the environment.
+#
+# It was previously a static file with staging.voltx.ai / api-staging.voltx.ai
+# hardcoded, which meant a production deploy answered on no production
+# hostname at all. Only the substitution list below is expanded — $host,
+# $http_upgrade and friends are escaped by naming them explicitly in
+# NGINX_ENVSUBST_FILTER, so nginx's own variables survive.
+
 upstream api {
     server api:3000;
 }
@@ -9,7 +21,7 @@ upstream web {
 # ── HTTP → HTTPS redirect ─────────────────────────────────────────────
 server {
     listen 80;
-    server_name staging.voltx.ai api-staging.voltx.ai;
+    server_name ${WEB_HOST} ${API_HOST};
     return 301 https://$host$request_uri;
 }
 
@@ -17,7 +29,7 @@ server {
 server {
     listen 443 ssl;
     http2 on;
-    server_name api-staging.voltx.ai;
+    server_name ${API_HOST};
 
     ssl_certificate /etc/nginx/ssl/fullchain.pem;
     ssl_certificate_key /etc/nginx/ssl/privkey.pem;
@@ -74,7 +86,7 @@ server {
 server {
     listen 443 ssl;
     http2 on;
-    server_name staging.voltx.ai;
+    server_name ${WEB_HOST};
 
     ssl_certificate /etc/nginx/ssl/fullchain.pem;
     ssl_certificate_key /etc/nginx/ssl/privkey.pem;

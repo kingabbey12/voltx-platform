@@ -139,6 +139,43 @@ if grep -qE '^NODE_ENV=production' "$ENV_FILE" 2>/dev/null; then
   fi
 fi
 
+# NEXT_PUBLIC_API_BASE_URL is compiled into the browser bundle, so a wrong
+# value cannot be corrected by restarting the container — it needs a rebuild.
+# It must also be an address a *browser* can resolve: an internal compose
+# hostname or localhost produces an app that renders perfectly and loads no
+# data at all. A previous build shipped http://localhost:3000/api/v1.
+WEB_API_URL="$(grep -E '^NEXT_PUBLIC_API_BASE_URL=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'")"
+if [ -z "${WEB_API_URL}" ]; then
+  error "NEXT_PUBLIC_API_BASE_URL is not set in ${ENV_FILE}. The web image cannot be built without it."
+fi
+case "${WEB_API_URL}" in
+  *localhost*|*127.0.0.1*|http://api:*|https://api:*)
+    error "NEXT_PUBLIC_API_BASE_URL is '${WEB_API_URL}', which no browser outside this host can reach. Set it to the public API URL (e.g. https://api.usevoltx.com/api/v1)."
+    ;;
+esac
+if [ "$DEPLOY_ENV" = "production" ]; then
+  case "${WEB_API_URL}" in
+    https://*) ;;
+    *) error "NEXT_PUBLIC_API_BASE_URL must use https in production; got '${WEB_API_URL}'." ;;
+  esac
+fi
+info "Web app will be built against ${WEB_API_URL}"
+
+# nginx server_name comes from these; without them the proxy answers on no
+# hostname and every request 404s at the edge.
+for var in WEB_HOST API_HOST; do
+  value="$(grep -E "^${var}=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'")"
+  [ -n "$value" ] || error "${var} is not set in ${ENV_FILE}. nginx substitutes it into its server_name; see deploy/nginx/templates/."
+done
+
+# The API URL the browser is built against must match the hostname nginx
+# serves the API on, or every request fails CORS/DNS at runtime.
+CONFIGURED_API_HOST="$(grep -E '^API_HOST=' "$ENV_FILE" | cut -d= -f2- | tr -d '"' | tr -d "'")"
+case "${WEB_API_URL}" in
+  *"${CONFIGURED_API_HOST}"*) ;;
+  *) warn "NEXT_PUBLIC_API_BASE_URL (${WEB_API_URL}) does not contain API_HOST (${CONFIGURED_API_HOST}) — the browser may be pointed at a host nginx does not serve." ;;
+esac
+
 # ── Step 1: Pull latest images ────────────────────────────────────────
 info "Pulling latest base images..."
 "${COMPOSE[@]}" pull --quiet || true

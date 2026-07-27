@@ -108,8 +108,13 @@ jobs:
       - run: npx tsc --noEmit
         working-directory: apps/web
 
+      # NEXT_PUBLIC_* are inlined into the bundle at build time, and
+      # `prebuild` (validate-env.mjs) refuses to run without the API URL.
+      # A CI placeholder is fine — CI never serves this bundle.
       - run: pnpm build
         working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_BASE_URL: https://api.ci.invalid/api/v1
 
       # Blocking, same contract as the backend step — pin patched versions in
       # apps/web/pnpm-workspace.yaml `overrides` rather than reverting this.
@@ -132,6 +137,34 @@ jobs:
           name: playwright-screenshots
           path: apps/web/test-results/
           retention-days: 7
+
+  # apps/marketing had no CI job at all — the public website was never linted,
+  # type-checked or built by any gate. It uses npm (not pnpm) and has its own
+  # lockfile, matching how it is deployed.
+  marketing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: apps/marketing/package-lock.json
+
+      - run: npm ci
+        working-directory: apps/marketing
+
+      - run: npm run lint
+        working-directory: apps/marketing
+
+      - run: npx tsc --noEmit
+        working-directory: apps/marketing
+
+      - run: npm run build
+        working-directory: apps/marketing
+
+      - run: npm audit --audit-level=high
+        working-directory: apps/marketing
 
   mobile:
     runs-on: macos-latest
@@ -199,6 +232,13 @@ jobs:
         with:
           context: apps/web
           push: true
+          # Required: the API URL is compiled into the client bundle. The
+          # published image is therefore environment-specific — this one is
+          # built for production and must not be reused for another
+          # environment. See docs/operations/web-deployment.md.
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+            NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
           tags: ghcr.io/${{ github.repository }}/web:latest,ghcr.io/${{ github.repository }}/web:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

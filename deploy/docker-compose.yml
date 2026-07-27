@@ -112,9 +112,21 @@ services:
     build:
       context: ../apps/web
       dockerfile: Dockerfile
+      # NEXT_PUBLIC_* are compiled into the client bundle, so they must be
+      # supplied here at build time. Putting them under `environment:` below
+      # does nothing for the bundle — the image would still carry whatever it
+      # was built with. This is also why a web image is environment-specific
+      # and cannot be promoted from staging to production.
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?NEXT_PUBLIC_API_BASE_URL is required to build the web app}
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
     cpus: "1.0"
     mem_limit: 512m
     mem_reservation: 256m
+    # The only long-running service that lacked one: the customer-facing web
+    # tier did not come back after a crash or a host reboot, while every other
+    # service did. `migrate` is correctly excluded — it is a one-off job.
+    restart: unless-stopped
     env_file:
       - .env
     environment:
@@ -298,12 +310,19 @@ services:
 
   nginx:
     image: nginx:alpine
+    environment:
+      WEB_HOST: ${WEB_HOST:?WEB_HOST is required (e.g. staging.voltx.ai)}
+      API_HOST: ${API_HOST:?API_HOST is required (e.g. api-staging.voltx.ai)}
+      NGINX_ENVSUBST_FILTER: "^(WEB|API)_HOST$$"
     cpus: "0.5"
     mem_limit: 128m
     mem_reservation: 64m
     restart: unless-stopped
     volumes:
-      - ./nginx/voltx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Template, not a final config: the entrypoint runs envsubst over
+      # /etc/nginx/templates/*.template so the hostnames below are applied at
+      # container start. Mounting a static conf.d file would bypass that.
+      - ./nginx/templates:/etc/nginx/templates:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
     ports:
       - "80:80"

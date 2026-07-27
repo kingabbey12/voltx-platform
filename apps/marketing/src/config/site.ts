@@ -23,8 +23,10 @@ export type NavLink = {
 };
 
 export const mainNav: NavLink[] = [
+  { label: "Product", href: "/features" },
+  { label: "AI", href: "/ai" },
   { label: "Solutions", href: "/solutions" },
-  { label: "Developers", href: "/developers" },
+  { label: "Industries", href: "/industries" },
   { label: "Enterprise", href: "/enterprise" },
   { label: "Pricing", href: "/pricing" },
 ];
@@ -33,9 +35,11 @@ export const footerNav: { title: string; links: NavLink[] }[] = [
   {
     title: "Product",
     links: [
-      { label: "Solutions", href: "/solutions" },
-      { label: "Enterprise", href: "/enterprise" },
       { label: "Features", href: "/features" },
+      { label: "AI Capabilities", href: "/ai" },
+      { label: "Solutions", href: "/solutions" },
+      { label: "Industries", href: "/industries" },
+      { label: "Enterprise", href: "/enterprise" },
       { label: "Pricing", href: "/pricing" },
       { label: "Sign in", href: siteConfig.appUrl },
     ],
@@ -56,11 +60,15 @@ export const footerNav: { title: string; links: NavLink[] }[] = [
       { label: "Blog", href: "/blog" },
       { label: "Careers", href: "/careers" },
       { label: "Contact", href: "/contact" },
+      { label: "Book a demo", href: "/book-demo" },
+      { label: "Join the beta", href: "/join-beta" },
     ],
   },
   {
     title: "Legal",
     links: [
+      { label: "Security", href: "/security" },
+      { label: "FAQ", href: "/faq" },
       { label: "Privacy Policy", href: "/privacy" },
       { label: "Terms of Service", href: "/terms" },
     ],

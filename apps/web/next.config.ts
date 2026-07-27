@@ -1,16 +1,41 @@
 import type { NextConfig } from "next";
 
+/**
+ * The API almost always lives on a different origin from the app
+ * (api.usevoltx.com vs app.usevoltx.com), and `connect-src 'self'` does not
+ * cover it — the browser would block every XHR and every socket.io
+ * connection, with the app rendering fine and no data ever loading.
+ *
+ * Derived from the same value the client is built against so the two cannot
+ * drift. Both the HTTP origin and its ws:// equivalent are allowed, because
+ * useCommsRealtime connects to the API origin for the live inbox.
+ */
+function apiConnectSources(): string {
+  const configured = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (!configured) return "";
+  try {
+    const { origin } = new URL(configured);
+    const socketOrigin = origin.replace(/^http/, "ws");
+    return ` ${origin} ${socketOrigin}`;
+  } catch {
+    // A malformed URL is caught by src/config/env.ts at import time; do not
+    // widen the policy to compensate for it here.
+    return "";
+  }
+}
+
 const cspHeader = `
   default-src 'self';
   script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.stripe.com https://js.stripe.com;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   img-src 'self' blob: data: https://*.stripe.com https://images.unsplash.com;
   font-src 'self' https://fonts.gstatic.com;
-  connect-src 'self' https://api.stripe.com wss: https://*.ingest.sentry.io;
+  connect-src 'self'${apiConnectSources()} https://api.stripe.com https://*.ingest.sentry.io;
   frame-src https://*.stripe.com https://js.stripe.com;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
+  frame-ancestors 'self';
 `;
 
 const nextConfig: NextConfig = {

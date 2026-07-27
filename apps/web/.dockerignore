@@ -1,3 +1,26 @@
+# Build output and dependencies — reinstalled/rebuilt inside the image.
 node_modules
 .next
 *.log
+
+# Environment files must never enter the build context.
+#
+# NEXT_PUBLIC_* values are inlined into the client bundle at build time, so a
+# developer's .env.local being copied in does not merely leak secrets — it
+# bakes their local API URL into the production image. That is exactly what
+# happened here: the built image had http://localhost:3000/api/v1 compiled in,
+# which would have pointed every user's browser at their own machine.
+#
+# The build takes these as ARGs instead; see Dockerfile.
+.env
+.env.*
+!.env.example
+
+# Test and tooling artefacts that have no place in a runtime image.
+playwright-report
+test-results
+e2e
+playwright.config.ts
+coverage
+.git
+.gitignore
