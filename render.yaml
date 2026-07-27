@@ -1,0 +1,151 @@
+# ── Voltx on Render ───────────────────────────────────────────────────
+#
+# Declarative Blueprint. Service topology lives here, in version control and
+# reviewable in a PR, rather than in dashboard state.
+#
+# THE MIGRATION CONTRACT
+#
+# `preDeployCommand` runs inside the built image, against the live database,
+# BEFORE any traffic shifts to the new version. If it exits non-zero the
+# deploy is aborted and the previous version keeps serving.
+#
+# This replaces the `migrate` service in docker-compose.yml, which is what
+# applied migrations locally and has no equivalent on a PaaS. Without it the
+# API booted against an empty database and threw Prisma P2021.
+#
+# `prisma migrate deploy` only applies pending migrations from
+# backend/prisma/migrations, in filename order, recording each in
+# _prisma_migrations. It never generates, resets, or invents schema — a
+# checksum mismatch or failed migration aborts rather than "fixing" anything.
+
+databases:
+  - name: voltx-postgres
+    databaseName: voltx
+    user: voltx
+    plan: basic-256mb
+    postgresMajorVersion: "16"
+
+services:
+  # ── API ─────────────────────────────────────────────────────────────
+  - type: web
+    name: voltx-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: standard
+    healthCheckPath: /readiness
+
+    # Applies pending migrations before the new version receives traffic.
+    # Requires the prisma CLI to exist in the production image — it is a
+    # runtime dependency for exactly this reason, and the Dockerfile fails
+    # the build if the prune removes it.
+    preDeployCommand: node_modules/.bin/prisma migrate deploy
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: voltx-postgres
+          property: connectionString
+      - key: REDIS_ENABLED
+        value: "true"
+      - key: REDIS_URL
+        fromService:
+          name: voltx-redis
+          type: keyvalue
+          property: connectionString
+      # Generated once by Render and kept stable across deploys. Changing it
+      # invalidates every issued access token. There is deliberately no
+      # refresh-token secret here: refresh tokens are opaque random values
+      # stored hashed in the database, not signed JWTs.
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      # Encrypts integration credentials at rest. Rotating this without the
+      # previous-key window makes stored credentials unreadable.
+      - key: INTEGRATIONS_ENCRYPTION_KEY
+        generateValue: true
+      # main.ts calls MetricsScrapeGuard.assertConfigured, which throws in
+      # production when this is unset or shorter than 32 characters. Render's
+      # generated value satisfies both.
+      - key: METRICS_AUTH_TOKEN
+        generateValue: true
+      # Local filesystem storage is rejected at boot in production: Render
+      # instances have ephemeral disks, so uploads would vanish on restart.
+      - key: ATTACHMENTS_STORAGE_PROVIDER
+        value: s3
+      - key: ATTACHMENTS_S3_BUCKET
+        sync: false
+      - key: ATTACHMENTS_S3_REGION
+        sync: false
+      - key: ATTACHMENTS_S3_ENDPOINT
+        sync: false
+      - key: ATTACHMENTS_S3_FORCE_PATH_STYLE
+        sync: false
+      - key: ATTACHMENTS_S3_ACCESS_KEY_ID
+        sync: false
+      - key: ATTACHMENTS_S3_SECRET_ACCESS_KEY
+        sync: false
+      # Empty means no browser origin is trusted; set to the web app origin
+      # or every authenticated request fails CORS.
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      # KNOWN GAP, not an oversight: there is no ClamAV service on Render.
+      # An unset CLAMAV_HOST does NOT block boot — VirusScanModule falls back
+      # to the no-op scanner — but AttachmentService then refuses every upload
+      # with 503 in production rather than storing an unscanned file. So the
+      # API will start and serve normally while attachment upload stays dead
+      # until a reachable clamd is provided here.
+      - key: CLAMAV_HOST
+        sync: false
+      - key: CLAMAV_PORT
+        sync: false
+
+  # ── Web app ─────────────────────────────────────────────────────────
+  - type: web
+    name: voltx-web
+    runtime: docker
+    dockerfilePath: ./apps/web/Dockerfile
+    dockerContext: ./apps/web
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      # NEXT_PUBLIC_* is compiled into the browser bundle, so this is a BUILD
+      # input. The image is therefore environment-specific and cannot be
+      # promoted between environments.
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+
+  # ── Redis / Key Value ───────────────────────────────────────────────
+  # Backs BullMQ queues AND the distributed scheduler lock. Verify the plan
+  # persists data: a cache-only tier loses queued jobs on restart.
+  - type: keyvalue
+    name: voltx-redis
+    plan: starter
+    ipAllowList: []
+
+  # ── Nightly schema drift check ──────────────────────────────────────
+  # NOT a backup — Render's managed Postgres takes its own backups, and this
+  # image has no pg_dump (node:22-alpine ships no postgresql-client), so
+  # deploy/scripts/backup.sh cannot run here.
+  #
+  # What this does catch: a database whose applied migrations no longer match
+  # backend/prisma/migrations — drift from a manual schema edit, or a
+  # preDeployCommand that was skipped. `migrate status` exits non-zero when
+  # anything is pending or modified, so the failed cron run is the alert.
+  - type: cron
+    name: voltx-migration-drift-check
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    schedule: "0 3 * * *"
+    dockerCommand: node_modules/.bin/prisma migrate status
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: voltx-postgres
+          property: connectionString

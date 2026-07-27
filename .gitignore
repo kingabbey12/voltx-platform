@@ -32,3 +32,10 @@ coverage/
 graphify-out/
 .opencode/
 .claude/worktrees/
+
+# ── Nested independent repositories ───────────────────────────────────
+# voltx-website/ is its own git repository (kingabbey12/voltx-website) with
+# its own Vercel deployment, checked out inside this working tree. Staging it
+# from here would commit a gitlink pointing at a commit this repo does not
+# contain. The marketing site that ships with the platform is apps/marketing.
+voltx-website/
