@@ -521,6 +521,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend, web]
     if: github.ref == 'refs/heads/main'
+    # Pushing to GHCR needs an explicitly writable token. Without this the
+    # images build fine and then the push is rejected with
+    # "denied: installation not allowed to Write organization package" —
+    # which reads like a registry permissions problem on the account rather
+    # than a missing declaration in this file. deploy.yml already grants it.
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
