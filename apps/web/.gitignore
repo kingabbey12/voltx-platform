@@ -22,3 +22,6 @@ npm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+
+# Playwright storage state — contains a live session token.
+e2e/.auth/

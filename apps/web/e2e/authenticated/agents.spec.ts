@@ -10,11 +10,9 @@ test.describe("AI Agents", () => {
     await page.goto("/ai/agents");
     const list = page.locator("[role=grid], [role=list], table, [class*=grid]").first();
     const emptyState = page.getByText(/no agents|create your first agent/i);
-    const anyVisible = await Promise.any([
-      list.isVisible().then((v) => v),
-      emptyState.isVisible().then((v) => v),
-    ]);
-    expect(anyVisible).toBe(true);
+    // Auto-waiting: isVisible() is an immediate snapshot, so it read
+    // false while the page was still rendering.
+    await expect(list.or(emptyState).first()).toBeVisible();
   });
 
   test("create agent button exists", async ({ page }) => {
@@ -29,10 +27,8 @@ test.describe("AI Agents", () => {
     await page.goto("/ai/agents");
     const searchInput = page.locator('input[type="search"], input[placeholder*="search" i]');
     const filterSelect = page.locator('[role="combobox"], select').first();
-    const anyVisible = await Promise.any([
-      searchInput.isVisible().then((v) => v),
-      filterSelect.isVisible().then((v) => v),
-    ]);
-    expect(anyVisible).toBe(true);
+    // Auto-waiting: isVisible() is an immediate snapshot, so it read
+    // false while the page was still rendering.
+    await expect(searchInput.or(filterSelect).first()).toBeVisible();
   });
 });

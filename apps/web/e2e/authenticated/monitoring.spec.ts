@@ -43,11 +43,9 @@ test.describe("AI Monitoring", () => {
     await page.goto("/ai/logs");
     const search = page.locator('input[type="search"], input[placeholder*="search" i]');
     const filter = page.locator('[role="combobox"], select').first();
-    const anyVisible = await Promise.any([
-      search.isVisible().then((v) => v),
-      filter.isVisible().then((v) => v),
-    ]);
-    expect(anyVisible).toBe(true);
+    // Auto-waiting: isVisible() is an immediate snapshot, so it read
+    // false while the page was still rendering.
+    await expect(search.or(filter).first()).toBeVisible();
   });
 
   test("incidents page has create alert button", async ({ page }) => {

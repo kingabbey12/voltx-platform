@@ -32,11 +32,8 @@ test.describe("AI Chat", () => {
     await page.goto("/ai");
     const sidebar = page.locator("[class*=sidebar], [class*=history], nav").first();
     const conversationList = page.getByText(/conversations|history|recent/i);
-    await expect(
-      Promise.any([
-        sidebar.isVisible().then((v) => v),
-        conversationList.isVisible().then((v) => v),
-      ]),
-    ).resolves.toBe(true);
+    // Auto-waiting: isVisible() is an immediate snapshot, so it read
+    // false while the page was still rendering.
+    await expect(sidebar.or(conversationList).first()).toBeVisible();
   });
 });

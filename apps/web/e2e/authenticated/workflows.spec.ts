@@ -10,11 +10,9 @@ test.describe("Workflows", () => {
     await page.goto("/workflows");
     const list = page.locator("[role=grid], [role=list], table, [class*=grid]").first();
     const emptyState = page.getByText(/no workflows|create your first/i);
-    const anyVisible = await Promise.any([
-      list.isVisible().then((v) => v),
-      emptyState.isVisible().then((v) => v),
-    ]);
-    expect(anyVisible).toBe(true);
+    // Auto-waiting: isVisible() is an immediate snapshot, so it read
+    // false while the page was still rendering.
+    await expect(list.or(emptyState).first()).toBeVisible();
   });
 
   test("create workflow button exists", async ({ page }) => {

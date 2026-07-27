@@ -1,4 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
+import { AUTH_STATE } from "./e2e/auth-state";
+
+const chromeLaunchOptions = { args: ["--no-sandbox", "--disable-setuid-sandbox"] };
 
 // One source of truth for where the app under test lives. `use.baseURL` and
 // `webServer` used to disagree: baseURL honoured PLAYWRIGHT_BASE_URL while
@@ -26,13 +29,31 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
+    // Runs without a session. Everything here must be reachable by a logged-out
+    // visitor, so it needs no API and stays in the fast `web` CI job.
     {
-      name: "chromium",
+      name: "public",
+      testDir: "./e2e/public",
+      use: { ...devices["Desktop Chrome"], launchOptions: chromeLaunchOptions },
+    },
+    {
+      name: "setup",
+      testMatch: /auth\.setup\.ts/,
+      use: { ...devices["Desktop Chrome"], launchOptions: chromeLaunchOptions },
+    },
+    // Requires a real API and a real login — see e2e/auth.setup.ts. Run by the
+    // `web-e2e-authenticated` CI job, which stands up Postgres and the backend
+    // first. Kept as its own project rather than merged into `public` so that
+    // running the fast job cannot silently produce vacuous passes against a
+    // redirected login page.
+    {
+      name: "authenticated",
+      testDir: "./e2e/authenticated",
+      dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],
-        launchOptions: {
-          args: ["--no-sandbox", "--disable-setuid-sandbox"],
-        },
+        storageState: AUTH_STATE,
+        launchOptions: chromeLaunchOptions,
       },
     },
   ],

@@ -10,9 +10,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=public",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:list": "playwright test --list"
+    "test:e2e:list": "playwright test --list",
+    "test:e2e:authenticated": "playwright test --project=authenticated"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

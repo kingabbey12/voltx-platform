@@ -161,6 +161,140 @@ jobs:
           path: apps/web/test-results/
           retention-days: 7
 
+  # The 23 specs under apps/web/e2e/authenticated/ drive routes behind
+  # src/app/(app)/layout.tsx, which resolves its user from the API and redirects
+  # to /login when it cannot. They therefore need a real backend and a real
+  # login, which the fast `web` job deliberately does not stand up — keeping
+  # lint/types/build/audit feedback quick. Split out rather than deleted or
+  # skipped: before this job existed they ran against a login page and either
+  # failed or passed vacuously.
+  web-e2e-authenticated:
+    name: Web e2e (authenticated)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: voltx_e2e
+          POSTGRES_USER: voltx
+          POSTGRES_PASSWORD: voltx
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U voltx -d voltx_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://voltx:voltx@localhost:5433/voltx_e2e
+      DIRECT_URL: postgresql://voltx:voltx@localhost:5433/voltx_e2e
+      # The API serves on 3000, so the Next server under test takes 3001.
+      # playwright.config.ts derives both its webServer port and its baseURL
+      # from PLAYWRIGHT_PORT, so this single value keeps them in step.
+      PLAYWRIGHT_PORT: "3001"
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3000/api/v1
+      E2E_USER_EMAIL: e2e-runner@ci.usevoltx.example
+      E2E_USER_PASSWORD: e2e-Runner-Password-1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build the API
+        working-directory: backend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Migrate and seed
+        working-directory: backend
+        # The RBAC catalogue must exist before registration: /auth/register
+        # assigns the new user the Owner role, which prisma:seed creates.
+        run: |
+          npx prisma migrate deploy
+          pnpm prisma:seed
+
+      - name: Start the API
+        working-directory: backend
+        env:
+          NODE_ENV: development
+          PORT: "3000"
+          REDIS_ENABLED: "false"
+          JWT_ACCESS_SECRET: ci-e2e-jwt-access-secret-at-least-32-chars
+          INTEGRATIONS_ENCRYPTION_KEY: ci-e2e-integrations-encryption-key
+          DATABASE_SEED_ON_BOOTSTRAP: "false"
+          # Must match the origin the Next server is served from. An empty
+          # value trusts no browser origin at all, which makes the CORS
+          # preflight for POST /auth/login return 404 — the login silently
+          # never happens and every authenticated spec fails on a redirect to
+          # /login with nothing in the API log to explain it.
+          CORS_ALLOWED_ORIGINS: http://localhost:3001
+        run: |
+          node dist/main.js > /tmp/api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/readiness > /dev/null; then
+              echo "API ready after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "API failed to become ready:"; cat /tmp/api.log; exit 1
+
+      - name: Create the e2e user
+        # Uses the real registration endpoint rather than a bespoke seed script,
+        # so the account is built the same way a customer's would be.
+        run: |
+          code=$(curl -sS -o /tmp/register.json -w '%{http_code}' \
+            -X POST http://localhost:3000/api/v1/auth/register \
+            -H 'Content-Type: application/json' \
+            -d "{\"email\":\"${E2E_USER_EMAIL}\",\"password\":\"${E2E_USER_PASSWORD}\",\"firstName\":\"E2E\",\"lastName\":\"Runner\",\"organizationName\":\"E2E Workspace\"}")
+          if [ "$code" != "201" ]; then
+            echo "Registration failed with HTTP $code:"; cat /tmp/register.json; exit 1
+          fi
+          echo "e2e user created"
+
+          # A freshly registered account is dropped into the 5-step onboarding
+          # wizard, and the app routes redirect there until it is finished — so
+          # without this the specs assert against "Tell us about your business"
+          # instead of the feature they name. The endpoint is idempotent.
+          TOKEN=$(node -pe "JSON.parse(require('fs').readFileSync('/tmp/register.json','utf8')).data.accessToken")
+          ORG=$(node -pe "JSON.parse(Buffer.from('$TOKEN'.split('.')[1],'base64url').toString()).org")
+          code=$(curl -sS -o /tmp/onboarding.json -w '%{http_code}' \
+            -X POST "http://localhost:3000/api/v1/organizations/${ORG}/complete-onboarding" \
+            -H "Authorization: Bearer ${TOKEN}")
+          if [ "$code" != "201" ]; then
+            echo "Completing onboarding failed with HTTP $code:"; cat /tmp/onboarding.json; exit 1
+          fi
+          echo "onboarding completed for org ${ORG}"
+
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run authenticated Playwright tests
+        working-directory: apps/web
+        run: pnpm test:e2e:authenticated
+        env:
+          CI: true
+
+      - name: Dump API log on failure
+        if: failure()
+        run: tail -100 /tmp/api.log
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-authenticated-results
+          path: apps/web/test-results/
+          retention-days: 7
+
   # apps/marketing uses npm (not pnpm) and has its own lockfile, matching how
   # it is deployed.
   marketing:
