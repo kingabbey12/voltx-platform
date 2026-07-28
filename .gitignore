@@ -43,3 +43,5 @@ graphify-out/
 # from here would commit a gitlink pointing at a commit this repo does not
 # contain. The marketing site that ships with the platform is apps/marketing.
 voltx-website/
+
+.uiqa/

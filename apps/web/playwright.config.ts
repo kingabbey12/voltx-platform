@@ -41,6 +41,20 @@ export default defineConfig({
       testMatch: /auth\.setup\.ts/,
       use: { ...devices["Desktop Chrome"], launchOptions: chromeLaunchOptions },
     },
+    // Review aid, not a gate: captures authenticated pages so design-system
+    // changes can be inspected. Never runs in CI — invoke it explicitly with
+    // --project=screenshots after scripts/dev-authenticated-env.sh.
+    {
+      name: "screenshots",
+      testDir: "./e2e/screenshots",
+      testMatch: /\.screenshots\.ts$/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: AUTH_STATE,
+        launchOptions: chromeLaunchOptions,
+      },
+    },
     // Requires a real API and a real login — see e2e/auth.setup.ts. Run by the
     // `web-e2e-authenticated` CI job, which stands up Postgres and the backend
     // first. Kept as its own project rather than merged into `public` so that

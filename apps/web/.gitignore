@@ -25,3 +25,6 @@ next-env.d.ts
 
 # Playwright storage state — contains a live session token.
 e2e/.auth/
+
+# Design-review captures from the screenshots Playwright project.
+screenshots/

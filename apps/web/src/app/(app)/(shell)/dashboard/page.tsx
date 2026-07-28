@@ -20,11 +20,12 @@ export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
 
   return (
-    // `wide` because the dashboard is the one page that genuinely benefits from
-    // horizontal room — KPI cards and the activity column read better side by
-    // side. The container owns the gutters and the vertical rhythm, so the
-    // per-block `mt-6` that used to be repeated four times is gone.
-    <PageContainer size="wide">
+    // `default` (max-w-6xl), not `wide`. Reviewed at 1440px: `wide`
+    // (max-w-[1400px]) stretched the content to the viewport edges and pulled
+    // each KPI card out to ~270px holding a single number, which read as empty
+    // rather than spacious. A bounded column keeps the KPI row dense and the
+    // eye travelling down the page instead of across it.
+    <PageContainer size="default">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
