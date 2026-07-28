@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/top-nav";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -23,9 +24,18 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <TooltipProvider>
       <div className="flex h-svh overflow-hidden bg-background">
-        <div className="hidden md:flex md:flex-col">
+        {/* This wrapper owns the full height so the nav can scroll inside it
+            while the workspace switcher stays pinned to the bottom. Previously
+            the Sidebar itself claimed h-svh and the switcher sat below it,
+            which pushed the switcher past the fold and clipped the nav. */}
+        <div className="hidden h-svh md:flex md:flex-col">
           <Sidebar collapsed={sidebarCollapsed} onQuickCreate={() => setCommandOpen(true)} />
-          <div className={sidebarCollapsed ? "px-2 pb-3" : "px-3 pb-3"}>
+          <div
+            className={cn(
+              "shrink-0 border-t border-sidebar-border bg-sidebar pb-3 pt-3",
+              sidebarCollapsed ? "px-2" : "px-3",
+            )}
+          >
             <OrgSwitcher collapsed={sidebarCollapsed} />
           </div>
         </div>

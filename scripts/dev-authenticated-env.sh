@@ -39,6 +39,11 @@ stop() {
 
 if [ "${1:-}" = "--stop" ]; then stop; exit 0; fi
 
+# The database is recreated below, so any saved Playwright session points at a
+# user that no longer exists. Leaving it in place makes auth.setup.ts fail with
+# a redirect back to /login and no obvious cause.
+rm -rf "${ROOT}/apps/web/e2e/.auth"
+
 echo "==> Postgres"
 docker exec "$PG_CONTAINER" psql -U voltx -d postgres -c "SELECT 1" >/dev/null 2>&1 \
   || { echo "Postgres container '${PG_CONTAINER}' is not running. Start it with: (cd backend && docker compose up -d)"; exit 1; }

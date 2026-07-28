@@ -56,7 +56,12 @@ export function TopNav({
         <Menu className="h-4.5 w-4.5" />
       </Button>
 
-      <h1 className="text-sm font-semibold">{currentPageLabel(pathname)}</h1>
+      {/* Visible only on mobile, where the sidebar is hidden and this is the
+          sole indication of where you are. On desktop the sidebar's active
+          state already says it, and PageHeader renders the real <h1> — showing
+          it here too repeated the title and put two <h1> elements on every
+          page, which is also an accessibility defect. */}
+      <span className="text-sm font-semibold md:hidden">{currentPageLabel(pathname)}</span>
 
       <button
         onClick={onOpenCommandPalette}

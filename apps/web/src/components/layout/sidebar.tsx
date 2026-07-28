@@ -123,7 +123,13 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "hidden h-svh flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 md:flex",
+        // No h-svh here. The workspace switcher is a sibling rendered *below*
+        // this element, so claiming the full viewport height pushed it off
+        // screen and clipped the end of the nav — Settings became unreachable.
+        // The wrapper in dashboard-shell.tsx owns the height; this fills what
+        // is left. min-h-0 is what lets the nav below actually scroll rather
+        // than forcing the column taller than its parent.
+        "hidden min-h-0 flex-1 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 md:flex",
         collapsed ? "w-[68px]" : "w-[248px]",
       )}
     >
@@ -164,7 +170,7 @@ export function Sidebar({
         </div>
       )}
 
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-2">
+      <nav className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-2">
         <NavGroup label="Workspace" collapsed={collapsed} />
         {workspaceNav.map((item) => (
           <NavLink key={item.href} item={item} collapsed={collapsed} />
