@@ -27,4 +27,5 @@ next-env.d.ts
 e2e/.auth/
 
 # Design-review captures from the screenshots Playwright project.
-screenshots/
+# Leading slash: the output dir only, NOT e2e/screenshots/ which holds the spec.
+/screenshots/
