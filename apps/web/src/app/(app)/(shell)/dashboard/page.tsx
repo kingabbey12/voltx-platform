@@ -1,6 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { PageContainer } from "@/components/layout/page-container";
+import { PageHeader } from "@/components/layout/page-header";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
@@ -18,26 +20,26 @@ export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-8">
+    // `wide` because the dashboard is the one page that genuinely benefits from
+    // horizontal room — KPI cards and the activity column read better side by
+    // side. The container owns the gutters and the vertical rhythm, so the
+    // per-block `mt-6` that used to be repeated four times is gone.
+    <PageContainer size="wide">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       >
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {greeting()}
-          {user ? `, ${user.firstName}` : ""}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Here&apos;s what&apos;s happening across your workspace.
-        </p>
+        <PageHeader
+          title={`${greeting()}${user ? `, ${user.firstName}` : ""}`}
+          description="Here's what's happening across your workspace."
+        />
       </motion.div>
 
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-        className="mt-6"
       >
         <KpiCards />
       </motion.div>
@@ -46,7 +48,6 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-        className="mt-6"
       >
         <DailyBrief />
       </motion.div>
@@ -55,13 +56,13 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-        className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3"
+        className="grid grid-cols-1 gap-4 lg:grid-cols-3"
       >
         <div className="lg:col-span-2">
           <QuickActions />
         </div>
         <RecentActivity />
       </motion.div>
-    </div>
+    </PageContainer>
   );
 }
