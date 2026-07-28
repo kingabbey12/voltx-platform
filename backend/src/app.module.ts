@@ -10,6 +10,7 @@ import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
 import { createPinoConfig } from './config/pino-logger.config';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { TenantModule } from './common/tenant/tenant.module';
@@ -66,6 +67,7 @@ import { PromisesModule } from './modules/promises/promises.module';
 
 @Module({
   imports: [
+    DashboardModule,
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],

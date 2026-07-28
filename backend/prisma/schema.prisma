@@ -247,6 +247,7 @@ model Organization {
   @@index([status])
   @@index([parentOrganizationId])
   @@map("organizations")
+  dailyBusinessMetrics DailyBusinessMetric[]
 }
 
 model User {
@@ -4256,4 +4257,45 @@ model ExtensionAiTool {
   @@unique([marketplaceAppVersionId, name])
   @@index([marketplaceAppVersionId])
   @@map("extension_ai_tools")
+}
+
+/// Daily snapshot of an organization's business state — the analytical layer.
+///
+/// Deliberately separate from the operational SalesCompany/SalesOpportunity
+/// tables. Those are transactional and optimised for writes; this is written
+/// once a day and read on every dashboard load. Keeping them apart is what
+/// makes it possible to add forecasting or benchmarking later without coupling
+/// any of it to the CRUD APIs.
+///
+/// History is captured, never recomputed. Deriving "pipeline 30 days ago" from
+/// current rows is impossible anyway — a deleted opportunity leaves no trace,
+/// and an amount edited yesterday would silently rewrite the past.
+model DailyBusinessMetric {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  /// Date-only: one row per organization per day.
+  capturedOn     DateTime @map("captured_on") @db.Date
+
+  companies         Int @default(0)
+  contacts          Int @default(0)
+  leads             Int @default(0)
+  qualifiedLeads    Int @default(0) @map("qualified_leads")
+  opportunities     Int @default(0)
+  openOpportunities Int @default(0) @map("open_opportunities")
+  openActivities    Int @default(0) @map("open_activities")
+
+  /// Money as Decimal, not Float. SalesOpportunity.amount is a Float for
+  /// historical reasons; summing thousands of them accumulates binary rounding
+  /// error, and this is the number an executive reads.
+  pipelineValue Decimal @default(0) @map("pipeline_value") @db.Decimal(18, 2)
+  wonValue      Decimal @default(0) @map("won_value") @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, capturedOn])
+  @@index([organizationId, capturedOn])
+  @@map("daily_business_metrics")
 }

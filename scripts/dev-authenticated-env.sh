@@ -63,7 +63,10 @@ DATABASE_URL="$DB_URL" DIRECT_URL="$DB_URL" pnpm prisma:seed >/dev/null
 echo "    migrations applied, RBAC seeded"
 
 echo "==> API on :${API_PORT}"
-[ -d dist ] || pnpm build >/dev/null
+# Always rebuild. `[ -d dist ] ||` meant an existing dist was reused, so code
+# changes silently never reached the running API and endpoints 404'd against a
+# stale build.
+pnpm build >/dev/null
 NODE_ENV=development PORT="$API_PORT" REDIS_ENABLED=false \
 DATABASE_URL="$DB_URL" DIRECT_URL="$DB_URL" \
 JWT_ACCESS_SECRET=uiqa-local-jwt-access-secret-at-least-32-chars \
