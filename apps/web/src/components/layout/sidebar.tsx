@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Blocks } from "lucide-react";
+import { Blocks, Plus } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import {
   Tooltip,
@@ -24,25 +24,46 @@ function NavLink({ item, collapsed }: { item: (typeof mainNav)[number]; collapse
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors duration-200 hover:bg-primary/5 hover:text-sidebar-foreground",
-        active && "text-primary hover:text-primary",
+        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors duration-200 hover:bg-white/[0.04] hover:text-sidebar-foreground",
+        active && "text-foreground hover:text-foreground",
         collapsed && "justify-center px-2",
       )}
     >
       {active && (
         <motion.span
           layoutId="sidebar-active"
-          className="absolute inset-0 rounded-lg bg-primary/10"
+          className="absolute inset-0 rounded-lg border border-primary/20 bg-primary/[0.09]"
+          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        />
+      )}
+      {/* A gold rail on the active item. Reads as position at a glance, which
+          a background tint alone does not — especially when collapsed. */}
+      {active && !collapsed && (
+        <motion.span
+          layoutId="sidebar-active-rail"
+          className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary"
           transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
         />
       )}
       <item.icon
         className={cn(
-          "relative h-4.5 w-4.5 shrink-0 text-primary/50 transition-colors duration-200 group-hover:text-primary",
-          active && "text-primary",
+          "relative h-[18px] w-[18px] shrink-0 text-sidebar-foreground/45 transition-colors duration-200 group-hover:text-sidebar-foreground/80",
+          active && "text-primary group-hover:text-primary",
         )}
       />
       {!collapsed && <span className="relative truncate">{item.label}</span>}
+      {/* Shortcut hints turn the sidebar into a way to *learn* the keyboard
+          model rather than just a list of links. */}
+      {!collapsed && item.shortcut && (
+        <kbd
+          className={cn(
+            "relative ml-auto hidden font-mono text-[10px] tracking-wider text-muted-foreground/40 lg:block",
+            active && "text-primary/50",
+          )}
+        >
+          {item.shortcut}
+        </kbd>
+      )}
     </Link>
   );
 
@@ -51,14 +72,42 @@ function NavLink({ item, collapsed }: { item: (typeof mainNav)[number]; collapse
   return (
     <Tooltip delayDuration={200}>
       <TooltipTrigger asChild>{link}</TooltipTrigger>
-      <TooltipContent side="right">{item.label}</TooltipContent>
+      <TooltipContent side="right">
+        {item.label}
+        {item.shortcut && <span className="ml-2 opacity-50">{item.shortcut}</span>}
+      </TooltipContent>
     </Tooltip>
   );
 }
 
-export function Sidebar({ collapsed }: { collapsed: boolean }) {
+/** Section label. Collapses to a hairline so the grouping survives collapse. */
+function NavGroup({ label, collapsed }: { label: string; collapsed: boolean }) {
+  if (collapsed) return <div className="mx-auto my-2 h-px w-6 bg-sidebar-border" />;
+  return (
+    <div className="px-3 pb-1.5 pt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/40">
+      {label}
+    </div>
+  );
+}
+
+export function Sidebar({
+  collapsed,
+  onQuickCreate,
+}: {
+  collapsed: boolean;
+  /** Opens the command palette — the same surface ⌘K uses, so Quick Create
+   *  teaches the shortcut instead of competing with it. */
+  onQuickCreate?: () => void;
+}) {
   const isPlatformAdmin = useAuthStore((state) => state.user?.isPlatformAdmin);
   const { data: installedExtensions } = useInstalledExtensions();
+
+  // Grouped presentationally rather than by changing config/nav.ts, which the
+  // command palette and mobile nav also consume. Ten flat links with unlabelled
+  // dividers is what made this read as an admin template; the AI surfaces in
+  // particular were buried mid-list in a product whose whole premise is AI.
+  const aiNav = mainNav.filter((item) => item.href === "/ai" || item.href.startsWith("/ai/"));
+  const workspaceNav = mainNav.filter((item) => !aiNav.includes(item));
 
   // A developer's manifest only ever supplies a `label`/`targetPath`
   // (see manifest-validator.util.ts) — never an icon component, so every
@@ -83,25 +132,70 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
         {!collapsed && <span className="text-base font-semibold tracking-tight">Voltx</span>}
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
-        {mainNav.map((item) => (
+      {onQuickCreate && (
+        <div className={cn("pb-1", collapsed ? "px-2" : "px-3")}>
+          {collapsed ? (
+            <Tooltip delayDuration={200}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={onQuickCreate}
+                  aria-label="Quick create"
+                  className="flex h-9 w-full items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary transition-colors duration-200 hover:bg-primary/15"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                Quick create <span className="ml-2 opacity-50">⌘K</span>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <button
+              type="button"
+              onClick={onQuickCreate}
+              className="group flex h-9 w-full items-center gap-2.5 rounded-lg border border-primary/25 bg-primary/10 px-3 text-sm font-medium text-primary transition-colors duration-200 hover:bg-primary/15"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Quick create</span>
+              <kbd className="ml-auto font-mono text-[10px] tracking-wider text-primary/50">⌘K</kbd>
+            </button>
+          )}
+        </div>
+      )}
+
+      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-2">
+        <NavGroup label="Workspace" collapsed={collapsed} />
+        {workspaceNav.map((item) => (
           <NavLink key={item.href} item={item} collapsed={collapsed} />
         ))}
-        <div className="my-2 h-px bg-sidebar-border" />
+
+        {aiNav.length > 0 && (
+          <>
+            <NavGroup label="Intelligence" collapsed={collapsed} />
+            {aiNav.map((item) => (
+              <NavLink key={item.href} item={item} collapsed={collapsed} />
+            ))}
+          </>
+        )}
+
+        <NavGroup label="Manage" collapsed={collapsed} />
         {secondaryNav.map((item) => (
           <NavLink key={item.href} item={item} collapsed={collapsed} />
         ))}
+
         {extensionNav.length > 0 && (
           <>
-            <div className="my-2 h-px bg-sidebar-border" />
+            <NavGroup label="Apps" collapsed={collapsed} />
             {extensionNav.map((item) => (
               <NavLink key={item.href} item={item} collapsed={collapsed} />
             ))}
           </>
         )}
+
         {isPlatformAdmin && (
           <>
-            <div className="my-2 h-px bg-sidebar-border" />
+            <NavGroup label="Platform" collapsed={collapsed} />
             {platformNav.map((item) => (
               <NavLink key={item.href} item={item} collapsed={collapsed} />
             ))}

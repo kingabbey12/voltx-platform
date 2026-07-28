@@ -24,7 +24,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     <TooltipProvider>
       <div className="flex h-svh overflow-hidden bg-background">
         <div className="hidden md:flex md:flex-col">
-          <Sidebar collapsed={sidebarCollapsed} />
+          <Sidebar collapsed={sidebarCollapsed} onQuickCreate={() => setCommandOpen(true)} />
           <div className={sidebarCollapsed ? "px-2 pb-3" : "px-3 pb-3"}>
             <OrgSwitcher collapsed={sidebarCollapsed} />
           </div>
