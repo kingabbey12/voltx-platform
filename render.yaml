@@ -72,8 +72,17 @@ services:
         value: 3000
       - key: LOG_LEVEL
         value: info
+      # Comma-separated allow-list (configuration.ts splits on ','). An origin
+      # that is not listed gets a 204 preflight with NO Access-Control-Allow-
+      # Origin header, so the browser blocks the request and the app reports it
+      # as "Can't reach Voltx right now" — indistinguishable from the API being
+      # down. The web app is deployed on Vercel; app.usevoltx.com does not
+      # currently resolve, and is kept here for when it does.
+      #
+      # Vercel preview deployments get a unique hostname per deploy and are NOT
+      # covered by this list — only the production alias below is.
       - key: CORS_ALLOWED_ORIGINS
-        value: https://app.usevoltx.com
+        value: https://voltx-platform.vercel.app,https://app.usevoltx.com
       - key: DATABASE_URL
         sync: false
       # Read only by the migration engine. preDeployCommand fails without it
