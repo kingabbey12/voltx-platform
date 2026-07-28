@@ -107,3 +107,116 @@
     @apply bg-card/70 backdrop-blur-xl border border-primary/20;
   }
 }
+
+/* ── Premium surface system ────────────────────────────────────────────
+ * Shared primitives so every screen gets depth from one place rather than
+ * each page inventing its own card treatment. Purely additive — existing
+ * classes are untouched.
+ *
+ * The look is built from three cheap layers rather than heavy shadows:
+ * a near-black base, a barely-there top-down gradient that suggests a light
+ * source above, and a hairline border that is brighter at the top edge.
+ * That combination is what stops a card reading as a flat box.
+ */
+@layer components {
+  .surface {
+    @apply relative rounded-[var(--radius)] border border-white/[0.06] bg-card;
+    background-image: linear-gradient(180deg, hsl(0 0% 100% / 0.035) 0%, hsl(0 0% 100% / 0) 45%);
+    box-shadow:
+      0 1px 0 0 hsl(0 0% 100% / 0.04) inset,
+      0 1px 2px hsl(0 0% 0% / 0.4),
+      0 8px 24px -12px hsl(0 0% 0% / 0.7);
+  }
+
+  /* For cards that need to sit above others — modals, popovers, hero cards. */
+  .surface-raised {
+    @apply surface;
+    box-shadow:
+      0 1px 0 0 hsl(0 0% 100% / 0.06) inset,
+      0 2px 4px hsl(0 0% 0% / 0.45),
+      0 24px 48px -20px hsl(0 0% 0% / 0.85);
+  }
+
+  /* Interactive cards. Lift is small on purpose: large translations read as
+   * cheap. 1px plus a border brightening is enough to feel responsive. */
+  .surface-interactive {
+    @apply surface transition-[transform,box-shadow,border-color] duration-200 ease-out;
+  }
+
+  .surface-interactive:hover {
+    @apply border-primary/25 -translate-y-px;
+    box-shadow:
+      0 1px 0 0 hsl(0 0% 100% / 0.07) inset,
+      0 4px 12px hsl(0 0% 0% / 0.5),
+      0 16px 32px -16px hsl(var(--primary) / 0.18);
+  }
+
+  /* Ambient gold bloom behind hero elements. Pointer-events-none so it can be
+   * layered freely without stealing clicks. */
+  .glow-primary::after {
+    content: "";
+    @apply pointer-events-none absolute inset-0 -z-10 rounded-[inherit];
+    background: radial-gradient(60% 60% at 50% 0%, hsl(var(--primary) / 0.18), transparent 70%);
+  }
+
+  .text-gradient-gold {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(180deg, hsl(44 86% 78%), hsl(46 65% 52%));
+  }
+}
+
+@layer utilities {
+  /* Entrance motion. Kept short — anything over ~400ms feels sluggish rather
+   * than premium. Stagger with inline animation-delay at call sites. */
+  @keyframes voltx-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .animate-rise {
+    animation: voltx-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Skeleton shimmer for loading states. */
+  @keyframes voltx-shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-white/[0.05];
+  }
+
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.06), transparent);
+    animation: voltx-shimmer 1.6s infinite;
+  }
+
+  /* Accessibility: honour the OS setting. Motion is decoration here — every
+   * animated element is fully legible in its final state, so disabling these
+   * costs nothing. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-rise,
+    .skeleton::after {
+      animation: none;
+    }
+
+    .surface-interactive {
+      @apply transition-none;
+    }
+
+    .surface-interactive:hover {
+      @apply translate-y-0;
+    }
+  }
+}

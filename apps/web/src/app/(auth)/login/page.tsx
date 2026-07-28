@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -42,14 +42,18 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="border-border/70 shadow-lg">
-      <CardHeader>
-        <CardTitle className="text-xl">Sign in</CardTitle>
-        <CardDescription>Welcome back — sign in to your Voltx workspace.</CardDescription>
+    <Card className="surface-raised glow-primary animate-rise border-0 p-2 shadow-none">
+      <CardHeader className="gap-2 pb-6 pt-6 text-center">
+        <CardTitle className="text-gradient-gold text-3xl font-semibold tracking-tight">
+          Sign in
+        </CardTitle>
+        <CardDescription className="text-base">
+          Welcome back — sign in to your Voltx workspace.
+        </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pb-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-5">
             <FormField
               control={form.control}
               name="email"
@@ -106,16 +110,27 @@ export default function LoginPage() {
                 </FormItem>
               )}
             />
-            <Button type="submit" className="mt-2 w-full" isLoading={login.isPending}>
+            <Button type="submit" size="lg" className="mt-1 w-full" isLoading={login.isPending}>
               Sign in
             </Button>
           </form>
         </Form>
-        <p className="mt-6 text-center text-sm text-muted-foreground">
+
+        <p className="mt-7 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-medium text-primary hover:underline">
+          <Link
+            href="/register"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
             Create one
           </Link>
+        </p>
+
+        {/* Quiet trust signal. Deliberately understated — a sign-in screen that
+            oversells its own security reads as less trustworthy, not more. */}
+        <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground/70">
+          <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+          Encrypted in transit and at rest
         </p>
       </CardContent>
     </Card>
