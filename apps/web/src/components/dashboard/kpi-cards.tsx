@@ -53,6 +53,7 @@ export function KpiCards() {
       <KpiCard
         label="Pipeline value"
         icon={TrendingUp}
+        accent="gold"
         state={stateFor(snapshot?.pipelineValue)}
         value={snapshot?.pipelineValue}
         format={formatCurrency}
@@ -69,6 +70,7 @@ export function KpiCards() {
       <KpiCard
         label="Companies"
         icon={Building2}
+        accent="blue"
         state={stateFor(snapshot?.companies)}
         value={snapshot?.companies}
         format={formatWholeCount}
@@ -85,6 +87,7 @@ export function KpiCards() {
       <KpiCard
         label="Qualified leads"
         icon={Users}
+        accent="orange"
         state={stateFor(snapshot?.qualifiedLeads)}
         value={snapshot?.qualifiedLeads}
         format={formatWholeCount}
@@ -101,6 +104,7 @@ export function KpiCards() {
       <KpiCard
         label="Open opportunities"
         icon={Bot}
+        accent="purple"
         state={stateFor(snapshot?.openOpportunities)}
         value={snapshot?.openOpportunities}
         format={formatWholeCount}

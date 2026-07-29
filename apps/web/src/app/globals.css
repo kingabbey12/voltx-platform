@@ -183,6 +183,34 @@
     animation: voltx-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
+  /* Sparklines draw themselves in on mount. The line arriving rather than
+     appearing is most of what separates a chart that looks considered from one
+     that looks plotted. */
+  @keyframes voltx-draw {
+    from {
+      stroke-dashoffset: 200;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* Ambient float for the hero mark. 6s and 8px of travel — slow and small
+     enough to read as "alive" in peripheral vision without ever pulling the
+     eye away from the copy beside it. */
+  @keyframes voltx-float {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+
+  .animate-float {
+    animation: voltx-float 6s ease-in-out infinite;
+  }
+
   /* Skeleton shimmer for loading states. */
   @keyframes voltx-shimmer {
     100% {
@@ -207,8 +235,14 @@
    * costs nothing. */
   @media (prefers-reduced-motion: reduce) {
     .animate-rise,
+    .animate-float,
     .skeleton::after {
       animation: none;
+    }
+
+    [class*="voltx-draw"] {
+      animation: none;
+      stroke-dashoffset: 0;
     }
 
     .surface-interactive {

@@ -18,15 +18,32 @@ import { Button } from "@/components/ui/button";
 export function AiCopilotHero() {
   return (
     <Card variant="raised" className="glow-primary relative overflow-hidden">
-      {/* Ambient gold wash, top-right, echoing the light source the surface
-          system already implies. Pointer-events-none so it never intercepts a
-          click meant for the CTA. */}
+      {/* Three layers rather than one wash: a warm bloom top-right, a cooler
+          counter-bloom bottom-left to stop the card reading as a single flat
+          tint, and a faint grid that gives the surface texture at close range
+          without being legible as a pattern. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-60 blur-3xl"
+        className="pointer-events-none absolute -right-28 -top-28 h-80 w-80 rounded-full opacity-70 blur-3xl"
         style={{
-          background:
-            "radial-gradient(circle, hsl(var(--primary) / 0.28), transparent 65%)",
+          background: "radial-gradient(circle, hsl(var(--primary) / 0.30), transparent 65%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-32 -left-20 h-72 w-72 rounded-full opacity-50 blur-3xl"
+        style={{
+          background: "radial-gradient(circle, hsl(268 83% 68% / 0.18), transparent 68%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        style={{
+          backgroundImage:
+            "linear-gradient(hsl(0 0% 100% / 0.025) 1px, transparent 1px), linear-gradient(90deg, hsl(0 0% 100% / 0.025) 1px, transparent 1px)",
+          backgroundSize: "56px 56px",
+          maskImage: "radial-gradient(80% 80% at 70% 0%, black, transparent 75%)",
         }}
       />
 
@@ -37,8 +54,10 @@ export function AiCopilotHero() {
             AI Copilot
           </span>
 
-          <h2 className="mt-4 text-2xl font-semibold tracking-tight md:text-3xl">
-            Your copilot for <span className="text-gradient-gold">smarter growth</span>
+          <h2 className="mt-4 text-balance text-3xl font-semibold leading-[1.1] tracking-[-0.02em] md:text-4xl">
+            Your copilot for
+            <br className="hidden sm:block" />
+            <span className="text-gradient-gold">smarter growth</span>
           </h2>
 
           <p className="mt-2 text-pretty text-sm leading-relaxed text-muted-foreground">
@@ -62,12 +81,18 @@ export function AiCopilotHero() {
           </div>
         </div>
 
-        {/* Decorative mark. An <svg> rather than an image so it inherits the
-            theme's gold and stays crisp at any density. */}
+        {/* Decorative mark, built from layered elements rather than an image so
+            it inherits the theme's gold and stays crisp at any density. */}
         <div aria-hidden className="relative hidden shrink-0 md:block">
-          <div className="grid h-40 w-40 place-items-center rounded-full border border-primary/20 bg-gradient-to-br from-primary/15 to-transparent">
-            <div className="grid h-28 w-28 place-items-center rounded-full border border-primary/30 bg-background/60 backdrop-blur-sm">
-              <Sparkles className="h-10 w-10 text-primary" />
+          <div className="motion-safe:animate-float">
+            {/* Concentric rings falling off in opacity read as depth; a single
+                ring reads as a border. */}
+            <div className="grid h-44 w-44 place-items-center rounded-full border border-primary/[0.12] bg-gradient-to-br from-primary/[0.10] via-transparent to-transparent">
+              <div className="grid h-32 w-32 place-items-center rounded-full border border-primary/20 bg-gradient-to-br from-primary/[0.14] to-transparent">
+                <div className="grid h-20 w-20 place-items-center rounded-full border border-primary/30 bg-background/70 shadow-[0_0_40px_-8px_hsl(var(--primary)/0.5)] backdrop-blur-sm">
+                  <Sparkles className="h-8 w-8 text-primary" />
+                </div>
+              </div>
             </div>
           </div>
         </div>

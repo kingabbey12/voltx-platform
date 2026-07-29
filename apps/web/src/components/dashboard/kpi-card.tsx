@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 import Link from "next/link";
 import { ArrowRight, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -23,6 +25,24 @@ import { cn } from "@/lib/utils";
  */
 
 export type KpiState = "loading" | "ready" | "empty" | "error";
+
+/**
+ * Each metric gets its own accent so the row has rhythm and a glance can tell
+ * pipeline from leads without reading. Gold stays reserved for pipeline — the
+ * money metric and the brand colour — rather than being applied to everything,
+ * which is what made the row read as monochrome.
+ *
+ * HSL triplets, not class names, because the sparkline needs the raw channel
+ * values to build gradient stops.
+ */
+export type KpiAccent = "gold" | "blue" | "orange" | "purple";
+
+const ACCENT: Record<KpiAccent, { hsl: string; icon: string; ring: string }> = {
+  gold: { hsl: "46 65% 52%", icon: "text-primary", ring: "bg-primary/10" },
+  blue: { hsl: "217 91% 60%", icon: "text-info", ring: "bg-info/10" },
+  orange: { hsl: "25 95% 58%", icon: "text-warning", ring: "bg-warning/10" },
+  purple: { hsl: "268 83% 68%", icon: "text-[hsl(268_83%_68%)]", ring: "bg-[hsl(268_83%_68%/0.12)]" },
+};
 
 export interface KpiDelta {
   /** Signed fraction, e.g. 0.125 for +12.5%. */
@@ -56,6 +76,8 @@ export interface KpiCardProps {
   /** Higher is better for most metrics; set false where a rise is bad
    *  (churn, overdue tasks) so the colour does not lie. */
   higherIsBetter?: boolean;
+  /** Visual identity for this metric. Defaults to gold. */
+  accent?: KpiAccent;
   className?: string;
 }
 
@@ -63,43 +85,81 @@ export interface KpiCardProps {
  * Inline sparkline. Deliberately unlabelled and low-contrast — it conveys
  * shape, not values; the precise number is already the headline.
  */
-function Sparkline({ points, tone }: { points: number[]; tone: "positive" | "negative" | "neutral" }) {
+function Sparkline({
+  points,
+  accent,
+  muted,
+}: {
+  points: number[];
+  accent: KpiAccent;
+  /** Flat data draws grey — a coloured line implies movement that is not there. */
+  muted: boolean;
+}) {
+  const id = React.useId();
   if (points.length < 2) return null;
 
   const min = Math.min(...points);
   const max = Math.max(...points);
   const range = max - min || 1;
-  const width = 88;
-  const height = 28;
+  const width = 240;
+  const height = 40;
 
-  const d = points
-    .map((point, i) => {
-      const x = (i / (points.length - 1)) * width;
-      const y = height - ((point - min) / range) * height;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+  const coords = points.map((point, i) => ({
+    x: (i / (points.length - 1)) * width,
+    // Inset by 2px top and bottom so a peak is never clipped by the viewBox.
+    y: 2 + (height - 4) - ((point - min) / range) * (height - 4),
+  }));
+
+  // Catmull-Rom converted to cubic bezier. Straight segments between points
+  // read as a jagged data plot; a smoothed curve reads as a considered chart,
+  // which is the whole difference between showing data and showing quality.
+  const line = coords.reduce((path, point, i) => {
+    if (i === 0) return `M${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+    // noUncheckedIndexedAccess is on, so every lookup needs a fallback. i >= 1
+    // here, so prev always exists; the ?? keeps the compiler satisfied without
+    // an assertion that could hide a real bug later.
+    const prev = coords[i - 1] ?? point;
+    const prev2 = coords[i - 2] ?? prev;
+    const next = coords[i + 1] ?? point;
+    const c1x = prev.x + (point.x - prev2.x) / 6;
+    const c1y = prev.y + (point.y - prev2.y) / 6;
+    const c2x = point.x - (next.x - prev.x) / 6;
+    const c2y = point.y - (next.y - prev.y) / 6;
+    return `${path} C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+  }, "");
+
+  const hsl = muted ? "0 0% 60%" : ACCENT[accent].hsl;
+  const area = `${line} L${width},${height} L0,${height} Z`;
 
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      className="h-7 w-[88px] shrink-0 overflow-visible"
+      className="h-10 w-full"
       aria-hidden
       focusable="false"
+      preserveAspectRatio="none"
     >
+      <defs>
+        <linearGradient id={`${id}-stroke`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={`hsl(${hsl} / ${muted ? 0.25 : 0.45})`} />
+          <stop offset="100%" stopColor={`hsl(${hsl} / ${muted ? 0.5 : 1})`} />
+        </linearGradient>
+        <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={`hsl(${hsl} / ${muted ? 0.1 : 0.22})`} />
+          <stop offset="100%" stopColor={`hsl(${hsl} / 0)`} />
+        </linearGradient>
+      </defs>
+
+      {/* Fill first so the stroke sits on top of its own gradient. */}
+      <path d={area} fill={`url(#${id}-fill)`} />
       <path
-        d={d}
+        d={line}
         fill="none"
-        strokeWidth="1.5"
+        stroke={`url(#${id}-stroke)`}
+        strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className={
-          tone === "positive"
-            ? "stroke-success"
-            : tone === "negative"
-              ? "stroke-destructive"
-              : "stroke-muted-foreground/40"
-        }
+        className="[stroke-dasharray:200] [stroke-dashoffset:0] motion-safe:animate-[voltx-draw_900ms_cubic-bezier(0.22,1,0.36,1)_both]"
       />
     </svg>
   );
@@ -141,12 +201,24 @@ export function KpiCard({
   guidance,
   action,
   higherIsBetter = true,
+  accent = "gold",
   className,
 }: KpiCardProps) {
   const header = (
     <div className="flex items-start justify-between gap-3">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+      {/* Quieter than the metric by design: the number is the headline, the
+          label is a caption. Uppercase tracking separates them without adding
+          weight. */}
+      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/70">
+        {label}
+      </p>
+      <span
+        className={cn(
+          "grid h-8 w-8 shrink-0 place-items-center rounded-lg",
+          ACCENT[accent].ring,
+          ACCENT[accent].icon,
+        )}
+      >
         <Icon className="h-4 w-4" aria-hidden />
       </span>
     </div>
@@ -213,16 +285,34 @@ export function KpiCard({
     <Card className={cn("p-4", className)}>
       {header}
 
-      <div className="mt-3 flex items-end justify-between gap-3">
-        <p className="text-2xl font-semibold tabular-nums tracking-tight">
-          <CountUpValue value={value ?? 0} format={format} />
-        </p>
-        {series && series.length > 1 && <Sparkline points={series} tone={tone} />}
-      </div>
+      <p className="mt-4 text-[28px] font-semibold leading-none tabular-nums tracking-tight">
+        <CountUpValue value={value ?? 0} format={format} />
+      </p>
 
       {delta && (
         <div className="mt-2">
           <DeltaBadge delta={delta} higherIsBetter={higherIsBetter} />
+        </div>
+      )}
+
+      {action && (
+        <Link
+          href={action.href}
+          className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+        >
+          {action.label}
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+        </Link>
+      )}
+
+      {/* Full-bleed band rather than an inline chip. A sparkline squeezed
+          beside the number reads as an afterthought; given the card's width it
+          becomes the card's texture, and the shape is legible at a glance
+          instead of needing to be looked for. Negative margins let it meet the
+          card edges under the padding. */}
+      {series && series.length > 1 && (
+        <div className="-mx-4 -mb-4 mt-4 overflow-hidden rounded-b-[calc(var(--radius)-1px)]">
+          <Sparkline points={series} accent={accent} muted={tone === "neutral"} />
         </div>
       )}
 
@@ -234,16 +324,6 @@ export function KpiCard({
           <Sparkles className="h-3 w-3" aria-hidden />
           Trends available once history is collected
         </p>
-      )}
-
-      {action && (
-        <Link
-          href={action.href}
-          className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-        >
-          {action.label}
-          <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-        </Link>
       )}
     </Card>
   );
