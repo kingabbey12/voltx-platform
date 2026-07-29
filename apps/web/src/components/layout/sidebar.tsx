@@ -13,6 +13,7 @@ import {
 import { mainNav, platformNav, secondaryNav } from "@/config/nav";
 import { useInstalledExtensions } from "@/hooks/use-extensions";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { transition } from "@/lib/design-language";
 import { cn } from "@/lib/utils";
 
 function NavLink({ item, collapsed }: { item: (typeof mainNav)[number]; collapsed: boolean }) {
@@ -33,7 +34,7 @@ function NavLink({ item, collapsed }: { item: (typeof mainNav)[number]; collapse
         <motion.span
           layoutId="sidebar-active"
           className="absolute inset-0 rounded-lg border border-primary/20 bg-primary/[0.09]"
-          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          transition={transition()}
         />
       )}
       {/* A gold rail on the active item. Reads as position at a glance, which
@@ -42,7 +43,7 @@ function NavLink({ item, collapsed }: { item: (typeof mainNav)[number]; collapse
         <motion.span
           layoutId="sidebar-active-rail"
           className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary"
-          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          transition={transition()}
         />
       )}
       <item.icon

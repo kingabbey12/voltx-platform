@@ -88,9 +88,9 @@ export function TodaysBrief() {
       {!isLoading && !isError && insights.length === 0 && (
         <div className="mt-4">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Your brief will highlight risks and opportunities — stalling deals, leads going
-            cold, follow-ups worth making — as soon as there is enough history to compare
-            against.
+            As your business grows, AI will surface recommendations here automatically —
+            stalling deals, leads going cold, follow-ups worth making. It needs a little
+            history to compare against first.
           </p>
           <p className="mt-2 text-xs text-muted-foreground/60">
             {historyDays > 0
@@ -194,10 +194,10 @@ export function Priorities() {
         // An empty priority list is a legitimate business state — nothing needs
         // you right now — not a gap to apologise for.
         <div className="mt-4">
-          <p className="text-sm font-medium">No high-priority actions today</p>
+          <p className="text-sm font-medium">You&apos;re caught up</p>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            Deals at risk, overdue follow-ups and stalling opportunities will surface here
-            as your pipeline builds.
+            Nothing needs your attention right now. Deals at risk, overdue follow-ups and
+            stalling opportunities will appear here the moment they do.
           </p>
         </div>
       ) : (

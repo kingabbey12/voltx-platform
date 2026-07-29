@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Building2, TrendingUp, Users } from "lucide-react";
+import { Building2, Target, TrendingUp, Users } from "lucide-react";
 import { KpiCard, type KpiCardProps } from "@/components/dashboard/kpi-card";
 import { useDashboardMetrics } from "@/hooks/use-dashboard";
 import type { ExecutiveSnapshot } from "@/lib/api/dashboard";
@@ -103,8 +103,8 @@ export function KpiCards() {
 
       <KpiCard
         label="Open opportunities"
-        icon={Bot}
-        accent="purple"
+        icon={Target}
+        accent="orange"
         state={stateFor(snapshot?.openOpportunities)}
         value={snapshot?.openOpportunities}
         format={formatWholeCount}

@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { MOTION, riseIn, transition } from "@/lib/design-language";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { AiCopilotHero } from "@/components/dashboard/ai-copilot-hero";
@@ -46,12 +47,10 @@ function greeting(): string {
 const STEP = 0.05;
 
 function Section({ index, children }: { index: number; children: React.ReactNode }) {
+  // Curve and duration come from the shared motion vocabulary, so a section
+  // entering decelerates identically to a card lifting or a dialog opening.
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index * STEP, ease: [0.16, 1, 0.3, 1] }}
-    >
+    <motion.div {...riseIn} transition={transition(MOTION.slow, index * STEP)}>
       {children}
     </motion.div>
   );

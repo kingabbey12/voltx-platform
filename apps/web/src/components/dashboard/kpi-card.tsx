@@ -8,6 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CountUpValue } from "@/components/dashboard/count-up-value";
+import { ACCENTS, type Accent } from "@/lib/design-language";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,23 +27,8 @@ import { cn } from "@/lib/utils";
 
 export type KpiState = "loading" | "ready" | "empty" | "error";
 
-/**
- * Each metric gets its own accent so the row has rhythm and a glance can tell
- * pipeline from leads without reading. Gold stays reserved for pipeline — the
- * money metric and the brand colour — rather than being applied to everything,
- * which is what made the row read as monochrome.
- *
- * HSL triplets, not class names, because the sparkline needs the raw channel
- * values to build gradient stops.
- */
-export type KpiAccent = "gold" | "blue" | "orange" | "purple";
-
-const ACCENT: Record<KpiAccent, { hsl: string; icon: string; ring: string }> = {
-  gold: { hsl: "46 65% 52%", icon: "text-primary", ring: "bg-primary/10" },
-  blue: { hsl: "217 91% 60%", icon: "text-info", ring: "bg-info/10" },
-  orange: { hsl: "25 95% 58%", icon: "text-warning", ring: "bg-warning/10" },
-  purple: { hsl: "268 83% 68%", icon: "text-[hsl(268_83%_68%)]", ring: "bg-[hsl(268_83%_68%/0.12)]" },
-};
+/** Accents come from the shared colour language — see lib/design-language.ts. */
+export type KpiAccent = Accent;
 
 export interface KpiDelta {
   /** Signed fraction, e.g. 0.125 for +12.5%. */
@@ -128,7 +114,7 @@ function Sparkline({
     return `${path} C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${point.x.toFixed(1)},${point.y.toFixed(1)}`;
   }, "");
 
-  const hsl = muted ? "0 0% 60%" : ACCENT[accent].hsl;
+  const hsl = muted ? "0 0% 60%" : ACCENTS[accent].hsl;
   const area = `${line} L${width},${height} L0,${height} Z`;
 
   return (
@@ -215,8 +201,8 @@ export function KpiCard({
       <span
         className={cn(
           "grid h-8 w-8 shrink-0 place-items-center rounded-lg",
-          ACCENT[accent].ring,
-          ACCENT[accent].icon,
+          ACCENTS[accent].bg,
+          ACCENTS[accent].fg,
         )}
       >
         <Icon className="h-4 w-4" aria-hidden />
