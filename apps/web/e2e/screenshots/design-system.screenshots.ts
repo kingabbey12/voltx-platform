@@ -23,9 +23,17 @@ const PAGES = [
   { name: "settings", path: "/settings" },
 ];
 
+/**
+ * Heights are deliberately taller than a real display.
+ *
+ * `fullPage: true` measures the document's scroll height, but DashboardShell
+ * pins the document to h-svh and scrolls an inner <main> instead — so Playwright
+ * saw a 900px page and silently cropped everything below the fold. Capturing at
+ * an over-tall viewport is what actually reveals the whole page.
+ */
 const VIEWPORTS = [
-  { name: "desktop", width: 1440, height: 900 },
-  { name: "mobile", width: 390, height: 844 },
+  { name: "desktop", width: 1440, height: 2200 },
+  { name: "mobile", width: 390, height: 2200 },
 ];
 
 /**

@@ -5,9 +5,14 @@ import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
+import { AiCopilotHero } from "@/components/dashboard/ai-copilot-hero";
+import {
+  BusinessHealth,
+  Priorities,
+  TodaysBrief,
+} from "@/components/dashboard/executive-intelligence";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { QuickActions } from "@/components/dashboard/quick-actions";
-import { DailyBrief } from "@/components/dashboard/daily-brief";
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -16,54 +21,85 @@ function greeting(): string {
   return "Good evening";
 }
 
+/**
+ * Ordered by the question each section answers, not by which feature module it
+ * belongs to:
+ *
+ *   greeting          who and when
+ *   KPI row           what are the numbers
+ *   AI Copilot        what is this product for
+ *   Quick actions     what can I start right now
+ *   Brief / Health /
+ *   Priorities        what should I know, and what should I do
+ *   Recent activity   what happened
+ *
+ * Recent activity moves last deliberately. It previously shared the widest row
+ * on the page with quick actions, which put operational history on equal
+ * footing with everything strategic above it.
+ *
+ * The whole page is fed by one query (useDashboardMetrics), so every section
+ * shares a loading state instead of resolving at six different moments.
+ */
+
+/** Stagger step. Small enough that the page reads as one movement rather than
+ *  a sequence of independent arrivals. */
+const STEP = 0.05;
+
+function Section({ index, children }: { index: number; children: React.ReactNode }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: index * STEP, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
 
   return (
-    // `default` (max-w-6xl), not `wide`. Reviewed at 1440px: `wide`
-    // (max-w-[1400px]) stretched the content to the viewport edges and pulled
-    // each KPI card out to ~270px holding a single number, which read as empty
-    // rather than spacious. A bounded column keeps the KPI row dense and the
-    // eye travelling down the page instead of across it.
     <PageContainer size="default">
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      >
+      <Section index={0}>
         <PageHeader
           title={`${greeting()}${user ? `, ${user.firstName}` : ""}`}
-          description="Here's what's happening across your workspace."
+          description="Here's what's happening across your business today."
         />
-      </motion.div>
+      </Section>
 
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-      >
+      <Section index={1}>
         <KpiCards />
-      </motion.div>
+      </Section>
 
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <DailyBrief />
-      </motion.div>
+      <Section index={2}>
+        <AiCopilotHero />
+      </Section>
 
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-        className="grid grid-cols-1 gap-4 lg:grid-cols-3"
-      >
-        <div className="lg:col-span-2">
-          <QuickActions />
+      <Section index={3}>
+        <QuickActions />
+      </Section>
+
+      {/* The intelligence row. Three sections that each answer a different
+          executive question, side by side so none of them dominates. */}
+      <Section index={4}>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <TodaysBrief />
+          </div>
+          <BusinessHealth />
         </div>
-        <RecentActivity />
-      </motion.div>
+      </Section>
+
+      <Section index={5}>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Priorities />
+          <div className="lg:col-span-2">
+            <RecentActivity />
+          </div>
+        </div>
+      </Section>
     </PageContainer>
   );
 }
