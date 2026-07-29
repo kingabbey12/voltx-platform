@@ -16,13 +16,10 @@ import { cn } from "@/lib/utils";
  * metric is only worth showing if it answers what happened, whether it is
  * improving, and what to do next.
  *
- * DATA AVAILABILITY (verified against the backend, not assumed):
- * there is no historical series anywhere in the API today. Every dashboard
- * number comes from a list endpoint's pagination `total`. So `series` and
- * `delta` are optional and simply do not render when absent — no invented
- * sparkline, no fabricated percentage. The props exist so that when a
- * `/dashboard/metrics` endpoint returns history, it drops in without
- * redesigning this component or its call sites.
+ * DATA AVAILABILITY: `series` and `delta` now come from GET /dashboard/metrics,
+ * backed by daily snapshots. They remain optional because a workspace has no
+ * history until the nightly aggregation has run — in that case the sparkline
+ * and the percentage are omitted rather than invented, and the card says so.
  */
 
 export type KpiState = "loading" | "ready" | "empty" | "error";
@@ -66,7 +63,7 @@ export interface KpiCardProps {
  * Inline sparkline. Deliberately unlabelled and low-contrast — it conveys
  * shape, not values; the precise number is already the headline.
  */
-function Sparkline({ points, positive }: { points: number[]; positive: boolean }) {
+function Sparkline({ points, tone }: { points: number[]; tone: "positive" | "negative" | "neutral" }) {
   if (points.length < 2) return null;
 
   const min = Math.min(...points);
@@ -96,7 +93,13 @@ function Sparkline({ points, positive }: { points: number[]; positive: boolean }
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className={positive ? "stroke-success" : "stroke-destructive"}
+        className={
+          tone === "positive"
+            ? "stroke-success"
+            : tone === "negative"
+              ? "stroke-destructive"
+              : "stroke-muted-foreground/40"
+        }
       />
     </svg>
   );
@@ -195,7 +198,16 @@ export function KpiCard({
     );
   }
 
-  const positive = delta ? delta.change > 0 === higherIsBetter : true;
+  // Flat is not decline. Colouring a zero change red tells someone their
+  // pipeline is falling when it has not moved at all — and a flat line is
+  // exactly what a workspace with backfilled or unchanging data produces.
+  const tone: "positive" | "negative" | "neutral" = !delta
+    ? "neutral"
+    : delta.change === 0
+      ? "neutral"
+      : delta.change > 0 === higherIsBetter
+        ? "positive"
+        : "negative";
 
   return (
     <Card className={cn("p-4", className)}>
@@ -205,7 +217,7 @@ export function KpiCard({
         <p className="text-2xl font-semibold tabular-nums tracking-tight">
           <CountUpValue value={value ?? 0} format={format} />
         </p>
-        {series && series.length > 1 && <Sparkline points={series} positive={positive} />}
+        {series && series.length > 1 && <Sparkline points={series} tone={tone} />}
       </div>
 
       {delta && (

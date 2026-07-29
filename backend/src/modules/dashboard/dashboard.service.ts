@@ -1,5 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
+import {
+  DASHBOARD_HEALTH_PROVIDER,
+  DASHBOARD_INSIGHT_PROVIDER,
+  DASHBOARD_PRIORITY_PROVIDER,
+  type DashboardContext,
+  type DashboardHealth,
+  type DashboardHealthProvider,
+  type DashboardInsight,
+  type DashboardInsightProvider,
+  type DashboardPriority,
+  type DashboardPriorityProvider,
+} from './dashboard-providers.interface';
 import {
   DashboardMetricsService,
   type BusinessSnapshot,
@@ -17,20 +29,13 @@ export interface MetricChange {
   comparedTo: string;
 }
 
-export interface DashboardInsight {
-  type: 'warning' | 'opportunity' | 'info';
-  title: string;
-  explanation: string;
-  /** 0–1. Present so the contract is stable; nothing produces it yet. */
-  confidence: number;
-}
-
 export interface ExecutiveSnapshot {
   snapshot: BusinessSnapshot;
   trends: Record<string, MetricPoint[]>;
   changes: Record<string, MetricChange>;
-  health: { score: number | null; status: 'healthy' | 'attention' | 'unknown' };
+  health: DashboardHealth;
   insights: DashboardInsight[];
+  priorities: DashboardPriority[];
   meta: {
     /** Days of history behind `trends`. Zero on a workspace whose first
      *  snapshot has not run yet — the frontend uses this to decide whether a
@@ -40,11 +45,22 @@ export interface ExecutiveSnapshot {
   };
 }
 
+/** The honest fallback when no health model can answer. Declared once, and
+ *  typed, so the inline `as` cast that widened `status` to `string` under
+ *  nest build's stricter config cannot come back. */
+const UNKNOWN_HEALTH: DashboardHealth = { score: null, status: 'unknown' };
+
 @Injectable()
 export class DashboardService {
   constructor(
     private readonly metrics: DashboardMetricsService,
     private readonly tenantContext: TenantContextService,
+    @Inject(DASHBOARD_INSIGHT_PROVIDER)
+    private readonly insightProvider: DashboardInsightProvider,
+    @Inject(DASHBOARD_HEALTH_PROVIDER)
+    private readonly healthProvider: DashboardHealthProvider,
+    @Inject(DASHBOARD_PRIORITY_PROVIDER)
+    private readonly priorityProvider: DashboardPriorityProvider,
   ) {}
 
   /**
@@ -67,15 +83,26 @@ export class DashboardService {
 
     const historyDays = trends.pipelineValue?.length ?? 0;
 
+    const context: DashboardContext = { organizationId, snapshot, trends, historyDays };
+
+    // Providers are resolved through injected interfaces, so replacing the
+    // no-op implementations with real intelligence later touches the module
+    // bindings only — not this service, the controller, the response shape or
+    // the UI. Settled rather than awaited in series: one slow or failing
+    // provider must degrade its own section, not the whole dashboard.
+    const [insights, health, priorities] = await Promise.all([
+      this.insightProvider.getInsights(context).catch(() => [] as DashboardInsight[]),
+      this.healthProvider.getHealth(context).catch(() => UNKNOWN_HEALTH),
+      this.priorityProvider.getPriorities(context).catch(() => [] as DashboardPriority[]),
+    ]);
+
     return {
       snapshot,
       trends,
       changes: this.deriveChanges(snapshot, trends),
-      health: this.deriveHealth(),
-      // Architecture only. Populating these means running a model over the
-      // snapshot, which belongs in its own service — see the module docblock.
-      // Returning [] is honest; returning invented warnings would not be.
-      insights: [],
+      health,
+      insights,
+      priorities,
       meta: { historyDays, generatedAt: new Date().toISOString() },
     };
   }
@@ -115,15 +142,5 @@ export class DashboardService {
     compare('wonValue', 'wonValue');
 
     return changes;
-  }
-
-  /**
-   * Health scoring needs a defensible model — weightings, thresholds, and a
-   * baseline to compare against — none of which exist yet. Returning a number
-   * now would be a number someone might act on, so it returns `unknown`
-   * instead. The shape is fixed so the frontend can be built against it.
-   */
-  private deriveHealth(): ExecutiveSnapshot['health'] {
-    return { score: null, status: 'unknown' };
   }
 }

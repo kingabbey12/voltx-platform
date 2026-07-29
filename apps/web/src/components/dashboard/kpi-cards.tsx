@@ -2,81 +2,62 @@
 
 import { Bot, Building2, TrendingUp, Users } from "lucide-react";
 import { KpiCard, type KpiCardProps } from "@/components/dashboard/kpi-card";
-import { useCompanies, useLeads, useOpportunities } from "@/hooks/use-sales";
-import { useConversations } from "@/hooks/use-ai";
+import { useDashboardMetrics } from "@/hooks/use-dashboard";
+import type { ExecutiveSnapshot } from "@/lib/api/dashboard";
 import { formatCount, formatCurrency } from "@/lib/format";
 
 /**
- * The dashboard KPI row.
+ * The executive summary row.
  *
- * Each metric comes from a list endpoint's pagination `total` — the API has no
- * dashboard/metrics endpoint and no historical series anywhere, so no card here
- * passes `series` or `delta`. KpiCard renders honestly without them rather than
- * inventing a trend line.
- *
- * The empty case is the one that matters most: a brand-new workspace has zero
- * of everything, and four zeros tell a new user nothing except that the product
- * looks broken. Each card instead explains what the metric is, why it matters,
- * and links to the action that produces it.
+ * Reads one aggregate from /dashboard/metrics rather than issuing four list
+ * requests and summing in the browser. Trends and changes come from real daily
+ * snapshots — when none exist yet, they are simply absent and KpiCard omits
+ * the sparkline rather than drawing an invented one.
  */
+
+/** Series are only meaningful with enough points to show a shape. Two points
+ *  is a line between two numbers, not a trend, so the sparkline stays hidden
+ *  until there is genuinely something to see. */
+const MIN_POINTS_FOR_SPARKLINE = 3;
+
+function seriesFor(data: ExecutiveSnapshot | undefined, key: string): number[] | undefined {
+  const points = data?.trends?.[key];
+  if (!points || points.length < MIN_POINTS_FOR_SPARKLINE) return undefined;
+  return points.map((point) => point.value);
+}
+
+function deltaFor(data: ExecutiveSnapshot | undefined, key: string) {
+  const change = data?.changes?.[key];
+  // A null percent means the baseline was zero — real movement, but no
+  // meaningful percentage. Showing nothing beats showing "+100%".
+  if (!change || change.percent === null) return undefined;
+  return { change: change.percent, comparison: change.comparedTo };
+}
+
 export function KpiCards() {
-  // limit: 100 is a real ceiling, not a page size — the pipeline total is summed
-  // client-side, so a workspace with more than 100 open opportunities silently
-  // undercounts. The correct fix is a server-side aggregate; flagged in the
-  // handover rather than papered over by raising the limit.
-  const {
-    data: opportunities,
-    isLoading: loadingOpps,
-    isError: errorOpps,
-  } = useOpportunities({ limit: 100 });
-  const {
-    data: companies,
-    isLoading: loadingCompanies,
-    isError: errorCompanies,
-  } = useCompanies({ limit: 1 });
-  const {
-    data: leads,
-    isLoading: loadingLeads,
-    isError: errorLeads,
-  } = useLeads({ limit: 1, status: "QUALIFIED" });
-  const {
-    data: conversations,
-    isLoading: loadingConversations,
-    isError: errorConversations,
-  } = useConversations({ limit: 1 });
+  const { data, isLoading, isError } = useDashboardMetrics();
+  const snapshot = data?.snapshot;
 
-  const pipelineValue =
-    opportunities?.items
-      .filter((o) => o.stage !== "CLOSED_LOST" && o.stage !== "CLOSED_WON")
-      .reduce((sum, o) => sum + (o.amount ?? 0), 0) ?? 0;
-
-  const formatWholeCount = (current: number) => formatCount(Math.round(current));
-
-  /** Zero is treated as "nothing here yet" rather than a value worth showing. */
-  function resolve(
-    isLoading: boolean,
-    isError: boolean,
-    value: number | undefined,
-  ): { state: KpiCardProps["state"]; value: number } {
-    if (isLoading) return { state: "loading", value: 0 };
-    if (isError) return { state: "error", value: 0 };
-    if (!value) return { state: "empty", value: 0 };
-    return { state: "ready", value };
+  /** Zero is "nothing here yet", not a value worth putting on a dashboard. */
+  function stateFor(value: number | undefined): KpiCardProps["state"] {
+    if (isLoading) return "loading";
+    if (isError) return "error";
+    if (!value) return "empty";
+    return "ready";
   }
 
-  const pipeline = resolve(loadingOpps, errorOpps, pipelineValue || undefined);
-  const companyCount = resolve(loadingCompanies, errorCompanies, companies?.total);
-  const leadCount = resolve(loadingLeads, errorLeads, leads?.total);
-  const conversationCount = resolve(loadingConversations, errorConversations, conversations?.total);
+  const formatWholeCount = (current: number) => formatCount(Math.round(current));
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <KpiCard
         label="Pipeline value"
         icon={TrendingUp}
-        state={pipeline.state}
-        value={pipeline.value}
+        state={stateFor(snapshot?.pipelineValue)}
+        value={snapshot?.pipelineValue}
         format={formatCurrency}
+        series={seriesFor(data, "pipelineValue")}
+        delta={deltaFor(data, "pipelineValue")}
         action={{ label: "View pipeline", href: "/crm/opportunities" }}
         guidance={{
           explanation:
@@ -88,9 +69,11 @@ export function KpiCards() {
       <KpiCard
         label="Companies"
         icon={Building2}
-        state={companyCount.state}
-        value={companyCount.value}
+        state={stateFor(snapshot?.companies)}
+        value={snapshot?.companies}
         format={formatWholeCount}
+        series={seriesFor(data, "companies")}
+        delta={deltaFor(data, "companies")}
         action={{ label: "View companies", href: "/crm/companies" }}
         guidance={{
           explanation:
@@ -102,9 +85,11 @@ export function KpiCards() {
       <KpiCard
         label="Qualified leads"
         icon={Users}
-        state={leadCount.state}
-        value={leadCount.value}
+        state={stateFor(snapshot?.qualifiedLeads)}
+        value={snapshot?.qualifiedLeads}
         format={formatWholeCount}
+        series={seriesFor(data, "qualifiedLeads")}
+        delta={deltaFor(data, "qualifiedLeads")}
         action={{ label: "View leads", href: "/crm/leads" }}
         guidance={{
           explanation:
@@ -114,16 +99,18 @@ export function KpiCards() {
       />
 
       <KpiCard
-        label="AI conversations"
+        label="Open opportunities"
         icon={Bot}
-        state={conversationCount.state}
-        value={conversationCount.value}
+        state={stateFor(snapshot?.openOpportunities)}
+        value={snapshot?.openOpportunities}
         format={formatWholeCount}
-        action={{ label: "Open AI chat", href: "/ai" }}
+        series={seriesFor(data, "opportunities")}
+        delta={deltaFor(data, "openOpportunities")}
+        action={{ label: "View opportunities", href: "/crm/opportunities" }}
         guidance={{
           explanation:
-            "Work handed to an AI agent — drafting, research, follow-up — instead of done by hand.",
-          action: { label: "Start your first chat", href: "/ai" },
+            "Deals still in play. Watch this alongside pipeline value — many small deals and one large one are very different businesses.",
+          action: { label: "Create an opportunity", href: "/crm/opportunities" },
         }}
       />
     </div>

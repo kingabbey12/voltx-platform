@@ -5,6 +5,14 @@ import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 import { DashboardMetricsService } from './dashboard-metrics.service';
 import { DashboardAggregationService } from './dashboard-aggregation.service';
+import {
+  DASHBOARD_HEALTH_PROVIDER,
+  DASHBOARD_INSIGHT_PROVIDER,
+  DASHBOARD_PRIORITY_PROVIDER,
+  NoopHealthProvider,
+  NoopInsightProvider,
+  NoopPriorityProvider,
+} from './dashboard-providers.interface';
 
 /**
  * The analytical layer, kept deliberately separate from the operational CRUD
@@ -21,17 +29,23 @@ import { DashboardAggregationService } from './dashboard-aggregation.service';
  * reads the same tables through its own SQL aggregates, so a change to a CRUD
  * service's shape cannot silently alter what the dashboard reports.
  *
- * Still to build on this foundation:
- *  - DashboardInsightsService: reads the snapshot and produces the
- *    `insights[]` the contract already carries. Deliberately unpopulated for
- *    now rather than filled with invented warnings.
- *  - A health model with defensible weightings and thresholds, replacing the
- *    `unknown` status DashboardService currently returns.
+ * Intelligence enters through three injected providers rather than being
+ * embedded in DashboardService. Today they are bound to no-op implementations
+ * that return nothing — which is honest — so replacing them with real insight,
+ * health and priority engines is a change to these bindings alone. The service,
+ * the controller, the response contract and the UI all stay as they are.
  */
 @Module({
   imports: [DatabaseModule, SchedulerLockModule],
   controllers: [DashboardController],
-  providers: [DashboardService, DashboardMetricsService, DashboardAggregationService],
+  providers: [
+    DashboardService,
+    DashboardMetricsService,
+    DashboardAggregationService,
+    { provide: DASHBOARD_INSIGHT_PROVIDER, useClass: NoopInsightProvider },
+    { provide: DASHBOARD_HEALTH_PROVIDER, useClass: NoopHealthProvider },
+    { provide: DASHBOARD_PRIORITY_PROVIDER, useClass: NoopPriorityProvider },
+  ],
   exports: [DashboardMetricsService],
 })
 export class DashboardModule {}

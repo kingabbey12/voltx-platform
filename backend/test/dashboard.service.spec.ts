@@ -5,6 +5,11 @@ import type {
   MetricPoint,
 } from '../src/modules/dashboard/dashboard-metrics.service';
 import type { TenantContextService } from '../src/common/tenant/tenant-context.service';
+import {
+  NoopHealthProvider,
+  NoopInsightProvider,
+  NoopPriorityProvider,
+} from '../src/modules/dashboard/dashboard-providers.interface';
 
 /**
  * Change derivation is the part of the dashboard most able to mislead: a wrong
@@ -36,7 +41,15 @@ function buildService(snapshot: BusinessSnapshot, trends: Record<string, MetricP
     getOrThrow: jest.fn().mockReturnValue({ organizationId: ORG }),
   } as unknown as TenantContextService;
 
-  return new DashboardService(metrics, tenantContext);
+  // The no-op providers are the real bindings, so the tests exercise exactly
+  // what production runs today rather than a stub of it.
+  return new DashboardService(
+    metrics,
+    tenantContext,
+    new NoopInsightProvider(),
+    new NoopHealthProvider(),
+    new NoopPriorityProvider(),
+  );
 }
 
 describe('DashboardService', () => {
@@ -122,6 +135,7 @@ describe('DashboardService', () => {
 
     expect(result.health).toEqual({ score: null, status: 'unknown' });
     expect(result.insights).toEqual([]);
+    expect(result.priorities).toEqual([]);
   });
 
   it('resolves the organization from tenant context, never from a caller argument', async () => {

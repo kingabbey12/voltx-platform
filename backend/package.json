@@ -26,7 +26,8 @@
     "prisma:seed:templates": "ts-node --transpile-only prisma/seed-workflow-templates.ts",
     "prisma:seed:billing-plans": "ts-node --transpile-only prisma/seed-billing-plans.ts",
     "reencrypt-secrets": "ts-node --transpile-only scripts/reencrypt-secrets.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "dashboard:backfill": "ts-node --transpile-only scripts/backfill-dashboard-metrics.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
