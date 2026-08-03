@@ -2,12 +2,16 @@ import { Controller, DefaultValuePipe, Get, ParseIntPipe, Query, UseGuards } fro
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AUTH_GUARDS } from '../../common/guards/protected.guards';
 import { DashboardService, type ExecutiveSnapshot } from './dashboard.service';
+import { DashboardRecommendationService } from './recommendations/dashboard-recommendation.service';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth('JWT')
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+  constructor(
+    private readonly dashboardService: DashboardService,
+    private readonly recommendations: DashboardRecommendationService,
+  ) {}
 
   /**
    * One call, one executive picture.
@@ -40,5 +44,13 @@ export class DashboardController {
     // caller ask for an arbitrarily large scan.
     const window = Math.min(Math.max(days, 1), 365);
     return this.dashboardService.getExecutiveSnapshot(window);
+  }
+
+  @Get('brief')
+  @UseGuards(...AUTH_GUARDS)
+  @ApiOperation({ summary: 'Grounded daily executive brief for the current organization' })
+  @ApiOkResponse({ description: 'Current brief with traceable recommendations and wins' })
+  getBrief() {
+    return this.recommendations.getBrief();
   }
 }

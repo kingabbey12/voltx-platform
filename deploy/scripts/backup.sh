@@ -16,6 +16,13 @@
 #
 set -euo pipefail
 
+# Exclusive across backup and verification alike: two writers to the same
+# archive directory, or a verification racing a half-written dump, are the
+# failure modes this prevents. Portable — no flock dependency.
+# shellcheck source=./with-lock.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/with-lock.sh"
+acquire_lock voltx-backup || exit 0
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEPLOY_DIR="$(dirname "$SCRIPT_DIR")"
 COMPOSE_FILE="${DEPLOY_DIR}/docker-compose.yml"
@@ -137,5 +144,24 @@ if [ -n "$PRUNED" ]; then
   echo "[backup] Removed:"
   echo "$PRUNED" | sed 's/^/  /'
 fi
+
+# Publish job metrics for node-exporter's textfile collector. A cron job has
+# no scrape endpoint, so this is how a silently-dead schedule becomes visible.
+# shellcheck source=./write-metric.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/write-metric.sh"
+BACKUP_BYTES="$(wc -c < "$OUTPUT_FILE" | tr -d ' ')"
+FAILURE_FILE="${METRICS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/metrics}/.backup-failures"
+FAILURES="$(cat "$FAILURE_FILE" 2>/dev/null || echo 0)"
+write_metrics voltx_backup <<METRICS
+# HELP voltx_backup_last_success_timestamp_seconds Unix time of the last successful backup.
+# TYPE voltx_backup_last_success_timestamp_seconds gauge
+voltx_backup_last_success_timestamp_seconds $(date +%s)
+# HELP voltx_backup_last_size_bytes Size in bytes of the last successful backup archive.
+# TYPE voltx_backup_last_size_bytes gauge
+voltx_backup_last_size_bytes ${BACKUP_BYTES}
+# HELP voltx_backup_failures_total Cumulative failed backup runs.
+# TYPE voltx_backup_failures_total counter
+voltx_backup_failures_total ${FAILURES}
+METRICS
 
 echo "[backup] Done at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"

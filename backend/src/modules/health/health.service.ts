@@ -1,11 +1,18 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { PrismaService } from '../../database/prisma.service';
+import { MetricsService } from '../metrics/metrics.service';
+import {
+  STORAGE_PROVIDER,
+  StorageProvider,
+} from '../attachments/storage/storage-provider.interface';
 
 interface DependencyStatus {
   status: 'up' | 'down';
   latencyMs: number;
+  /** Present only on failure, so operators see the cause without a log dive. */
+  error?: string;
 }
 
 export interface HealthCheckResult {
@@ -15,15 +22,23 @@ export interface HealthCheckResult {
   dependencies: {
     database: DependencyStatus;
     redis?: DependencyStatus;
+    storage: DependencyStatus;
   };
 }
 
 export interface ReadinessCheckResult {
-  status: 'ready' | 'not_ready';
+  /**
+   * `degraded` means the service is serving correctly but a non-essential
+   * dependency is down — currently only object storage. It is deliberately
+   * distinct from `not_ready`: attachments failing must not take the whole
+   * platform out of rotation, but it must not be invisible either.
+   */
+  status: 'ready' | 'degraded' | 'not_ready';
   timestamp: string;
   dependencies: {
     database: DependencyStatus;
     redis?: DependencyStatus;
+    storage: DependencyStatus;
   };
 }
 
@@ -41,6 +56,8 @@ export class HealthService implements OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    @Inject(STORAGE_PROVIDER) private readonly storageProvider: StorageProvider,
+    @Optional() private readonly metricsService?: MetricsService,
   ) {
     this.redisEnabled = this.configService.get<boolean>('redis.enabled', false);
     this.redisClient = this.redisEnabled
@@ -54,8 +71,11 @@ export class HealthService implements OnModuleDestroy {
   }
 
   async check(): Promise<HealthCheckResult> {
-    const database = await this.checkDatabase();
-    const redis = await this.checkRedis();
+    const [database, redis, storage] = await Promise.all([
+      this.checkDatabase(),
+      this.checkRedis(),
+      this.checkStorage(),
+    ]);
 
     return {
       status: 'ok',
@@ -64,26 +84,56 @@ export class HealthService implements OnModuleDestroy {
       dependencies: {
         database,
         ...(redis ? { redis } : {}),
+        storage,
       },
     };
   }
 
   async readiness(): Promise<ReadinessCheckResult> {
-    const database = await this.checkDatabase();
-    const redis = await this.checkRedis();
+    const [database, redis, storage] = await Promise.all([
+      this.checkDatabase(),
+      this.checkRedis(),
+      this.checkStorage(),
+    ]);
 
+    // Redis is only load-bearing for readiness once REDIS_ENABLED=true —
+    // this is the same requirement assertRedisRequirement() enforces at
+    // boot, checked again continuously here so an operator's monitoring
+    // catches Redis going down mid-flight, not just at startup.
+    const essentialUp = database.status === 'up' && (!redis || redis.status === 'up');
+
+    // Object storage is deliberately NOT essential. Attachments are one
+    // capability; the executive stack, CRM, finance and workflows all keep
+    // working without them. Reporting `not_ready` would let a storage
+    // outage pull every healthy replica out of rotation. It is still
+    // surfaced — and alerted on — so it can never again be silently
+    // unhealthy the way a boot-only check allowed.
     return {
-      // Redis is only load-bearing for readiness once REDIS_ENABLED=true —
-      // this is the same requirement assertRedisRequirement() enforces at
-      // boot, checked again continuously here so an operator's monitoring
-      // catches Redis going down mid-flight, not just at startup.
-      status: database.status === 'up' && (!redis || redis.status === 'up') ? 'ready' : 'not_ready',
+      status: !essentialUp ? 'not_ready' : storage.status === 'up' ? 'ready' : 'degraded',
       timestamp: new Date().toISOString(),
       dependencies: {
         database,
         ...(redis ? { redis } : {}),
+        storage,
       },
     };
+  }
+
+  /** Never throws: an unreachable backend is a reported status, not an error. */
+  private async checkStorage(): Promise<DependencyStatus> {
+    const startedAt = Date.now();
+    try {
+      await this.storageProvider.checkHealth();
+      this.metricsService?.recordObjectStorageHealth(true);
+      return { status: 'up', latencyMs: Date.now() - startedAt };
+    } catch (error) {
+      this.metricsService?.recordObjectStorageHealth(false);
+      return {
+        status: 'down',
+        latencyMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message : 'storage unreachable',
+      };
+    }
   }
 
   liveness(): LivenessCheckResult {

@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Archive,
+  CheckCircle2,
+  Circle,
+  CircleAlert,
+  Clock3,
   History,
+  ListChecks,
   Pause,
   Play,
   RotateCcw,
@@ -34,6 +39,7 @@ import {
   useWorkflowRunCheckpoints,
   useWorkflowRunLogs,
   useWorkflowRuns,
+  useWorkflowVersions,
 } from "@/hooks/use-workflows";
 import { friendlyErrorMessage } from "@/lib/api/api-error";
 import { formatRelativeTime } from "@/lib/format";
@@ -62,11 +68,18 @@ const RUN_STATUS_VARIANT: Record<
 
 const RUN_ACTIONABLE_STATUSES: WorkflowRunStatus[] = ["RUNNING", "PAUSED", "FAILED", "WAITING_APPROVAL"];
 
+function formatDuration(durationMs: number | null): string {
+  if (!durationMs || durationMs < 1_000) return durationMs === null ? "Not recorded" : "< 1s";
+  if (durationMs < 60_000) return `${Math.round(durationMs / 1_000)}s`;
+  return `${Math.floor(durationMs / 60_000)}m ${Math.round((durationMs % 60_000) / 1_000)}s`;
+}
+
 export default function WorkflowDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const { data: workflow, isLoading } = useWorkflow(id);
+  const { data: versions } = useWorkflowVersions(id);
   const { data: runs } = useWorkflowRuns(id);
   const { data: metrics } = useWorkflowMetrics(id);
   const { data: runLogs } = useWorkflowRunLogs(selectedRunId ?? "");
@@ -120,15 +133,17 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
 
   const latestFailedRun = runs?.items.find((run) => run.status === "FAILED");
   const selectedRun = runs?.items.find((run) => run.id === selectedRunId);
+  const selectedVersion = selectedRun ? versions?.find((version) => version.id === selectedRun.workflowVersionId) : undefined;
+  const completedStepIds = new Set(runCheckpoints?.map((checkpoint) => checkpoint.stepId) ?? []);
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
       <Button variant="ghost" size="sm" onClick={() => router.push("/workflows")} className="mb-4 -ml-2">
         <ArrowLeft className="h-4 w-4" />
         Workflows
       </Button>
 
-      <div className="flex items-start justify-between gap-4">
+      <div className="surface-raised flex flex-col gap-5 rounded-xl p-5 sm:p-7 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold">{workflow.name}</h1>
@@ -138,7 +153,7 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
             <p className="mt-1 text-sm text-muted-foreground">{workflow.description}</p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {latestFailedRun && (
             <CopilotButton
               label="Explain failure"
@@ -185,9 +200,15 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
         </TabsList>
 
         <TabsContent value="runs">
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Run history</CardTitle>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-sm">Run history</CardTitle>
+                  <p className="mt-1 text-xs text-muted-foreground">Select a run to inspect its recorded steps, checkpoints, and log entries.</p>
+                </div>
+                <Badge variant="outline">{runs?.items.length ?? 0} recorded</Badge>
+              </div>
             </CardHeader>
             <CardContent className="pt-0">
               {runs?.items.length === 0 && (
@@ -200,6 +221,8 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
                       <TableHead>Status</TableHead>
                       <TableHead>Trigger</TableHead>
                       <TableHead>Started</TableHead>
+                      <TableHead className="hidden sm:table-cell">Duration</TableHead>
+                      <TableHead className="hidden lg:table-cell">Outcome</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -217,6 +240,10 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
                         <TableCell className="text-muted-foreground">{run.triggerType}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {run.startedAt ? formatRelativeTime(run.startedAt) : "—"}
+                        </TableCell>
+                        <TableCell className="hidden text-muted-foreground sm:table-cell">{formatDuration(run.durationMs)}</TableCell>
+                        <TableCell className="hidden max-w-64 truncate text-muted-foreground lg:table-cell">
+                          {run.status === "FAILED" ? run.error || "Execution stopped without a recorded error." : run.completedAt ? "Completed" : "In progress"}
                         </TableCell>
                         <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
                           {RUN_ACTIONABLE_STATUSES.includes(run.status) && (
@@ -273,13 +300,68 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
           </Card>
 
           {selectedRun && (
-            <Card className="mt-4">
+            <Card className="mt-4 overflow-hidden">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">
-                  Run detail — <span className="font-mono text-xs">{selectedRun.id}</span>
-                </CardTitle>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <CardTitle className="text-sm">Run detail</CardTitle>
+                    <p className="mt-1 font-mono text-[11px] text-muted-foreground">{selectedRun.id}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={RUN_STATUS_VARIANT[selectedRun.status]}>{selectedRun.status.replace("_", " ")}</Badge>
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Clock3 className="h-3.5 w-3.5" />{formatDuration(selectedRun.durationMs)}</span>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="pt-0">
+                {selectedRun.status === "FAILED" && (
+                  <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+                    <div className="flex items-start gap-3">
+                      <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">Execution stopped before the workflow could finish.</p>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{selectedRun.currentStepId ? `The engine reported a failure while processing step ${selectedRun.currentStepId}.` : "The engine did not record a failing step."} Review the recorded error and logs before retrying.</p>
+                        {selectedRun.error && (
+                          <details className="mt-3 text-xs">
+                            <summary className="cursor-pointer font-medium text-destructive">View recorded error details</summary>
+                            <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded-md bg-background/70 p-2 font-mono text-[11px] text-foreground">{selectedRun.error}</pre>
+                          </details>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedVersion && (
+                  <section aria-labelledby="step-timeline-heading" className="mb-5 rounded-lg border border-border/80 bg-secondary/20 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h3 id="step-timeline-heading" className="flex items-center gap-2 text-sm font-medium"><ListChecks className="h-4 w-4 text-primary" />Execution timeline</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">Completed states are recorded checkpoints from this run.</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{completedStepIds.size}/{selectedVersion.definition.steps.length} completed</span>
+                    </div>
+                    <ol className="mt-4 space-y-2">
+                      {selectedVersion.definition.steps.map((step) => {
+                        const completed = completedStepIds.has(step.id);
+                        const active = selectedRun.currentStepId === step.id;
+                        const state = completed ? "Completed" : active && selectedRun.status === "FAILED" ? "Failed" : active && selectedRun.status === "WAITING_APPROVAL" ? "Waiting for approval" : active && selectedRun.status === "RUNNING" ? "Running" : "Not reached";
+                        const StateIcon = completed ? CheckCircle2 : active && selectedRun.status === "FAILED" ? CircleAlert : Circle;
+                        return (
+                          <li key={step.id} className="flex items-center gap-3 rounded-md bg-card/70 px-3 py-2">
+                            <StateIcon className={completed ? "h-4 w-4 shrink-0 text-emerald-500" : active && selectedRun.status === "FAILED" ? "h-4 w-4 shrink-0 text-destructive" : "h-4 w-4 shrink-0 text-muted-foreground"} />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-medium">{step.name}</p>
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">{step.type}</p>
+                            </div>
+                            <span className="text-[11px] text-muted-foreground">{state}</span>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </section>
+                )}
+
                 <Tabs defaultValue="logs">
                   <TabsList>
                     <TabsTrigger value="logs">Logs</TabsTrigger>

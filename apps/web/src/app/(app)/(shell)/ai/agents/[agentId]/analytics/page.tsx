@@ -2,7 +2,6 @@
 
 import { useParams, useRouter } from "next/navigation";
 import {
-  Bot,
   ArrowLeft,
   Loader2,
   Activity,
@@ -10,30 +9,16 @@ import {
   Timer,
   DollarSign,
   BarChart3,
-  TrendingUp,
+  Wrench,
+  CalendarClock,
+  TriangleAlert,
 } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  Legend,
-} from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAgent, useAgentStats } from "@/hooks/use-agents";
 import { useAiPerformance } from "@/hooks/use-ai-dashboard";
+import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-const PIE_COLORS = ["#10b981", "#ef4444", "#f59e0b", "#3b82f6"];
 
 function MetricCard({
   icon: Icon,
@@ -71,7 +56,7 @@ export default function AgentAnalyticsPage() {
   const router = useRouter();
   const agentId = params.agentId;
 
-  const { data: agent, isLoading: agentLoading } = useAgent(agentId);
+  const { data: agent, isLoading: agentLoading, isError: agentError, refetch: refetchAgent } = useAgent(agentId);
   const { data: stats, isLoading: statsLoading } = useAgentStats(agentId);
   const { data: performance, isLoading: perfLoading } = useAiPerformance(30);
 
@@ -83,46 +68,23 @@ export default function AgentAnalyticsPage() {
     );
   }
 
-  if (!agent) {
+  if (agentError || !agent) {
     return (
       <div className="flex flex-col items-center gap-3 py-24 text-center">
-        <Bot className="h-12 w-12 text-muted-foreground/50" />
-        <p className="text-sm font-medium text-muted-foreground">Agent not found</p>
-        <Button variant="outline" size="sm" onClick={() => router.push("/ai/agents")}>
+        <TriangleAlert className="h-12 w-12 text-warning" aria-hidden />
+        <p className="text-sm font-medium text-muted-foreground">{agentError ? "Agent analytics could not be loaded" : "Agent not found"}</p>
+        <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">{agentError ? "Your agent is unchanged. Retry to load metrics that are currently available." : "The requested agent is unavailable in this workspace."}</p>
+        <div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => router.push("/ai/agents")}>
           <ArrowLeft className="h-4 w-4" />
           Back to Agents
-        </Button>
+        </Button>{agentError && <Button size="sm" onClick={() => refetchAgent()}>Try again</Button>}</div>
       </div>
     );
   }
 
   const successRate = stats ? (stats.succeededRunCount / Math.max(stats.totalRunCount, 1)) * 100 : 0;
-
-  // Sample chart data - in production this would come from a dedicated analytics API
-  const runStatusData = [
-    { name: "Succeeded", value: stats?.succeededRunCount ?? 0 },
-    { name: "Failed", value: (stats?.totalRunCount ?? 0) - (stats?.succeededRunCount ?? 0) },
-  ];
-
-  const costData = [
-    { day: "Mon", cost: 0.15 },
-    { day: "Tue", cost: 0.22 },
-    { day: "Wed", cost: 0.18 },
-    { day: "Thu", cost: 0.35 },
-    { day: "Fri", cost: 0.28 },
-    { day: "Sat", cost: 0.12 },
-    { day: "Sun", cost: 0.08 },
-  ];
-
-  const durationData = [
-    { day: "Mon", avg: 4200 },
-    { day: "Tue", avg: 3800 },
-    { day: "Wed", avg: 5100 },
-    { day: "Thu", avg: 4600 },
-    { day: "Fri", avg: 3900 },
-    { day: "Sat", avg: 2800 },
-    { day: "Sun", avg: 2200 },
-  ];
+  const agentPerformance = performance?.byAgent.find((entry) => entry.agentId === agentId);
+  const failedRunCount = stats ? Math.max(stats.totalRunCount - stats.succeededRunCount, 0) : 0;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
@@ -139,7 +101,7 @@ export default function AgentAnalyticsPage() {
       </div>
 
       {/* Metric cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           icon={Activity}
           label="Total Runs"
@@ -154,163 +116,63 @@ export default function AgentAnalyticsPage() {
           color="bg-emerald-500/10"
         />
         <MetricCard
-          icon={Timer}
-          label="Avg Duration"
-          value={performance ? `${(performance.totalCallCount > 0 ? (performance.totalTokens / performance.totalCallCount) / 100 : 0).toFixed(1)}s` : "\u2014"}
+          icon={Wrench}
+          label="Available Tools"
+          value={stats?.toolCount ?? "\u2014"}
           color="bg-amber-500/10"
         />
         <MetricCard
-          icon={DollarSign}
-          label="Total Cost"
-          value={performance ? `$${performance.totalCostUsd.toFixed(2)}` : "\u2014"}
-          secondary="Last 30 days"
+          icon={CalendarClock}
+          label="Last Run"
+          value={stats?.lastRunAt ? formatRelativeTime(stats.lastRunAt) : "\u2014"}
+          secondary="Reported by agent statistics"
           color="bg-rose-500/10"
         />
       </div>
 
-      {/* Charts */}
+      {/* Only the aggregate performance endpoint is available; no time-series is inferred. */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Run Status Pie */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm font-medium">
               <BarChart3 className="h-4 w-4" />
-              Run Status Distribution
+              Run status summary
             </CardTitle>
           </CardHeader>
           <CardContent>
             {statsLoading ? (
               <div className="h-48 animate-pulse rounded-lg bg-secondary/60" />
             ) : stats && stats.totalRunCount > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={runStatusData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={80}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {runStatusData.map((_, idx) => (
-                      <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend
-                    verticalAlign="bottom"
-                    height={28}
-                    formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <dl className="grid min-h-48 grid-cols-2 gap-3" aria-label="Run status summary"><div className="rounded-xl border border-success/20 bg-success/5 p-4"><dt className="text-xs text-muted-foreground">Succeeded</dt><dd className="mt-2 text-3xl font-semibold tabular-nums text-success">{stats.succeededRunCount}</dd></div><div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4"><dt className="text-xs text-muted-foreground">Not succeeded</dt><dd className="mt-2 text-3xl font-semibold tabular-nums text-destructive">{failedRunCount}</dd></div><div className="col-span-2 text-xs leading-relaxed text-muted-foreground">Success rate: {successRate.toFixed(0)}% across {stats.totalRunCount} recorded runs.</div></dl>
             ) : (
               <p className="py-12 text-center text-xs text-muted-foreground">No run data yet.</p>
             )}
           </CardContent>
         </Card>
 
-        {/* Daily Cost */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm font-medium">
               <DollarSign className="h-4 w-4" />
-              Daily Cost (Last 7 Days)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={costData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                <Tooltip
-                  contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                  }}
-                />
-                <Bar dataKey="cost" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Avg Duration */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <Timer className="h-4 w-4" />
-              Avg Duration (Last 7 Days)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={durationData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                <Tooltip
-                  contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="avg"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={{ fill: "hsl(var(--primary))", r: 3 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Agent Performance Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <TrendingUp className="h-4 w-4" />
-              Performance Summary
+              30-day aggregate
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {perfLoading ? (
               <div className="h-36 animate-pulse rounded-lg bg-secondary/60" />
-            ) : performance?.byAgent && performance.byAgent.length > 0 ? (
-              <div className="space-y-3">
-                {performance.byAgent.slice(0, 5).map((entry) => (
-                  <div key={entry.agentId ?? "unknown"} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium">{entry.agentName ?? "Unknown Agent"}</span>
-                      <span className="text-muted-foreground">{entry.callCount} calls</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>{entry.totalTokens.toLocaleString()} tokens</span>
-                      <span>${entry.totalCostUsd.toFixed(4)}</span>
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-secondary">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${Math.min((entry.callCount / Math.max(...performance.byAgent.map((e) => e.callCount))) * 100, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+            ) : agentPerformance ? (
+              <dl className="grid gap-3 xl:grid-cols-3"><div><dt className="text-xs text-muted-foreground">Calls</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{agentPerformance.callCount}</dd></div><div><dt className="text-xs text-muted-foreground">Tokens</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{agentPerformance.totalTokens.toLocaleString()}</dd></div><div><dt className="text-xs text-muted-foreground">Cost</dt><dd className="mt-1 text-xl font-semibold tabular-nums">${agentPerformance.totalCostUsd.toFixed(4)}</dd></div></dl>
             ) : (
-              <p className="py-8 text-center text-xs text-muted-foreground">No performance data available.</p>
+              <UnavailableAnalytics />
             )}
           </CardContent>
         </Card>
+        <Card><CardHeader><CardTitle className="flex items-center gap-2 text-sm font-medium"><Timer className="h-4 w-4" />Historical trends</CardTitle></CardHeader><CardContent><UnavailableAnalytics /></CardContent></Card>
       </div>
     </div>
   );
+}
+
+function UnavailableAnalytics() {
+  return <div className="min-h-36 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4"><p className="text-sm font-medium">Historical analytics unavailable</p><p className="mt-2 text-xs leading-relaxed text-muted-foreground">The current agent APIs expose aggregate counts and 30-day totals, not daily cost, duration, or time-series performance. Voltx will not infer those metrics.</p></div>;
 }

@@ -101,6 +101,14 @@ curl -sS -o /dev/null -X POST \
   -H "Authorization: Bearer ${TOKEN}"
 echo "    ${E2E_EMAIL} created, onboarding completed"
 
+echo "==> Restricted-role fixtures"
+# The authenticated Playwright permission matrix signs in as CRM-limited,
+# Finance-limited and approval-restricted identities. Without these the
+# matrix cannot run at all (and, before the fail-closed sign-in helper, it
+# silently re-verified the owner instead).
+DATABASE_URL="$DB_URL" DIRECT_URL="$DB_URL" OWNER_EMAIL="$E2E_EMAIL" \
+  pnpm prisma:seed:e2e-fixtures
+
 cat <<EOF
 
 Environment ready.

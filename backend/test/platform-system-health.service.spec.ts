@@ -41,6 +41,7 @@ describe('PlatformSystemHealthService', () => {
       uptime: 123,
       dependencies: {
         database: { status: 'up', latencyMs: 1 },
+        storage: { status: 'up', latencyMs: 1 },
         redis: { status: 'up', latencyMs: 2 },
       },
     });
@@ -74,7 +75,10 @@ describe('PlatformSystemHealthService', () => {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: 1,
-      dependencies: { database: { status: 'up', latencyMs: 1 } },
+      dependencies: {
+        database: { status: 'up', latencyMs: 1 },
+        storage: { status: 'up', latencyMs: 1 },
+      },
     });
     metricsService.getQueueDepths.mockResolvedValue({});
     prisma.system.backgroundJobFailure.groupBy.mockResolvedValue([]);

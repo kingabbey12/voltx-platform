@@ -9,6 +9,7 @@ import { WorkflowShowcase } from "@/components/sections/workflow-showcase";
 import { DemoLibrary } from "@/components/sections/demo-library";
 import { PricingSection } from "@/components/sections/pricing-section";
 import { EnterpriseSection } from "@/components/sections/enterprise-section";
+import { AiTeamSection } from "@/components/sections/ai-team-section";
 import { FaqSection } from "@/components/sections/faq-section";
 import { CtaSection } from "@/components/sections/cta-section";
 import { AiAutomationPreview } from "@/components/previews/ai-automation-preview";
@@ -27,6 +28,8 @@ export default function HomePage() {
 
       {/* Product overview */}
       <FeatureGrid />
+
+      <AiTeamSection />
 
       {/* Guided walkthrough of the core loop */}
       <ProductTour />

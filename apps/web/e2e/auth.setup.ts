@@ -36,6 +36,11 @@ setup("authenticate", async ({ page }) => {
   await page.locator('input[type="password"]').fill(password);
   await page.getByRole("button", { name: /sign in|log in|continue/i }).click();
 
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.localStorage.getItem("voltx.accessToken"))))
+    .toBe(true);
+  await page.goto("/dashboard");
+
   // Landing anywhere outside /login means both guards let us through. Asserting
   // on a specific dashboard element would couple this to that page's markup.
   await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 });

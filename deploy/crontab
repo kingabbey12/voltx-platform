@@ -1,21 +1,33 @@
 # ── Voltx Database Backup Schedule ───────────────────────────────────
-# Install with: crontab deploy/crontab
-# Or for the deploy user: crontab -u deploy deploy/crontab
+# This file is a TEMPLATE. Do not install it directly — the bracketed
+# tokens below are substituted with absolute paths for this machine by:
 #
-# Environment variables must be set in the crontab or sourced from
-# deploy/.env before running backup.sh.
+#   deploy/scripts/install-backup-schedule.sh            # install
+#   deploy/scripts/install-backup-schedule.sh --print    # preview only
+#   crontab -l                                           # verify
 #
-# BACKUP_DIR — directory to store backups (default: deploy/backups/)
-# BACKUP_RETENTION_DAYS — retention window (default: 14)
-# COMPOSE_FILE — path to docker-compose.staging.yml
+# The previous version of this file shipped `/path/to/deploy` placeholders and
+# invited `crontab deploy/crontab`. Installing it produced a schedule that
+# failed on every single run — backups appeared scheduled and were not. The
+# installer exists so that can no longer happen silently.
+#
+# Both jobs take the same exclusive lock *inside the scripts themselves*
+# (deploy/scripts/with-lock.sh, atomic mkdir — no flock dependency), so a
+# slow backup can never overlap the next one, the weekly verification can
+# never race a backup, and a manual run is protected too. LOCK_DIR selects
+# where the lock lives.
 
-# ── Daily backup at 3:00 AM UTC ──────────────────────────────────────
-# Runs inside the deploy/ directory so docker compose can find .env
-BACKUP_DIR=/var/voltx/backups COMPOSE_FILE=/path/to/deploy/docker-compose.staging.yml \
-0 3 * * * cd /path/to/deploy && ./scripts/backup.sh --docker >> /var/log/voltx/backup.log 2>&1
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+MAILTO=""
 
-# ── Weekly integrity check (restore to scratch DB) ───────────────────
-# This requires a separate scratch database. Uncomment and configure
-# before relying on backups for disaster recovery.
-#
-# 0 5 * * 0 cd /path/to/deploy && gunzip -c ./backups/voltx-latest.sql.gz | psql "$SCRATCH_DATABASE_URL" && psql "$SCRATCH_DATABASE_URL" -c "SELECT count(*) FROM organizations;" >> /var/log/voltx/backup-verify.log 2>&1
+# ── Daily database backup — 03:00 UTC ────────────────────────────────
+# Retention is enforced by backup.sh (BACKUP_RETENTION_DAYS, default 14).
+0 3 * * * BACKUP_DIR=__BACKUP_DIR__ BACKUP_RETENTION_DAYS=__RETENTION_DAYS__ COMPOSE_FILE=__DEPLOY_DIR__/docker-compose.yml LOCK_DIR=__LOCK_DIR__ __DEPLOY_DIR__/scripts/backup.sh --docker >> __LOG_DIR__/backup.log 2>&1
+
+# ── Weekly backup-integrity verification — Sunday 05:00 UTC ──────────
+# Restores the most recent archive into a disposable database and proves it
+# is actually usable: decompresses, restores, and the expected tables,
+# foreign keys, indexes and sequences all survive. A backup that has never
+# been restored is a hypothesis, not a capability.
+0 5 * * 0 LOCK_DIR=__LOCK_DIR__ __DEPLOY_DIR__/scripts/verify-latest-backup.sh __BACKUP_DIR__ >> __LOG_DIR__/backup-verify.log 2>&1

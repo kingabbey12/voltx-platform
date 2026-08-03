@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { TenantContextService } from '../../common/tenant/tenant-context.service';
+import {
+  EXECUTIVE_CONTEXT_INVALIDATOR,
+  ExecutiveContextInvalidator,
+} from '../ai/context/context.types';
 import {
   CreateNotificationData,
   FindNotificationsParams,
@@ -13,6 +18,9 @@ export class NotificationService {
   constructor(
     private readonly notificationRepository: NotificationRepository,
     private readonly commsGateway: CommsGateway,
+    private readonly tenantContext: TenantContextService,
+    @Inject(EXECUTIVE_CONTEXT_INVALIDATOR)
+    private readonly contextInvalidation: ExecutiveContextInvalidator,
   ) {}
 
   /**
@@ -24,6 +32,11 @@ export class NotificationService {
    */
   async create(data: CreateNotificationData): Promise<NotificationEntity> {
     const notification = await this.notificationRepository.create(data);
+    await this.contextInvalidation.invalidateSource(
+      notification.organizationId,
+      'notifications',
+      notification.userId,
+    );
     this.commsGateway.emitNotification(notification);
     return notification;
   }
@@ -41,11 +54,23 @@ export class NotificationService {
     if (!notification) {
       throw new NotFoundException(`Notification "${id}" not found`);
     }
+    await this.contextInvalidation.invalidateSource(
+      notification.organizationId,
+      'notifications',
+      notification.userId,
+    );
     return notification;
   }
 
   async markAllRead(): Promise<number> {
-    return this.notificationRepository.markAllReadForCurrentUser();
+    const count = await this.notificationRepository.markAllReadForCurrentUser();
+    const tenant = this.tenantContext.getOrThrow();
+    await this.contextInvalidation.invalidateSource(
+      tenant.organizationId,
+      'notifications',
+      tenant.userId,
+    );
+    return count;
   }
 
   async getPreferences(): Promise<Record<string, boolean>> {

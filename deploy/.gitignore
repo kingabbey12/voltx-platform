@@ -13,3 +13,4 @@ nginx/ssl/
 # ── Database dumps ────────────────────────────────────────────────────
 # backup.sh writes here; these contain live customer data.
 backups/
+alertmanager/watchdog_url

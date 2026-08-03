@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
 import { Compass, Heart, ShieldCheck, Sparkles } from "lucide-react";
+import { createPageMetadata } from "@/lib/metadata";
 import { Reveal, StaggerGroup, StaggerItem } from "@/components/motion/reveal";
 import { SectionEyebrow } from "@/components/sections/stats-bar";
 import { CtaSection } from "@/components/sections/cta-section";
 
-export const metadata: Metadata = {
-  title: "About",
-  description:
-    "Voltx was built to be the operating system for how modern businesses actually work — AI-native, unified, and built for trust.",
-};
+export const metadata = createPageMetadata(
+  "About",
+  "Voltx was built to be the operating system for how modern businesses actually work — AI-native, unified, and built for trust.",
+  "/about",
+);
 
 const values = [
   {

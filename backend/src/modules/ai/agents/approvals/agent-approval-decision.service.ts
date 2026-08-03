@@ -40,12 +40,16 @@ export class AgentApprovalDecisionService {
 
     // The approver's request shouldn't wait for however long the resumed
     // continuation takes to run — background task execution (queued when
-    // Redis is configured, direct fire-and-forget otherwise).
-    this.agentTaskQueueService.enqueueResumeAfterApproval(
-      decided.agentRunId,
-      decided.id,
-      decided.organizationId,
-    );
+    // Redis is configured, direct fire-and-forget otherwise). Approvals
+    // that aren't a paused tool call (VT-205 workflow plans) have no run
+    // to resume; deciding them only records the decision.
+    if (decided.agentRunId) {
+      this.agentTaskQueueService.enqueueResumeAfterApproval(
+        decided.agentRunId,
+        decided.id,
+        decided.organizationId,
+      );
+    }
 
     await this.notifyRunOwner(decided, decision);
 
@@ -58,6 +62,7 @@ export class AgentApprovalDecisionService {
     decision: 'APPROVED' | 'REJECTED',
   ): Promise<void> {
     try {
+      if (!decided.agentRunId) return;
       const run = await this.agentRepository.findRunByIdUnscoped(decided.agentRunId);
       if (!run) return;
 

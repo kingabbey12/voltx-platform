@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import {
   BookOpen,
   Boxes,
@@ -15,12 +14,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CtaSection } from "@/components/sections/cta-section";
 import { siteConfig } from "@/config/site";
+import { createPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Docs",
-  description:
-    "Get started with the Voltx API — authentication, your first request, SDKs, webhooks, and the interactive API reference.",
-};
+export const metadata = createPageMetadata(
+  "Docs",
+  "Get started with the Voltx API — authentication, your first request, SDKs, webhooks, and the interactive API reference.",
+  "/docs",
+);
 
 const quickstartSteps = [
   {
@@ -152,7 +152,7 @@ export default function DocsPage() {
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-sm font-semibold text-primary">
                     {i + 1}
                   </span>
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <h3 className="text-base font-semibold text-foreground">{step.title}</h3>
                     <p className="mt-1.5 text-sm text-muted-foreground">{step.description}</p>
                     {step.code && (

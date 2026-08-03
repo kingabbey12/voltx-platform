@@ -13,6 +13,18 @@ export interface StoragePart {
 export interface StorageProvider {
   readonly name: 'local' | 's3';
 
+  /**
+   * Cheap liveness probe for continuous health reporting — metadata only,
+   * never a write, so it can run on every readiness scrape. Resolves when
+   * the backend is reachable and rejects otherwise.
+   *
+   * This exists because storage was previously verified *only* at boot: a
+   * container that started successfully kept reporting healthy for days
+   * after its credentials were revoked, which is exactly the silent
+   * false-health condition health checks are supposed to prevent.
+   */
+  checkHealth(): Promise<void>;
+
   upload(key: string, buffer: Buffer, contentType: string): Promise<void>;
 
   getReadStream(key: string): Promise<NodeJS.ReadableStream>;

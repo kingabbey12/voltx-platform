@@ -165,3 +165,53 @@ Renew, place the new pair in `deploy/nginx/ssl/`, and reload nginx.
 - **No paging rota or escalation policy** — alerts route to one webhook.
 - **External blackbox probes need public DNS.** `EndpointProbeFailing` fires wherever `api-staging.voltx.ai` / `app-staging.voltx.ai` do not resolve, which includes local developer machines. Certificate monitoring depends on those probes, so it can only be validated in an environment with real DNS.
 - **`backend/docker-compose.prod.yml` has no monitoring stack** — by design. It is an API-only subset for running the backend in isolation; its header says so, and `deployment-topology.spec.ts` keeps the production docs pointed at `deploy/deploy.sh` instead.
+
+## BackupOverdue
+
+No successful database backup in over 36 hours, or the backup metric is absent entirely — the `absent()` guard matters more than the threshold, because a schedule that never ran publishes nothing at all and a plain comparison would ignore it silently.
+
+Check the cron schedule is installed (`crontab -l`), then `deploy/logs/backup.log`. Run `deploy/scripts/backup.sh --docker` manually to confirm the job still works. See [BACKUP-RESTORE](../../deploy/BACKUP-RESTORE.md).
+
+## BackupSizeZero
+
+The most recent backup completed but wrote zero bytes. Treat the latest archive as unusable and do not prune older ones until resolved. Inspect `deploy/logs/backup.log` for a `pg_dump` error, and verify the database container is healthy.
+
+## BackupFailuresRepeating
+
+Two or more backup runs failed within 24 hours. Usually disk space, a stopped database container, or a credential change. Check `df -h` on the backup volume and `docker compose ps postgres`.
+
+## BackupVerificationOverdue
+
+No integrity verification in over 10 days against a weekly schedule. Either the weekly cron entry is missing or it has been failing to start. Run `deploy/scripts/verify-latest-backup.sh` manually.
+
+## BackupVerificationFailed
+
+The most recent verification could not restore the latest archive. **Backups are not currently trustworthy.** Do not rely on them for recovery until this passes. Run the verifier manually for the specific failure, and run `deploy/scripts/restore-drill.sh` to determine whether the fault is in the archive or in the restore path.
+
+## ObjectStorageDown
+
+The continuous readiness probe cannot reach the attachment bucket. Readiness reports `degraded`, **not** `not_ready` — this is deliberate: attachments are one capability, and the executive stack, CRM, finance and workflows all keep serving without them. Pulling every replica out of rotation for a storage outage would turn a partial failure into a total one.
+
+Attachment upload and download are failing for users. Check credentials first (`HeadBucket` returning 401 means the token was revoked or rotated), then bucket existence and endpoint reachability. See [R2](../../deploy/R2.md).
+
+This alert exists because storage used to be verified only at application boot: a container that started successfully kept reporting healthy for days after its credentials were revoked. If this alert is firing, the degradation is real and user-visible.
+
+## Watchdog
+
+**Always firing. That is intentional.**
+
+Every other alert in this system assumes the delivery path works. If the webhook receiver is misconfigured, revoked, or silently dropping payloads, a real incident produces no notification — and nothing tells you. The alerting system fails precisely when it matters.
+
+Watchdog inverts that: it fires continuously, so a healthy pipeline delivers it on a steady cadence (every 5 minutes). **Its absence is the signal.**
+
+To make it useful you must configure a dead-man's-switch monitor — Healthchecks.io, PagerDuty heartbeat, Grafana OnCall — at the URL in `deploy/alertmanager/watchdog_url`, with a grace window longer than the 5-minute repeat interval. Until that endpoint exists, Watchdog proves delivery works but cannot tell you when it stops.
+
+Do not silence, group or inhibit this alert with real incidents.
+
+## AlertDeliveryFailing
+
+Alertmanager reporting from the inside that it cannot deliver: more than three notification failures in 15 minutes.
+
+Watchdog catches a dead alerting path from *outside* (nothing arrives). This catches it from *inside* (Alertmanager knows the receiver is rejecting), so a receiver returning 4xx/5xx is visible immediately rather than after the external heartbeat lapses. The two are complementary — keep both.
+
+Check the receiver URL and its auth, then `alertmanager_notifications_failed_total` by integration to identify which receiver is failing.

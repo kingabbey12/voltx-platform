@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import { Reveal } from "@/components/motion/reveal";
+import { createPageMetadata } from "@/lib/metadata";
 import { SectionEyebrow } from "@/components/sections/stats-bar";
 import { PricingTable } from "@/components/sections/pricing-table";
 import { CtaSection } from "@/components/sections/cta-section";
@@ -10,37 +10,37 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
-export const metadata: Metadata = {
-  title: "Pricing",
-  description:
-    "Simple, transparent pricing for teams of every size — from a free forever plan to custom enterprise agreements.",
-};
+export const metadata = createPageMetadata(
+  "Pricing",
+  "Transparent monthly and annual Voltx plans for Starter, Professional, Business, and Enterprise teams.",
+  "/pricing",
+);
 
 const faqs = [
   {
-    question: "Is there really a free plan?",
+    question: "Is there a free trial?",
     answer:
-      "Yes. The Starter plan is free forever for up to 10 seats with core CRM and a single AI agent — no credit card required.",
+      "Yes. Every paid plan includes a 14-day trial so your team can validate the platform before committing.",
   },
   {
-    question: "How does AI usage factor into pricing?",
+    question: "How does AI usage factor into the plans?",
     answer:
-      "Seat pricing covers the platform and core AI features. Enterprise plans are quoted with projected AI usage volume in mind since compute is the primary variable cost driver at scale.",
+      "Each plan includes a monthly AI request allowance. Higher plans include higher capacity, and Enterprise is scoped with your projected usage and rollout requirements.",
   },
   {
-    question: "Can I change plans later?",
+    question: "Can our team change plans later?",
     answer:
-      "Yes, you can upgrade or downgrade at any time. Annual plans are prorated, and you'll never lose your data when switching tiers.",
+      "Talk to our team about changing plans or tailoring a rollout. We will confirm the right path for your organization before any commercial change is made.",
   },
   {
-    question: "Do you offer discounts for annual billing?",
+    question: "How does annual billing work?",
     answer:
-      "Annual billing saves 20% compared to monthly across every paid tier, and multi-year enterprise agreements unlock additional price-lock protection.",
+      "Starter, Professional, and Business annual rates are displayed on the plan cards. Enterprise commercial terms are agreed directly with your team.",
   },
   {
     question: "What does the Enterprise plan include?",
     answer:
-      "Unlimited seats, SSO/SCIM provisioning, custom data retention, a dedicated Solutions Engineer, and a named support SLA backed by a 99.9% uptime commitment.",
+      "Enterprise provides unlimited platform usage, dedicated support, and commercial terms tailored to your security, deployment, and rollout requirements.",
   },
 ];
 

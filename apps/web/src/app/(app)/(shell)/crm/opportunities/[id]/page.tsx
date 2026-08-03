@@ -3,7 +3,7 @@
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Lightbulb, Sparkles, Trash2, TrendingUp } from "lucide-react";
+import { ArrowLeft, CalendarClock, Lightbulb, Sparkles, Trash2, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import {
 import { formatCurrency, formatDate, formatRelativeTime } from "@/lib/format";
 import { friendlyErrorMessage } from "@/lib/api/api-error";
 import { LoadingScreen } from "@/components/loading-screen";
+import { DetailLoadState } from "@/components/detail-load-state";
 import type { OpportunityStage } from "@/lib/api/sales";
 
 const STAGE_LABEL: Record<OpportunityStage, string> = {
@@ -46,7 +47,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const insights = useOpportunityInsights();
   const nextBestAction = useOpportunityNextBestAction();
 
-  const { data: opportunity, isLoading } = useQuery({
+  const { data: opportunity, isLoading, error, refetch } = useQuery({
     queryKey: ["sales", "opportunities", id],
     queryFn: () => opportunitiesApi.get(id),
   });
@@ -81,10 +82,20 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   }
 
   if (isLoading) return <LoadingScreen />;
-  if (!opportunity) return null;
+  if (!opportunity) {
+    return (
+      <DetailLoadState
+        entityName="Opportunity"
+        backHref="/crm/opportunities"
+        backLabel="Back to opportunities"
+        error={error}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       <Button
         variant="ghost"
         size="sm"
@@ -95,13 +106,15 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         Opportunities
       </Button>
 
-      <div className="flex items-start justify-between gap-4">
+      <div className="surface-raised relative overflow-hidden rounded-[24px] p-5 sm:p-7">
+        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
+      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/15 to-accent/15 text-primary">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/15 to-accent/15 text-primary shadow-[0_12px_26px_-18px_hsl(var(--primary)/0.9)]">
             <TrendingUp className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold">{opportunity.title}</h1>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-primary">Deal command center</p><h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{opportunity.title}</h1>
             <div className="mt-1 flex items-center gap-2">
               <Badge variant={STAGE_VARIANT[opportunity.stage]}>{STAGE_LABEL[opportunity.stage]}</Badge>
               {opportunity.amount != null && (
@@ -112,7 +125,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <CopilotButton
             label="Summarize"
             dialogTitle={`Summary: ${opportunity.title}`}
@@ -131,12 +144,18 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             Delete
           </Button>
         </div>
+      </div></div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="surface-widget rounded-2xl p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Deal value</p><p className="mt-2 text-xl font-semibold tracking-tight">{opportunity.amount != null ? formatCurrency(opportunity.amount, opportunity.currency) : "Not set"}</p></div>
+        <div className="surface-widget rounded-2xl p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Win probability</p><p className="mt-2 text-xl font-semibold tracking-tight text-success">{opportunity.probability}%</p></div>
+        <div className="surface-widget rounded-2xl p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Expected close</p><p className="mt-2 inline-flex items-center gap-1.5 text-xl font-semibold tracking-tight">{opportunity.expectedCloseAt ? <><CalendarClock className="h-4 w-4 text-primary" />{formatDate(opportunity.expectedCloseAt)}</> : "Not set"}</p></div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Card>
+      <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card className="surface-widget rounded-[24px]">
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-            <CardTitle className="text-sm">AI insights</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base"><span className="grid h-8 w-8 place-items-center rounded-xl border border-[hsl(268_83%_68%/0.22)] bg-[hsl(268_83%_68%/0.10)] text-[hsl(268_83%_76%)]"><Sparkles className="h-4 w-4" /></span>AI insights</CardTitle>
             <Button size="sm" variant="outline" onClick={handleInsights} isLoading={insights.isPending}>
               <Sparkles className="h-4 w-4" />
               Generate
@@ -146,16 +165,16 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             {opportunity.insights ? (
               <p className="whitespace-pre-wrap text-sm text-foreground">{opportunity.insights}</p>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No insights generated yet. Ask the AI to analyze this deal&apos;s strengths, risks, and blockers.
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Ask Voltx to analyze this deal&apos;s strengths, risks, and blockers before the next customer move.
               </p>
             )}
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="surface-widget rounded-[24px]">
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-            <CardTitle className="text-sm">Next best action</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base"><span className="grid h-8 w-8 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary"><Lightbulb className="h-4 w-4" /></span>Next best action</CardTitle>
             <Button
               size="sm"
               variant="outline"
@@ -170,27 +189,27 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             {opportunity.nextBestAction ? (
               <p className="whitespace-pre-wrap text-sm text-foreground">{opportunity.nextBestAction}</p>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No recommendation yet. Ask the AI what to do next to advance this deal.
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Ask Voltx what to do next to advance this deal with confidence.
               </p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <Card className="mt-4">
+      <Card className="surface-widget mt-4 rounded-[24px]">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Recent activity</CardTitle>
+          <CardTitle className="text-base">Deal activity</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           {activities?.items.length === 0 && (
-            <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
+            <p className="text-sm text-muted-foreground">Log the next customer touchpoint to give Voltx richer deal context.</p>
           )}
-          <div className="flex flex-col gap-2">
+          <div className="relative space-y-3 before:absolute before:bottom-2 before:left-1.5 before:top-2 before:w-px before:bg-white/[0.08]">
             {activities?.items.map((activity) => (
-              <div key={activity.id} className="text-sm">
+              <div key={activity.id} className="relative pl-6 text-sm"><span className="absolute left-0 top-1.5 h-3 w-3 rounded-full border border-primary/30 bg-card shadow-[0_0_10px_hsl(var(--primary)/0.45)]" />
                 <p className="font-medium">{activity.subject}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {formatRelativeTime(activity.occurredAt ?? activity.createdAt)}
                 </p>
               </div>

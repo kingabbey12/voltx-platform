@@ -34,6 +34,18 @@ route:
   repeat_interval: 4h
 
   routes:
+    # Watchdog is always firing by design. It must reach the dead-man's-switch
+    # endpoint on a steady cadence and must never be grouped, throttled or
+    # inhibited with real incidents — its whole value is that a *gap* in
+    # delivery is the signal. `repeat_interval` here sets the heartbeat
+    # period; the external monitor's grace window must be longer than it.
+    - matchers:
+        - severity = "watchdog"
+      receiver: watchdog
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 5m
+
     # Criticals page immediately and repeat more aggressively — these are the
     # "customer impact now" class.
     - matchers:
@@ -64,6 +76,16 @@ inhibit_rules:
     equal: ["alertname", "instance"]
 
 receivers:
+  # Point this at a dead-man's-switch/heartbeat URL (Healthchecks.io,
+  # PagerDuty heartbeat, Grafana OnCall). Falls back to the same webhook as
+  # everything else so the pipeline is never unrouted; that fallback proves
+  # delivery works but cannot page you when it stops, so configure a real
+  # heartbeat endpoint before launch.
+  - name: watchdog
+    webhook_configs:
+      - url_file: /etc/alertmanager/watchdog_url
+        send_resolved: false
+
   - name: default
     webhook_configs:
       - url_file: /etc/alertmanager/webhook_url

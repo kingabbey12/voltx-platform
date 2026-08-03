@@ -1,4 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import {
+  EXECUTIVE_CONTEXT_INVALIDATOR,
+  ExecutiveContextInvalidator,
+} from '../../ai/context/context.types';
+import { TenantContextService } from '../../../common/tenant/tenant-context.service';
 import { AuditService } from '../../audit/audit.service';
 import { SalesAiActionDto, SalesAiActionResponseDto } from '../dto/sales-ai.dto';
 import { SalesAiService } from '../sales-ai.service';
@@ -17,6 +23,9 @@ export class OpportunitiesService {
     private readonly opportunitiesRepository: OpportunitiesRepository,
     private readonly salesAiService: SalesAiService,
     private readonly auditService: AuditService,
+    private readonly tenantContext: TenantContextService,
+    @Inject(EXECUTIVE_CONTEXT_INVALIDATOR)
+    private readonly contextInvalidation: ExecutiveContextInvalidator,
   ) {}
 
   async create(dto: CreateOpportunityDto): Promise<OpportunityResponseDto> {
@@ -33,6 +42,7 @@ export class OpportunitiesService {
       notes: dto.notes?.trim(),
       metadata: dto.metadata,
     });
+    await this.invalidateContext();
 
     await this.auditService.record({
       action: 'create',
@@ -99,6 +109,7 @@ export class OpportunitiesService {
     if (!entity) {
       throw new NotFoundException(`Opportunity with id "${id}" not found`);
     }
+    await this.invalidateContext();
 
     await this.auditService.record({
       action: 'update',
@@ -115,6 +126,7 @@ export class OpportunitiesService {
     if (!entity) {
       throw new NotFoundException(`Opportunity with id "${id}" not found`);
     }
+    await this.invalidateContext();
 
     await this.auditService.record({
       action: 'delete',
@@ -141,6 +153,7 @@ export class OpportunitiesService {
     await this.opportunitiesRepository.update(id, {
       insights: result.outputText,
     });
+    await this.invalidateContext();
 
     await this.auditService.record({
       action: 'insights',
@@ -167,6 +180,7 @@ export class OpportunitiesService {
     await this.opportunitiesRepository.update(id, {
       nextBestAction: result.outputText,
     });
+    await this.invalidateContext();
 
     await this.auditService.record({
       action: 'next_best_action',
@@ -184,6 +198,13 @@ export class OpportunitiesService {
     }
 
     return entity;
+  }
+
+  private invalidateContext(): Promise<void> {
+    return this.contextInvalidation.invalidateSource(
+      this.tenantContext.getOrThrow().organizationId,
+      'crm',
+    );
   }
 }
 

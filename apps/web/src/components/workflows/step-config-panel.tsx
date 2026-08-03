@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trash2, X } from "lucide-react";
+import { ShieldCheck, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,9 +71,12 @@ export function StepConfigPanel({ step, allStepIds, onChange, onDelete, onClose 
   const leafCondition = isLeafCondition(step.condition) ? step.condition : undefined;
 
   return (
-    <div className="flex h-full w-80 shrink-0 flex-col border-l border-border bg-card">
+    <aside aria-label={`${step.name} configuration`} className="fixed inset-x-0 bottom-0 z-40 flex h-[min(78svh,680px)] w-full flex-col rounded-t-xl border border-border bg-card shadow-2xl md:static md:h-full md:w-96 md:shrink-0 md:rounded-none md:border-y-0 md:border-r-0 md:border-l">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <p className="text-sm font-medium">{spec.label}</p>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{step.name}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{spec.label}</p>
+        </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={onDelete} aria-label="Delete step">
             <Trash2 className="h-3.5 w-3.5" />
@@ -86,6 +89,16 @@ export function StepConfigPanel({ step, allStepIds, onChange, onDelete, onClose 
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="flex flex-col gap-4">
+          <div className="rounded-lg border border-border bg-secondary/30 p-3 text-xs leading-relaxed text-muted-foreground">
+            {spec.description} Changes are staged in this draft until you save the workflow.
+          </div>
+
+          {step.type === "APPROVAL" && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+              <div className="flex items-center gap-2 font-medium"><ShieldCheck className="h-4 w-4" />Approval pause</div>
+              <p className="mt-1.5">This step pauses the run until an authorized user approves or rejects it. The configured message and optional approver role are shown to that reviewer.</p>
+            </div>
+          )}
           <div className="flex flex-col gap-2">
             <Label>Step id</Label>
             <Input value={step.id} disabled className="font-mono text-xs" />
@@ -315,6 +328,6 @@ export function StepConfigPanel({ step, allStepIds, onChange, onDelete, onClose 
           )}
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

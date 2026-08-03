@@ -49,6 +49,11 @@ export class LocalStorageProvider implements StorageProvider {
     return join(this.rootDir, '.multipart', uploadId);
   }
 
+  /** The local backend is the process's own filesystem: reachable by definition. */
+  checkHealth(): Promise<void> {
+    return Promise.resolve();
+  }
+
   async upload(key: string, buffer: Buffer, _contentType: string): Promise<void> {
     const path = this.pathFor(key);
     await mkdir(dirname(path), { recursive: true });

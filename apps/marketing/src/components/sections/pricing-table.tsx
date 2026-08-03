@@ -1,6 +1,3 @@
-"use client";
-
-import { useState } from "react";
 import { Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Reveal, StaggerGroup, StaggerItem } from "@/components/motion/reveal";
@@ -10,9 +7,8 @@ import { siteConfig } from "@/config/site";
 interface Tier {
   name: string;
   description: string;
-  monthlyPrice: number | null;
-  annualPrice: number | null;
-  priceSuffix: string;
+  monthlyPrice?: number;
+  yearlyPrice?: number;
   cta: string;
   ctaHref: string;
   featured?: boolean;
@@ -22,97 +18,70 @@ interface Tier {
 const tiers: Tier[] = [
   {
     name: "Starter",
-    description: "For individuals and small teams getting started with AI-powered work.",
-    monthlyPrice: 0,
-    annualPrice: 0,
-    priceSuffix: "forever",
-    cta: "Start Free",
+    description: "For small teams getting real work done with AI and automation.",
+    monthlyPrice: 29,
+    yearlyPrice: 290,
+    cta: "Start Free Trial",
     ctaHref: siteConfig.appUrl,
     features: [
-      "Up to 10 seats",
-      "Core CRM (companies, contacts, deals)",
-      "1 AI agent",
-      "Community support",
+      "Up to 5 team members",
+      "10 GB storage and 3 active integrations",
+      "500 AI requests and 100 workflow executions each month",
+      "CRM, communications, calendar, and API access",
     ],
   },
   {
-    name: "Growth",
-    description: "For growing teams that need the full AI workspace and automation.",
-    monthlyPrice: 49,
-    annualPrice: 39,
-    priceSuffix: "per seat / month",
+    name: "Professional",
+    description: "Full-featured for growing teams that live in Voltx daily.",
+    monthlyPrice: 99,
+    yearlyPrice: 990,
     cta: "Start Free Trial",
     ctaHref: siteConfig.appUrl,
     featured: true,
     features: [
-      "Up to 50 seats",
-      "Full AI workspace: multi-agent workflows & knowledge search",
-      "Unlimited workflows and integrations",
-      "Dedicated customer success manager",
-      "Priority support",
+      "Up to 20 team members",
+      "50 GB storage and 10 active integrations",
+      "2,500 AI requests and 1,000 workflow executions each month",
+      "Higher CRM, communications, and API limits",
+    ],
+  },
+  {
+    name: "Business",
+    description: "Higher limits and priority support for scaling organizations.",
+    monthlyPrice: 299,
+    yearlyPrice: 2990,
+    cta: "Contact Sales",
+    ctaHref: "/contact",
+    features: [
+      "Up to 100 team members",
+      "250 GB storage and 25 active integrations",
+      "10,000 AI requests and 10,000 workflow executions each month",
+      "Higher communications, API, and CRM capacity",
     ],
   },
   {
     name: "Enterprise",
     description: "For organizations that need scale, control, and dedicated support.",
-    monthlyPrice: null,
-    annualPrice: null,
-    priceSuffix: "custom pricing",
-    cta: "Book Demo",
+    cta: "Contact Sales",
     ctaHref: "/contact",
     features: [
-      "Unlimited seats",
-      "SSO / SCIM provisioning",
-      "Custom data retention & security review",
-      "Dedicated Solutions Engineer",
-      "Named support SLA & 99.9% uptime commitment",
+      "Unlimited usage across the platform",
+      "Custom security and data-retention requirements",
+      "Dedicated support and commercial terms",
+      "Contact us to scope your rollout",
     ],
   },
 ];
 
 export function PricingTable() {
-  const [annual, setAnnual] = useState(true);
-
   return (
     <div>
       <Reveal>
-        <div className="mx-auto flex w-fit items-center gap-1 rounded-full border border-border bg-secondary/40 p-1">
-          <button
-            type="button"
-            onClick={() => setAnnual(false)}
-            className={cn(
-              "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-              !annual ? "bg-primary text-primary-foreground" : "text-muted-foreground",
-            )}
-            aria-pressed={!annual}
-          >
-            Monthly
-          </button>
-          <button
-            type="button"
-            onClick={() => setAnnual(true)}
-            className={cn(
-              "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-              annual ? "bg-primary text-primary-foreground" : "text-muted-foreground",
-            )}
-            aria-pressed={annual}
-          >
-            Annual
-            <span
-              className={cn(
-                "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-                annual ? "bg-white/20" : "bg-primary/10 text-primary",
-              )}
-            >
-              Save 20%
-            </span>
-          </button>
-        </div>
+        <p className="mx-auto max-w-xl text-center text-sm leading-relaxed text-muted-foreground">Every paid plan includes a 14-day trial. Annual rates are shown on each plan; enterprise commercial terms are scoped with your team.</p>
       </Reveal>
 
       <StaggerGroup className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-3">
         {tiers.map((tier) => {
-          const price = annual ? tier.annualPrice : tier.monthlyPrice;
           return (
             <StaggerItem key={tier.name}>
               <div
@@ -135,13 +104,13 @@ export function PricingTable() {
                 </p>
 
                 <div className="mt-6 flex items-baseline gap-2">
-                  {price === null ? (
+                  {tier.monthlyPrice === undefined ? (
                     <span className="text-4xl font-semibold tracking-tight">Custom</span>
                   ) : (
-                    <span className="text-4xl font-semibold tracking-tight">${price}</span>
+                    <span className="text-4xl font-semibold tracking-tight">${tier.monthlyPrice}</span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{tier.priceSuffix}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{tier.yearlyPrice ? `$${tier.yearlyPrice}/year when billed annually` : "Custom pricing and terms"}</p>
 
                 <Button
                   size="lg"

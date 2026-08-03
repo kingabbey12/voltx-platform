@@ -18,6 +18,12 @@ import { AuditModule } from './modules/audit/audit.module';
 import { MailModule } from './modules/mail/mail.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AgentModule } from './modules/ai/agents/agent.module';
+import { AssistantModule } from './modules/ai/assistant/assistant.module';
+import { ExecutiveContextModule } from './modules/ai/context/context.module';
+import { ExecutiveDecisionsModule } from './modules/ai/decision/decision.module';
+import { ExecutiveInsightsModule } from './modules/ai/insights/insights.module';
+import { AutonomousWorkflowEngineModule } from './modules/ai/workflow-engine/workflow-engine.module';
+import { OrchestratorModule } from './modules/ai/orchestrator/orchestrator.module';
 import { AskModule } from './modules/ai/ask/ask.module';
 import { TenantAiCredentialsModule } from './modules/ai/credentials/tenant-ai-credentials.module';
 import { AIModule } from './modules/ai/ai.module';
@@ -64,6 +70,8 @@ import { WorkflowEventsModule } from './modules/workflows/scheduling/workflow-ev
 import { EncryptionModule } from './modules/integrations/security/encryption.module';
 import { CompanyModule } from './modules/company/company.module';
 import { PromisesModule } from './modules/promises/promises.module';
+import { FinanceModule } from './modules/finance/finance.module';
+import { BusinessIntelligenceModule } from './modules/business-intelligence/business-intelligence.module';
 
 @Module({
   imports: [
@@ -112,6 +120,12 @@ import { PromisesModule } from './modules/promises/promises.module';
     EncryptionModule,
     AIModule,
     AgentModule,
+    ExecutiveContextModule,
+    ExecutiveInsightsModule,
+    AutonomousWorkflowEngineModule,
+    ExecutiveDecisionsModule,
+    OrchestratorModule,
+    AssistantModule,
     AskModule,
     TenantAiCredentialsModule,
     AttachmentsModule,
@@ -147,6 +161,8 @@ import { PromisesModule } from './modules/promises/promises.module';
     PlatformSystemHealthModule,
     PlatformUserModule,
     PromisesModule,
+    FinanceModule,
+    BusinessIntelligenceModule,
     ReferenceDataModule,
     RolesModule,
     ScimModule,

@@ -1,11 +1,12 @@
-import type { Metadata } from "next";
 import { LegalLayout } from "@/components/layout/legal-layout";
 import { siteConfig } from "@/config/site";
+import { createPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Terms of Service",
-  description: `The terms that govern your use of ${siteConfig.name}.`,
-};
+export const metadata = createPageMetadata(
+  "Terms of Service",
+  `The terms that govern your use of ${siteConfig.name}.`,
+  "/terms",
+);
 
 export default function TermsOfServicePage() {
   return (
@@ -91,9 +92,9 @@ export default function TermsOfServicePage() {
 
       <h2>8. Service availability</h2>
       <p>
-        We target a 99.9% uptime commitment for paid plans, excluding scheduled maintenance
-        communicated in advance. Enterprise agreements may include service credits for missed
-        availability targets as set out in the applicable order form.
+        We work to maintain reliable availability for the Service, excluding scheduled
+        maintenance communicated in advance. Any availability commitments or service credits
+        are set out in the applicable order form.
       </p>
 
       <h2>9. Termination</h2>

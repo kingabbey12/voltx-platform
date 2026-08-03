@@ -1,19 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import {
   AlertTriangle,
-  ArrowRight,
   CheckCircle2,
-  Circle,
   Info,
   Lightbulb,
   Sparkles,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDashboardMetrics } from "@/hooks/use-dashboard";
-import type { DashboardInsight, DashboardPriority } from "@/lib/api/dashboard";
+import { RecommendationDecisionCard } from "@/components/dashboard/recommendation-decision-card";
+import { useDashboardMetrics, useDashboardRecommendations, useExecutiveBrief } from "@/hooks/use-dashboard";
 import { cn } from "@/lib/utils";
 
 /**
@@ -62,9 +59,7 @@ const INSIGHT_TONE = {
 
 /** Today's Brief — what should I know? */
 export function TodaysBrief() {
-  const { data, isLoading, isError } = useDashboardMetrics();
-  const insights: DashboardInsight[] = data?.insights ?? [];
-  const historyDays = data?.meta.historyDays ?? 0;
+  const { data: brief, isLoading, isError } = useExecutiveBrief();
 
   return (
     <Card className="flex h-full flex-col p-5">
@@ -85,29 +80,29 @@ export function TodaysBrief() {
         </p>
       )}
 
-      {!isLoading && !isError && insights.length === 0 && (
+      {!isLoading && !isError && brief?.changes.length === 0 && (
         <div className="mt-4">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            As your business grows, AI will surface recommendations here automatically —
-            stalling deals, leads going cold, follow-ups worth making. It needs a little
-            history to compare against first.
+            No active business condition matches Voltx&apos;s current attention rules. As activity
+            accumulates, this brief will surface verified risks and opportunities with evidence.
           </p>
           <p className="mt-2 text-xs text-muted-foreground/60">
-            {historyDays > 0
-              ? `${historyDays} day${historyDays === 1 ? "" : "s"} of history collected so far.`
-              : "History starts building from your first full day of activity."}
+            Voltx never fills this space with speculative recommendations.
           </p>
         </div>
       )}
 
-      {!isLoading && !isError && insights.length > 0 && (
-        <ul className="mt-4 flex flex-col gap-3">
-          {insights.map((insight, i) => {
-            const Icon = INSIGHT_ICON[insight.type];
+      {!isLoading && !isError && brief && brief.changes.length > 0 && (
+        <div className="mt-4 space-y-4">
+          <p className="text-sm leading-relaxed text-muted-foreground">{brief.summary}</p>
+          <ul className="flex flex-col gap-3">
+          {brief.changes.slice(0, 3).map((insight) => {
+            const type = insight.severity === "OPPORTUNITY" ? "opportunity" : insight.severity === "INFO" ? "info" : "warning";
+            const Icon = INSIGHT_ICON[type];
             return (
-              <li key={`${insight.title}-${i}`} className="flex gap-3">
+              <li key={insight.id} className="flex gap-3">
                 <Icon
-                  className={cn("mt-0.5 h-4 w-4 shrink-0", INSIGHT_TONE[insight.type])}
+                  className={cn("mt-0.5 h-4 w-4 shrink-0", INSIGHT_TONE[type])}
                   aria-hidden
                 />
                 <div className="min-w-0">
@@ -117,7 +112,12 @@ export function TodaysBrief() {
               </li>
             );
           })}
-        </ul>
+          </ul>
+          {brief.wins.length > 0 && (
+            <p className="text-xs text-success">{brief.wins.length} verified win{brief.wins.length === 1 ? "" : "s"} in the last 24 hours.</p>
+          )}
+          <p className="text-xs text-muted-foreground/60">Data freshness: {brief.dataFreshness}</p>
+        </div>
       )}
     </Card>
   );
@@ -170,26 +170,21 @@ export function BusinessHealth() {
   );
 }
 
-const URGENCY_TONE = {
-  high: "text-destructive",
-  medium: "text-warning",
-  low: "text-muted-foreground",
-} as const;
-
 /** Priorities — what should I do next? */
 export function Priorities() {
-  const { data, isLoading } = useDashboardMetrics();
-  const priorities: DashboardPriority[] = data?.priorities ?? [];
+  const { data: priorities = [], isLoading, isError } = useDashboardRecommendations();
 
   return (
     <Card className="flex h-full flex-col p-5">
-      <SectionHeading icon={Circle} title="Priorities" />
+      <SectionHeading icon={Sparkles} title="Priorities" />
 
       {isLoading ? (
         <div className="mt-4 flex flex-col gap-2">
           <Skeleton className="h-4 w-2/3" />
           <Skeleton className="h-4 w-1/2" />
         </div>
+      ) : isError ? (
+        <p className="mt-4 text-sm text-muted-foreground">Couldn&apos;t load priorities just now. Your dashboard metrics are unaffected.</p>
       ) : priorities.length === 0 ? (
         // An empty priority list is a legitimate business state — nothing needs
         // you right now — not a gap to apologise for.
@@ -201,30 +196,11 @@ export function Priorities() {
           </p>
         </div>
       ) : (
-        <ul className="mt-4 flex flex-col gap-3">
+        <div className="mt-4 flex flex-col gap-3">
           {priorities.map((priority) => (
-            <li key={priority.id} className="flex items-start gap-3">
-              <Circle
-                className={cn("mt-1 h-2 w-2 shrink-0 fill-current", URGENCY_TONE[priority.urgency])}
-                aria-hidden
-              />
-              <div className="min-w-0 flex-1">
-                {priority.href ? (
-                  <Link
-                    href={priority.href}
-                    className="group inline-flex items-center gap-1 text-sm font-medium hover:text-primary"
-                  >
-                    {priority.title}
-                    <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
-                  </Link>
-                ) : (
-                  <p className="text-sm font-medium">{priority.title}</p>
-                )}
-                <p className="mt-0.5 text-sm text-muted-foreground">{priority.reason}</p>
-              </div>
-            </li>
+            <RecommendationDecisionCard key={priority.id} recommendation={priority} />
           ))}
-        </ul>
+        </div>
       )}
     </Card>
   );

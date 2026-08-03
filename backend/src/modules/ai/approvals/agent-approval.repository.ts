@@ -8,7 +8,11 @@ import {
 } from './entities/agent-action-approval.entity';
 
 export interface CreateAgentActionApprovalData {
-  agentRunId: string;
+  /** Absent for approvals that aren't a paused tool call (VT-205 plans). */
+  agentRunId?: string | null;
+  /** Set instead of agentRunId for a non-tool-call approval. */
+  resourceType?: string | null;
+  resourceId?: string | null;
   toolName: string;
   input: Record<string, unknown>;
   summary?: string;
@@ -16,7 +20,7 @@ export interface CreateAgentActionApprovalData {
 }
 
 export interface DecideAgentActionApprovalData {
-  status: 'APPROVED' | 'REJECTED';
+  status: 'APPROVED' | 'REJECTED' | 'CANCELLED';
   approverUserId: string;
   comment?: string;
 }
@@ -49,7 +53,9 @@ export class AgentApprovalRepository {
     const record = await this.prisma.system.agentActionApproval.create({
       data: {
         organizationId,
-        agentRunId: data.agentRunId,
+        agentRunId: data.agentRunId ?? null,
+        resourceType: data.resourceType ?? null,
+        resourceId: data.resourceId ?? null,
         toolName: data.toolName,
         input: data.input as Prisma.InputJsonValue,
         summary: data.summary ?? null,
@@ -63,6 +69,25 @@ export class AgentApprovalRepository {
     const tenant = this.tenantContextService.getOrThrow();
     const record = await this.prisma.system.agentActionApproval.findFirst({
       where: { id, organizationId: tenant.organizationId },
+    });
+    return record ? toEntity(record) : null;
+  }
+
+  /** The still-pending approval for one resource, if any — VT-205 uses
+   * this to make repeated plan submissions idempotent. */
+  async findPendingForResource(
+    resourceType: string,
+    resourceId: string,
+  ): Promise<AgentActionApprovalEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const record = await this.prisma.system.agentActionApproval.findFirst({
+      where: {
+        resourceType,
+        resourceId,
+        organizationId: tenant.organizationId,
+        status: 'PENDING',
+      },
+      orderBy: { createdAt: 'desc' },
     });
     return record ? toEntity(record) : null;
   }
@@ -175,7 +200,9 @@ export class AgentApprovalRepository {
 function toEntity(record: {
   id: string;
   organizationId: string;
-  agentRunId: string;
+  agentRunId: string | null;
+  resourceType?: string | null;
+  resourceId?: string | null;
   toolName: string;
   input: Prisma.JsonValue;
   summary: string | null;
@@ -190,6 +217,8 @@ function toEntity(record: {
     id: record.id,
     organizationId: record.organizationId,
     agentRunId: record.agentRunId,
+    resourceType: record.resourceType ?? null,
+    resourceId: record.resourceId ?? null,
     toolName: record.toolName,
     input: toObject(record.input),
     summary: record.summary,

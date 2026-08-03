@@ -29,13 +29,23 @@ function SubmitButton() {
 
 export function ContactForm() {
   const [state, formAction] = useActionState(submitContactForm, initialState);
+  const prior = (name: string) => state.values?.[name] ?? "";
 
   return (
     <form action={formAction} className="flex flex-col gap-5" noValidate>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div>
           <Label htmlFor="name">Full name</Label>
-          <Input id="name" name="name" required autoComplete="name" placeholder="Jane Cooper" />
+          <Input
+            id="name"
+            name="name"
+            required
+            defaultValue={prior("name")}
+            autoComplete="name"
+            placeholder="Jane Cooper"
+            aria-invalid={state.fieldError === "name" || undefined}
+            aria-describedby={state.fieldError === "name" ? "form-error" : undefined}
+          />
         </div>
         <div>
           <Label htmlFor="email">Work email</Label>
@@ -44,15 +54,24 @@ export function ContactForm() {
             name="email"
             type="email"
             required
+            defaultValue={prior("email")}
             autoComplete="email"
             placeholder="jane@company.com"
+            aria-invalid={state.fieldError === "email" || undefined}
+            aria-describedby={state.fieldError === "email" ? "form-error" : undefined}
           />
         </div>
       </div>
 
       <div>
         <Label htmlFor="company">Company</Label>
-        <Input id="company" name="company" autoComplete="organization" placeholder="Acme Inc." />
+        <Input
+          id="company"
+          name="company"
+          defaultValue={prior("company")}
+          autoComplete="organization"
+          placeholder="Acme Inc."
+        />
       </div>
 
       <div>
@@ -61,14 +80,18 @@ export function ContactForm() {
           id="message"
           name="message"
           required
+          defaultValue={prior("message")}
           minLength={10}
           placeholder="Tell us a bit about your team and what you're looking for..."
+          aria-invalid={state.fieldError === "message" || undefined}
+          aria-describedby={state.fieldError === "message" ? "form-error" : undefined}
         />
       </div>
 
       {state.status !== "idle" && state.message && (
         <div
-          role="status"
+          id={state.fieldError ? "form-error" : undefined}
+          role={state.status === "error" ? "alert" : "status"}
           className={`flex items-start gap-2 rounded-xl border px-4 py-3 text-sm ${
             state.status === "success"
               ? "border-success/30 bg-success/10 text-success"

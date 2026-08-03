@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Compass, Globe2, Heart, Rocket, Users } from "lucide-react";
 import { Reveal, StaggerGroup, StaggerItem } from "@/components/motion/reveal";
@@ -6,13 +5,14 @@ import { SectionEyebrow } from "@/components/sections/stats-bar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { jobListings } from "@/lib/careers";
+import { createPageMetadata } from "@/lib/metadata";
 import { ApplicationForm } from "./application-form";
 
-export const metadata: Metadata = {
-  title: "Careers",
-  description:
-    "Join the team building Voltx — an AI-native business operating system. Open roles across engineering, AI, sales, and design.",
-};
+export const metadata = createPageMetadata(
+  "Careers",
+  "Join the team building Voltx — an AI-native business operating system. Open roles across engineering, AI, sales, and design.",
+  "/careers",
+);
 
 const values = [
   {

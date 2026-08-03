@@ -1,6 +1,10 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AIGatewayService } from '../../ai/gateway/ai-gateway.service';
+import {
+  EXECUTIVE_CONTEXT_INVALIDATOR,
+  ExecutiveContextInvalidator,
+} from '../../ai/context/context.types';
 import { isAbortError } from '../../ai/streaming/drain-generator';
 import { mergeAsyncGenerators } from '../../ai/streaming/merge-async-generators';
 import { createTimeoutSignal } from '../../ai/agents/autonomous/create-timeout-signal';
@@ -77,6 +81,8 @@ export class WorkflowEngineService {
     private readonly stepExecutorRegistry: StepExecutorRegistry,
     private readonly aiGatewayService: AIGatewayService,
     private readonly webhookDispatchService: WebhookDispatchService,
+    @Inject(EXECUTIVE_CONTEXT_INVALIDATOR)
+    private readonly contextInvalidation: ExecutiveContextInvalidator,
     configService: ConfigService,
   ) {
     this.defaultStepTimeoutMs = configService.get<number>('workflow.defaultStepTimeoutMs', 300_000);
@@ -205,11 +211,16 @@ export class WorkflowEngineService {
         return;
       }
       if (signal.aborted) {
-        await this.workflowRunRepository.updateWithVersion(workflowRunId, run.version, {
-          status: 'CANCELLED',
-          error: 'Cancelled',
-          completedAt: new Date(),
-        });
+        const cancelled = await this.workflowRunRepository.updateWithVersion(
+          workflowRunId,
+          run.version,
+          {
+            status: 'CANCELLED',
+            error: 'Cancelled',
+            completedAt: new Date(),
+          },
+        );
+        await this.contextInvalidation.invalidateSource(cancelled.organizationId, 'operations');
         yield { type: 'workflow_cancelled', workflowRunId };
         return;
       }
@@ -492,6 +503,7 @@ export class WorkflowEngineService {
       completedAt,
       durationMs: run.startedAt ? completedAt.getTime() - run.startedAt.getTime() : undefined,
     });
+    await this.contextInvalidation.invalidateSource(run.organizationId, 'operations');
     await this.workflowLogRepository.create({
       workflowRunId: run.id,
       event: 'WorkflowCompleted',
@@ -518,6 +530,7 @@ export class WorkflowEngineService {
       completedAt,
       durationMs: run.startedAt ? completedAt.getTime() - run.startedAt.getTime() : undefined,
     });
+    await this.contextInvalidation.invalidateSource(run.organizationId, 'operations');
     await this.workflowLogRepository.create({
       workflowRunId: run.id,
       level: 'ERROR',

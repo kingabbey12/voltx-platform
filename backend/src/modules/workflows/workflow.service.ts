@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -10,6 +11,10 @@ import { AuditService } from '../audit/audit.service';
 import { AIProviderName } from '../ai/models/ai-model.types';
 import { ConversationResponseDto } from '../ai/conversations/dto/conversation.dto';
 import { ConversationService } from '../ai/conversations/conversation.service';
+import {
+  EXECUTIVE_CONTEXT_INVALIDATOR,
+  ExecutiveContextInvalidator,
+} from '../ai/context/context.types';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { WorkflowRunQueueService } from './jobs/workflow-run-queue.service';
 import { WorkflowDefinition } from './definition/workflow-definition.types';
@@ -78,6 +83,8 @@ export class WorkflowService {
     private readonly tenantContextService: TenantContextService,
     private readonly configService: ConfigService,
     private readonly workflowRunQueueService: WorkflowRunQueueService,
+    @Inject(EXECUTIVE_CONTEXT_INVALIDATOR)
+    private readonly contextInvalidation: ExecutiveContextInvalidator,
   ) {}
 
   async createWorkflow(request: CreateWorkflowRequest): Promise<WorkflowEntity> {
@@ -100,6 +107,7 @@ export class WorkflowService {
       definition: request.definition,
       createdBy: tenant.userId,
     });
+    await this.invalidateContext(tenant.organizationId);
 
     await this.auditService.record({
       action: 'create',
@@ -145,6 +153,7 @@ export class WorkflowService {
         createdBy: tenant.userId,
       });
     }
+    await this.invalidateContext(tenant.organizationId);
 
     await this.auditService.record({
       action: 'update',
@@ -171,6 +180,7 @@ export class WorkflowService {
     if (!published) {
       throw new NotFoundException(`Workflow with id "${id}" not found`);
     }
+    await this.invalidateContext(this.tenantContextService.getOrThrow().organizationId);
 
     await this.auditService.record({
       action: 'publish',
@@ -187,6 +197,7 @@ export class WorkflowService {
     if (!archived) {
       throw new NotFoundException(`Workflow with id "${id}" not found`);
     }
+    await this.invalidateContext(this.tenantContextService.getOrThrow().organizationId);
 
     await this.auditService.record({
       action: 'archive',
@@ -203,6 +214,7 @@ export class WorkflowService {
     if (!deleted) {
       throw new NotFoundException(`Workflow with id "${id}" not found`);
     }
+    await this.invalidateContext(this.tenantContextService.getOrThrow().organizationId);
 
     await this.auditService.record({
       action: 'delete',
@@ -261,6 +273,7 @@ export class WorkflowService {
       idempotencyKey: request.idempotencyKey,
       triggeredBy: request.triggeredBy,
     });
+    await this.invalidateContext(run.organizationId);
 
     await this.auditService.record({
       action: 'run',
@@ -379,6 +392,7 @@ export class WorkflowService {
     const paused = await this.workflowRunRepository.updateWithVersion(runId, run.version, {
       status: 'PAUSED',
     });
+    await this.invalidateContext(paused.organizationId);
     await this.auditService.record({
       action: 'pause',
       resource: 'workflow_run',
@@ -436,6 +450,7 @@ export class WorkflowService {
       status: 'CANCELLED',
       completedAt: new Date(),
     });
+    await this.invalidateContext(cancelled.organizationId);
     this.workflowEngineService.cancelInProcess(runId);
 
     await this.workflowLogRepository.create({
@@ -466,6 +481,7 @@ export class WorkflowService {
       status: 'PAUSED',
       error: null,
     });
+    await this.invalidateContext(reset.organizationId);
 
     await this.auditService.record({
       action: 'retry',
@@ -504,6 +520,7 @@ export class WorkflowService {
       approverUserId,
       comment,
     );
+    await this.invalidateContext(approval.organizationId);
 
     await this.auditService.record({
       action: 'decide_approval',
@@ -537,5 +554,9 @@ export class WorkflowService {
 
   async listPendingApprovals(page: number, limit: number) {
     return this.workflowApprovalRepository.listPending(page, limit);
+  }
+
+  private invalidateContext(organizationId: string): Promise<void> {
+    return this.contextInvalidation.invalidateSource(organizationId, 'operations');
   }
 }

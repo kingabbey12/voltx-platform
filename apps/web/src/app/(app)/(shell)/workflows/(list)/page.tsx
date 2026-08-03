@@ -5,14 +5,23 @@ import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { MoreHorizontal, Plus, Trash2, Workflow as WorkflowIcon } from "lucide-react";
+import {
+  ArrowUpRight,
+  ChevronRight,
+  CircleAlert,
+  FilePenLine,
+  MoreHorizontal,
+  PlayCircle,
+  Plus,
+  Trash2,
+  Workflow as WorkflowIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import {
@@ -85,11 +94,16 @@ export default function WorkflowsPage() {
     }
   }
 
+  const workflows = data?.items ?? [];
+  const publishedCount = workflows.filter((workflow) => workflow.status === "PUBLISHED").length;
+  const draftCount = workflows.filter((workflow) => workflow.status === "DRAFT").length;
+  const archivedCount = workflows.filter((workflow) => workflow.status === "ARCHIVED").length;
+
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Workflows"
-        description="Automate multi-step processes — including AI reasoning steps."
+        description="Build, review, and safely run the automations that move work through Voltx."
         action={
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -98,78 +112,110 @@ export default function WorkflowsPage() {
         }
       />
 
-      <div className="mt-6 rounded-xl border border-border">
+      <section aria-label="Workflow overview" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: "All workflows", value: workflows.length, icon: WorkflowIcon, tone: "text-primary" },
+          { label: "Active", value: publishedCount, icon: PlayCircle, tone: "text-emerald-500" },
+          { label: "Drafts", value: draftCount, icon: FilePenLine, tone: "text-amber-500" },
+          { label: "Archived", value: archivedCount, icon: CircleAlert, tone: "text-muted-foreground" },
+        ].map((stat) => (
+          <div key={stat.label} className="surface-widget min-h-28 rounded-xl p-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-medium text-muted-foreground">{stat.label}</span>
+              <stat.icon className={`h-4 w-4 ${stat.tone}`} aria-hidden />
+            </div>
+            <p className="mt-3 text-2xl font-semibold tabular-nums">{isLoading ? "-" : stat.value}</p>
+          </div>
+        ))}
+      </section>
+
+      <section aria-labelledby="workflow-directory-heading" className="surface-raised overflow-hidden rounded-xl">
+        <div className="flex flex-col gap-3 border-b border-border/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 id="workflow-directory-heading" className="text-sm font-semibold">Automation directory</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Open a workflow to review its builder, run history, and approval state.</p>
+          </div>
+          {draftCount > 0 && (
+            <Badge variant="secondary" className="w-fit">
+              <FilePenLine className="h-3.5 w-3.5" />
+              {draftCount} draft{draftCount === 1 ? "" : "s"} need review
+            </Badge>
+          )}
+        </div>
+
         {isLoading && (
-          <div className="flex flex-col gap-2 p-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-12 animate-pulse rounded-lg bg-secondary/60" />
+          <div className="grid gap-3 p-4 lg:grid-cols-2">
+            {[1, 2, 3, 4].map((index) => (
+              <div key={index} className="h-44 animate-pulse rounded-lg border border-border/70 bg-secondary/40" />
             ))}
           </div>
         )}
 
-        {!isLoading && data?.items.length === 0 && (
+        {!isLoading && workflows.length === 0 && (
           <EmptyState
             icon={WorkflowIcon}
-            title="No workflows yet"
-            description="Build your first automated, multi-step process."
+            title="Build your first automation"
+            description="Start with a draft AI Agent step, then add supported tool, integration, notification, approval, delay, loop, or branching steps in the visual builder."
             action={
-              <Button size="sm" onClick={() => setDialogOpen(true)}>
+              <Button onClick={() => setDialogOpen(true)}>
                 <Plus className="h-4 w-4" />
                 New workflow
               </Button>
             }
+            className="m-4 border border-dashed border-border/80 bg-secondary/20"
           />
         )}
 
-        {!isLoading && data && data.items.length > 0 && (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.items.map((workflow) => (
-                <TableRow key={workflow.id} className="cursor-pointer" onClick={() => router.push(`/workflows/${workflow.id}`)}>
-                  <TableCell>
-                    <p className="font-medium">{workflow.name}</p>
-                    {workflow.description && (
-                      <p className="truncate text-xs text-muted-foreground">{workflow.description}</p>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[workflow.status]}>{workflow.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatRelativeTime(workflow.updatedAt)}
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="More options">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => handleDelete(workflow.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        {!isLoading && workflows.length > 0 && (
+          <div className="grid gap-3 p-4 lg:grid-cols-2">
+            {workflows.map((workflow) => (
+              <article key={workflow.id} className="group rounded-lg border border-border/80 bg-card/60 p-4 transition-colors hover:border-primary/35 hover:bg-secondary/30">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-sm font-semibold">{workflow.name}</h3>
+                      <Badge variant={STATUS_VARIANT[workflow.status]}>{workflow.status === "PUBLISHED" ? "Active" : workflow.status}</Badge>
+                    </div>
+                    <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-relaxed text-muted-foreground">
+                      {workflow.description || "No description has been added to this workflow."}
+                    </p>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={`More options for ${workflow.name}`}>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => handleDelete(workflow.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+                  <span className="text-xs text-muted-foreground">Updated {formatRelativeTime(workflow.updatedAt)}</span>
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="ghost" size="sm" onClick={() => router.push(`/workflows/${workflow.id}`)}>
+                      Details
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="sm" onClick={() => router.push(`/workflows/${workflow.id}/builder`)}>
+                      Open builder
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
         )}
-      </div>
+      </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

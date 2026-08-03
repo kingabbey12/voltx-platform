@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import {
   ArrowRight,
   Banknote,
@@ -13,12 +12,13 @@ import { SectionEyebrow } from "@/components/sections/stats-bar";
 import { FeatureDetailBlock, type FeatureDetail } from "@/components/sections/feature-detail";
 import { CtaSection } from "@/components/sections/cta-section";
 import { Card } from "@/components/ui/card";
+import { createPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Solutions",
-  description:
-    "How Sales, Support, Operations, IT, Finance, and Developer teams each run on Voltx — one platform, tuned to how your team actually works.",
-};
+export const metadata = createPageMetadata(
+  "Solutions",
+  "How Sales, Support, Operations, IT, Finance, and Developer teams each run on Voltx — one platform, tuned to how your team actually works.",
+  "/solutions",
+);
 
 interface TeamSolution {
   icon: typeof TrendingUp;
@@ -71,11 +71,11 @@ const teamSolutions: TeamSolution[] = [
   {
     icon: Banknote,
     eyebrow: "Finance",
-    title: "Usage and billing you can actually forecast",
+    title: "Plans and usage your team can plan around",
     outcomes: [
-      "Seat and usage-based billing with clear per-plan limits",
-      "Self-serve upgrades, downgrades, and invoice history",
-      "No surprise overages — usage metering is visible in real time",
+      "Clear monthly and annual rates across paid plans",
+      "Published plan limits for team members, storage, AI, and workflows",
+      "Enterprise commercial terms scoped with your organization",
     ],
   },
   {
@@ -197,7 +197,8 @@ export default function SolutionsPage() {
               </p>
               <p className="text-pretty max-w-lg text-sm text-muted-foreground">
                 Every Voltx plan includes the full platform — Sales, Support, Operations, and
-                Developer tools all come standard. Pricing scales with seats, not features.
+                Developer tools all come standard. Capacity and usage allowances increase by
+                plan, with Enterprise terms tailored to your organization.
               </p>
               <a
                 href="/pricing"

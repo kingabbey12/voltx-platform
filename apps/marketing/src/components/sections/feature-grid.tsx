@@ -1,10 +1,12 @@
 import {
   Bot,
   Calendar,
+  ChartNoAxesCombined,
   Network,
+  PlugZap,
+  ShieldCheck,
   Users,
   Workflow,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { Reveal, StaggerGroup, StaggerItem } from "@/components/motion/reveal";
@@ -31,27 +33,39 @@ export const coreFeatures: Feature[] = [
   },
   {
     icon: Workflow,
-    title: "Workflows",
+    title: "Automation",
     description:
       "Compose multi-step automations with approvals, conditions, retries, and AI reasoning steps — visually, without writing a line of code.",
   },
   {
     icon: Network,
-    title: "Knowledge",
+    title: "Knowledge Hub",
     description:
       "A living knowledge graph that connects your documents, conversations, and records — so every answer is grounded in your real business data.",
   },
   {
     icon: Calendar,
-    title: "Meetings",
+    title: "Communications",
     description:
-      "Automatic meeting summaries, action items, and follow-ups — synced straight into your CRM and workflows without manual entry.",
+      "Email, SMS, WhatsApp, and a unified inbox keep every customer conversation connected to the work that follows.",
   },
   {
-    icon: Zap,
-    title: "Automation",
+    icon: ChartNoAxesCombined,
+    title: "Executive Analytics",
     description:
-      "Connect your existing tools and let Voltx orchestrate the busywork across every system your business already runs on.",
+      "Revenue, pipeline, business health, and AI insights stay current because they are powered by the same operational data.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Security",
+    description:
+      "Multi-tenancy, MFA, granular RBAC, encryption, and auditable approvals give teams a safe path to AI adoption.",
+  },
+  {
+    icon: PlugZap,
+    title: "Integrations",
+    description:
+      "Bring in the systems your team already trusts through native integrations, webhooks, and a developer-ready API.",
   },
 ];
 
@@ -74,7 +88,7 @@ export function FeatureGrid() {
           </Reveal>
         </div>
 
-        <StaggerGroup className="mt-16 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <StaggerGroup className="mt-16 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {coreFeatures.map((feature) => (
             <StaggerItem key={feature.title}>
               <FeatureCard feature={feature} />

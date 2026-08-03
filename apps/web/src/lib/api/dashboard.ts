@@ -57,6 +57,54 @@ export interface DashboardPriority {
   href?: string;
 }
 
+export type RecommendationSeverity = "INFO" | "OPPORTUNITY" | "WARNING" | "CRITICAL";
+export type RecommendationStatus = "OPEN" | "APPROVED" | "EXECUTING" | "COMPLETED" | "DISMISSED" | "FAILED";
+
+export interface RecommendationEvidence {
+  type: string;
+  recordId: string;
+  recordLabel: string;
+  reason: string;
+  href: string;
+}
+
+export interface DashboardRecommendationAction {
+  id: string;
+  type: "CREATE_TASK" | "OPEN_RECORD" | "DRAFT_EMAIL" | "RUN_WORKFLOW" | "DISMISS";
+  label: string;
+  requiresApproval: boolean;
+  payload: Record<string, unknown>;
+  executedAt: string | null;
+}
+
+export interface DashboardRecommendation {
+  id: string;
+  category: "SALES" | "CUSTOMER" | "OPERATIONS" | "FINANCE" | "WORKFLOW" | "EXECUTIVE";
+  severity: RecommendationSeverity;
+  status: RecommendationStatus;
+  title: string;
+  summary: string;
+  explanation: string;
+  businessImpact: string;
+  recommendedNextStep: string;
+  confidence: number | null;
+  generatedAt: string;
+  expiresAt: string | null;
+  staleAt: string | null;
+  evidence: RecommendationEvidence[];
+  actions: DashboardRecommendationAction[];
+}
+
+export interface ExecutiveBrief {
+  summary: string;
+  generatedAt: string;
+  dataFreshness: string;
+  changes: DashboardRecommendation[];
+  wins: Array<{ title: string; href: string }>;
+  risks: DashboardRecommendation[];
+  recommendedNextActions: DashboardRecommendation[];
+}
+
 export interface ExecutiveSnapshot {
   snapshot: BusinessSnapshot;
   trends: Record<string, MetricPoint[]>;
@@ -77,4 +125,13 @@ export interface ExecutiveSnapshot {
 export const dashboardApi = {
   getMetrics: (days = 30) =>
     apiClient.get<ExecutiveSnapshot>(`/dashboard/metrics?days=${days}`),
+  getBrief: () => apiClient.get<ExecutiveBrief>("/dashboard/brief"),
+  getRecommendations: () => apiClient.get<DashboardRecommendation[]>("/dashboard/recommendations"),
+  getRecommendation: (id: string) => apiClient.get<DashboardRecommendation>(`/dashboard/recommendations/${id}`),
+  approveRecommendation: (id: string) =>
+    apiClient.post<DashboardRecommendation>(`/dashboard/recommendations/${id}/approve`),
+  dismissRecommendation: (id: string) =>
+    apiClient.post<void>(`/dashboard/recommendations/${id}/dismiss`),
+  executeRecommendationAction: (id: string, actionId: string) =>
+    apiClient.post<{ taskId: string }>(`/dashboard/recommendations/${id}/actions/${actionId}/execute`),
 };

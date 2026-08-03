@@ -41,7 +41,15 @@ describe('PermissionGuard', () => {
     reflector.getAllAndOverride.mockReturnValue(['organization.delete']);
     const context = createContext({ permissions: ['organization.read'] });
 
-    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+    try {
+      guard.canActivate(context);
+      fail('Expected PermissionGuard to reject a missing permission');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).message).toBe(
+        'You do not have permission to perform this action',
+      );
+    }
   });
 
   it('throws UnauthorizedException when current user is missing', () => {

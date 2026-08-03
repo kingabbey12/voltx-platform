@@ -23,11 +23,18 @@ export class SystemHealthController {
     type: ReadinessCheckDataDto,
   })
   @ApiServiceUnavailableResponse({
-    description: 'Application is not ready — a required dependency is down',
+    description:
+      'Application is not ready — a required dependency (database or Redis) is down. ' +
+      'A degraded object store returns 200 with status "degraded".',
   })
   async readiness(@Res() response: Response): Promise<void> {
     const result = await this.healthService.readiness();
-    const status = result.status === 'ready' ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
+    // `degraded` must return 200: it means the service is serving correctly
+    // while a non-essential dependency (object storage) is down. Returning
+    // 503 here would let an orchestrator evict every healthy replica over an
+    // attachment outage — silently inverting the degradable-storage decision
+    // documented in deploy/STORAGE-READINESS.md.
+    const status = result.status === 'not_ready' ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.OK;
     response.status(status).json(result);
   }
 

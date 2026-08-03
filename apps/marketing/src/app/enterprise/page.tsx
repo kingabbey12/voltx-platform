@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import {
   ClipboardCheck,
   FileClock,
@@ -16,12 +15,13 @@ import { CtaSection } from "@/components/sections/cta-section";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
+import { createPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Enterprise",
-  description:
-    "SSO and SCIM provisioning, database-level tenant isolation, a full audit trail, and a dedicated Compliance Center — the controls enterprise security reviews ask for.",
-};
+export const metadata = createPageMetadata(
+  "Enterprise",
+  "SSO and SCIM provisioning, database-level tenant isolation, a full audit trail, and a dedicated Compliance Center — the controls enterprise security reviews ask for.",
+  "/enterprise",
+);
 
 interface Capability {
   icon: typeof ShieldCheck;
@@ -176,14 +176,14 @@ export default function EnterprisePage() {
               <Card className="p-8 sm:p-10">
                 <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {[
-                    "Unlimited seats",
-                    "SSO & SCIM provisioning",
-                    "Dedicated Solutions Engineer",
-                    "99.9% uptime SLA",
-                    "Custom data retention",
-                    "Priority support with named contacts",
-                    "Security & Compliance Centers",
-                    "Custom master service agreement",
+                    "Unlimited platform usage",
+                    "Custom security and data-retention requirements",
+                    "Dedicated support and commercial terms",
+                    "Enterprise rollout planning",
+                    "SSO and identity requirements",
+                    "Security and compliance review support",
+                    "Custom contractual requirements",
+                    "A deployment scoped to your organization",
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-2.5 text-sm text-foreground/90">
                       <Users className="h-4 w-4 shrink-0 text-primary" />

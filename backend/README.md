@@ -33,6 +33,8 @@ pnpm lint                       # eslint --fix over src/ and test/
 pnpm test                       # unit tests (test/*.spec.ts)
 pnpm test -- agent.service      # run a single unit spec by filename match
 pnpm test:e2e                   # e2e tests (test/*.e2e-spec.ts) — needs Postgres up + .env.test
+pnpm test:e2e:local             # migrate the fixed local voltx_test database, then run E2E
+pnpm test:e2e:local -- --seed   # also seed local billing plans before E2E
 pnpm build                      # nest build
 
 pnpm prisma:migrate             # create/apply a dev migration

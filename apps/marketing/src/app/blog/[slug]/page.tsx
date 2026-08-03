@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -6,6 +5,8 @@ import { Reveal } from "@/components/motion/reveal";
 import { Badge } from "@/components/ui/badge";
 import { CtaSection } from "@/components/sections/cta-section";
 import { blogPosts, getBlogPost } from "@/lib/blog";
+import { createPageMetadata } from "@/lib/metadata";
+import { siteConfig } from "@/config/site";
 
 interface BlogPostPageProps {
   params: Promise<{ slug: string }>;
@@ -15,16 +16,13 @@ export function generateStaticParams() {
   return blogPosts.map((post) => ({ slug: post.slug }));
 }
 
-export async function generateMetadata({ params }: BlogPostPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: BlogPostPageProps) {
   const { slug } = await params;
   const post = getBlogPost(slug);
   if (!post) {
     return { title: "Post not found" };
   }
-  return {
-    title: post.title,
-    description: post.excerpt,
-  };
+  return createPageMetadata(post.title, post.excerpt, `/blog/${post.slug}`);
 }
 
 function formatDate(date: string): string {
@@ -43,8 +41,23 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     notFound();
   }
 
+  const articleJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    description: post.excerpt,
+    datePublished: post.date,
+    author: { "@type": "Organization", name: post.author },
+    publisher: { "@type": "Organization", name: siteConfig.name, url: siteConfig.url },
+    mainEntityOfPage: `${siteConfig.url}/blog/${post.slug}`,
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
       <article className="relative overflow-hidden py-20 sm:py-28">
         <div
           aria-hidden

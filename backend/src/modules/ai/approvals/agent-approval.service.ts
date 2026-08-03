@@ -63,6 +63,53 @@ export class AgentApprovalService {
   }
 
   /**
+   * Creates (or returns the existing) pending approval for a non-tool-call
+   * resource — VT-205 workflow plans use this so plans live in the same
+   * approvals table, the same approver inbox and the same decide endpoint
+   * as every other AI approval, rather than in a second framework.
+   * Idempotent per resource: re-submitting a plan returns the approval
+   * already in flight.
+   */
+  async findOrCreatePendingForResource(input: {
+    resourceType: string;
+    resourceId: string;
+    toolName: string;
+    summary: string;
+    payload: Record<string, unknown>;
+    expiresAt?: Date;
+  }): Promise<AgentActionApprovalEntity> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const existing = await this.approvalRepository.findPendingForResource(
+      input.resourceType,
+      input.resourceId,
+    );
+    if (existing) {
+      return existing;
+    }
+
+    const created = await this.approvalRepository.createUnscoped(tenant.organizationId, {
+      agentRunId: null,
+      resourceType: input.resourceType,
+      resourceId: input.resourceId,
+      toolName: input.toolName,
+      input: input.payload,
+      summary: input.summary,
+      expiresAt: input.expiresAt,
+    });
+
+    await this.auditService.record({
+      action: 'ai.approval.requested',
+      resource: 'agent_action_approval',
+      resourceId: created.id,
+      metadata: { resourceType: input.resourceType, resourceId: input.resourceId },
+    });
+
+    await this.notifyApprovers(tenant.organizationId, created);
+
+    return created;
+  }
+
+  /**
    * The held-work sentence, written once at creation: the tool's own
    * describe() when it has one, else the generic backend describer. The
    * frontend renders the stored summary and never invents its own.
@@ -98,8 +145,14 @@ export class AgentApprovalService {
             category: 'AI',
             title: `Approval needed: ${approval.toolName}`,
             body: 'An AI agent is waiting for approval before it can continue.',
-            actionUrl: '/ai/operator',
-            metadata: { approvalId: approval.id, agentRunId: approval.agentRunId },
+            actionUrl:
+              approval.resourceType === 'ai_workflow_plan' ? '/workflow-plans' : '/ai/operator',
+            metadata: {
+              approvalId: approval.id,
+              agentRunId: approval.agentRunId,
+              resourceType: approval.resourceType,
+              resourceId: approval.resourceId,
+            },
           }),
         ),
       );

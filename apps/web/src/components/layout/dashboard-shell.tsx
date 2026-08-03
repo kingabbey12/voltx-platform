@@ -8,6 +8,7 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { AiCommandCenter } from "@/components/layout/ai-command-center";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { OrgSwitcher } from "@/components/layout/org-switcher";
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useTrackPageVisit } from "@/lib/ai/context-engine";
 import { useCommsRealtime } from "@/hooks/use-comms-realtime";
@@ -55,7 +56,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               className="min-w-0 flex-1 overflow-y-auto"
               onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 4)}
             >
-              {children}
+              <div className="min-h-full">{children}</div>
             </main>
             <AiCommandCenter open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
           </div>
@@ -63,7 +64,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
-      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+      <MobileBottomNav onQuickCreate={() => setCommandOpen(true)} />
+      <CommandPalette
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        onOpenAiCopilot={() => setAiPanelOpen(true)}
+      />
     </TooltipProvider>
   );
 }

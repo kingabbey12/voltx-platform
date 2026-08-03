@@ -1,15 +1,16 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Menu, PanelLeftClose, PanelLeftOpen, Search, Sparkles } from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { UserMenu } from "@/components/layout/user-menu";
-import { mainNav, secondaryNav } from "@/config/nav";
+import { mainNav, secondaryNav, workspaceNav } from "@/config/nav";
+import { OrgSwitcher } from "@/components/layout/org-switcher";
 import { cn } from "@/lib/utils";
 
 function currentPageLabel(pathname: string): string {
-  const item = [...mainNav, ...secondaryNav].find(
+  const item = [...workspaceNav, ...mainNav, ...secondaryNav].find(
     (nav) => pathname === nav.href || pathname.startsWith(`${nav.href}/`),
   );
   return item?.label ?? "Voltx";
@@ -37,7 +38,7 @@ export function TopNav({
   return (
     <header
       className={cn(
-        "flex h-16 shrink-0 items-center gap-3 border-b px-4 transition-all duration-300 ease-out",
+        "flex h-16 shrink-0 items-center gap-3 border-b px-4 transition-all duration-300 ease-out sm:px-5",
         scrolled
           ? "border-border bg-background/80 backdrop-blur-xl"
           : "border-transparent bg-transparent",
@@ -65,7 +66,7 @@ export function TopNav({
 
       <button
         onClick={onOpenCommandPalette}
-        className="ml-4 hidden max-w-sm flex-1 items-center gap-2 rounded-lg border border-input bg-secondary/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary sm:flex"
+        className="ml-2 hidden max-w-md flex-1 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-white/[0.15] hover:bg-white/[0.045] lg:flex"
       >
         <Search className="h-3.5 w-3.5" />
         <span className="flex-1 text-left">Search...</span>
@@ -75,6 +76,8 @@ export function TopNav({
       </button>
 
       <div className="ml-auto flex items-center gap-1.5">
+        <div className="hidden lg:block"><OrgSwitcher collapsed={false} /></div>
+        <Button variant="outline" className="hidden h-9 gap-1.5 border-primary/25 bg-primary/10 px-3 text-primary hover:bg-primary/15 hover:text-primary sm:inline-flex" onClick={onOpenCommandPalette}><Plus className="h-4 w-4" />Quick action</Button>
         <Button variant="ghost" size="icon" onClick={onToggleAiPanel} aria-label="Toggle AI assistant">
           <Sparkles className="h-4.5 w-4.5" />
         </Button>

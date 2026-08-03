@@ -23,6 +23,9 @@ import { StoragePart, StorageProvider } from './storage-provider.interface';
  * implement the same S3 API, so one client configuration covers all of
  * them. Selected via ATTACHMENTS_STORAGE_PROVIDER=s3.
  */
+/** Continuous health probes must finish well inside any orchestrator probe budget. */
+const STORAGE_HEALTH_TIMEOUT_MS = 2_000;
+
 @Injectable()
 export class S3StorageProvider implements StorageProvider {
   readonly name = 's3' as const;
@@ -73,6 +76,18 @@ export class S3StorageProvider implements StorageProvider {
         `Cannot reach S3 bucket "${this.bucket}" — check ATTACHMENTS_S3_BUCKET/REGION/ENDPOINT and credentials. Underlying error: ${message}`,
       );
     }
+  }
+
+  /**
+   * Same HeadBucket the boot guard uses, but bounded: a hung storage
+   * endpoint must not hold a readiness request open, because an
+   * orchestrator's own probe timeout would then decide the outcome.
+   */
+  async checkHealth(): Promise<void> {
+    this.assertConfigured();
+    await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }), {
+      abortSignal: AbortSignal.timeout(STORAGE_HEALTH_TIMEOUT_MS),
+    });
   }
 
   async upload(key: string, buffer: Buffer, contentType: string): Promise<void> {

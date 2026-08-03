@@ -6,9 +6,9 @@ export default function AiLayout({ children }: { children: React.ReactNode }) {
       <aside className="hidden w-72 shrink-0 border-r border-border bg-card md:block">
         <ConversationList />
       </aside>
-      <main className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden">
         {children}
-      </main>
+      </div>
     </div>
   );
 }

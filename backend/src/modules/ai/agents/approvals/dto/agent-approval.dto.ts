@@ -33,7 +33,8 @@ export class DecideAgentApprovalDto {
 
 export class AgentApprovalResponseDto {
   @ApiProperty() id!: string;
-  @ApiProperty() agentRunId!: string;
+  /** Null for approvals that aren't a paused tool call (VT-205 plans). */
+  @ApiProperty({ nullable: true }) agentRunId!: string | null;
   @ApiProperty() toolName!: string;
   @ApiProperty({ type: Object }) input!: Record<string, unknown>;
   @ApiPropertyOptional({

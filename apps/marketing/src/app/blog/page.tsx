@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Reveal, StaggerGroup, StaggerItem } from "@/components/motion/reveal";
@@ -6,12 +5,13 @@ import { SectionEyebrow } from "@/components/sections/stats-bar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { blogPosts } from "@/lib/blog";
+import { createPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Blog",
-  description:
-    "Product updates and engineering notes from the team building Voltx — how we designed multi-tenancy, the Extension Framework, Sales Copilot, and the v2.3 Developer Platform.",
-};
+export const metadata = createPageMetadata(
+  "Blog",
+  "Product updates and engineering notes from the team building Voltx — how we designed multi-tenancy, the Extension Framework, Sales Copilot, and the v2.3 Developer Platform.",
+  "/blog",
+);
 
 function formatDate(date: string): string {
   return new Date(date).toLocaleDateString("en-US", {

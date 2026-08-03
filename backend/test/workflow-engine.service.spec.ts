@@ -169,6 +169,7 @@ describe('WorkflowEngineService', () => {
       stepExecutorRegistry as never,
       aiGatewayService as never,
       webhookDispatchService as never,
+      { invalidateSource: jest.fn().mockResolvedValue(undefined) } as never,
       configServiceWithDefaults(configOverrides),
     );
   }

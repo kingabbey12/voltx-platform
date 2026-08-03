@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../src/database/prisma.service';
 import { HealthService } from '../src/modules/health/health.service';
+import { STORAGE_PROVIDER } from '../src/modules/attachments/storage/storage-provider.interface';
 
 describe('HealthService', () => {
   let service: HealthService;
@@ -18,6 +19,12 @@ describe('HealthService', () => {
       providers: [
         HealthService,
         { provide: PrismaService, useValue: prismaService },
+        // Storage is reported continuously; a healthy stub keeps these cases
+        // focused on the database/Redis behaviour they were written for.
+        {
+          provide: STORAGE_PROVIDER,
+          useValue: { name: 's3', checkHealth: jest.fn().mockResolvedValue(undefined) },
+        },
         {
           provide: ConfigService,
           useValue: {

@@ -152,7 +152,6 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   let response: Response;
   try {
     const requestUrl = buildUrl(path, query);
-    console.log("API REQUEST:", requestUrl);
     response = await fetch(requestUrl, {
       method,
       headers,

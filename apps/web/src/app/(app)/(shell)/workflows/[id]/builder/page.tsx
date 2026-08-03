@@ -4,8 +4,6 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Background,
-  Controls,
-  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   addEdge,
@@ -49,8 +47,8 @@ import { friendlyErrorMessage } from "@/lib/api/api-error";
 import type { WorkflowDefinition, WorkflowStepDefinition, WorkflowStepType } from "@/lib/api/workflows";
 
 const NODE_TYPES: NodeTypes = { step: WorkflowStepNode };
-const NODE_WIDTH = 220;
-const NODE_HEIGHT = 70;
+const NODE_WIDTH = 252;
+const NODE_HEIGHT = 152;
 
 function slugify(name: string): string {
   const base = name
@@ -102,6 +100,8 @@ function definitionToGraph(definition: WorkflowDefinition, errorsByStepId: Recor
       name: step.name,
       type: step.type,
       hasCondition: !!step.condition,
+      configCount: Object.values(step.config).filter((value) => value !== undefined && value !== null && value !== "").length,
+      retryAttempts: step.retryPolicy?.maxAttempts,
       error: errorsByStepId[step.id],
     } satisfies WorkflowStepNodeData,
   }));
@@ -348,8 +348,8 @@ function BuilderCanvas({ workflowId }: { workflowId: string }) {
   const allOtherStepIds = definition.steps.map((s) => s.id).filter((id) => id !== selectedStepId);
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
-      <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-2.5">
+    <div className="flex h-[calc(100svh-3.5rem)] min-h-[640px] flex-col bg-background">
+      <div className="flex flex-col gap-3 border-b border-border/80 bg-card/65 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.push(`/workflows/${workflowId}`)}>
             <ArrowLeft className="h-4 w-4" />
@@ -360,7 +360,7 @@ function BuilderCanvas({ workflowId }: { workflowId: string }) {
           </div>
           <Badge variant={workflow.status === "PUBLISHED" ? "success" : "secondary"}>{workflow.status}</Badge>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:overflow-visible">
           <Button variant="ghost" size="sm" onClick={undo} disabled={historyPast.length === 0}>
             <Undo2 className="h-3.5 w-3.5" />
           </Button>
@@ -388,33 +388,42 @@ function BuilderCanvas({ workflowId }: { workflowId: string }) {
         </div>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="w-56 shrink-0 overflow-y-auto border-r border-border p-3">
+      <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
+        <div className="order-2 flex shrink-0 gap-2 overflow-x-auto border-t border-border/80 bg-card/50 p-3 md:order-none md:w-64 md:flex-col md:overflow-y-auto md:border-r md:border-t-0">
           {CATEGORY_ORDER.map((category) => (
-            <div key={category} className="mb-4">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div key={category} className="flex min-w-max items-center gap-2 md:mb-4 md:block">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground md:mb-2">
                 {category}
               </p>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex gap-1.5 md:flex-col">
                 {STEP_TYPE_CATALOG.filter((s) => s.category === category).map((spec) => (
-                  <div
+                  <button
                     key={spec.type}
+                    type="button"
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData("application/voltx-step-type", spec.type)}
                     onClick={() => addStep(spec.type, { x: 40, y: 40 + definition.steps.length * 90 })}
-                    className="flex cursor-grab items-center gap-2 rounded-lg border border-border px-2 py-1.5 text-xs hover:bg-secondary/60 active:cursor-grabbing"
-                    title={spec.description}
+                    className="flex min-h-10 cursor-grab items-center gap-2 rounded-lg border border-border/80 bg-card px-2.5 py-2 text-left text-xs transition-colors hover:border-primary/35 hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+                    aria-label={`Add ${spec.label}: ${spec.description}`}
                   >
                     <spec.icon className="h-3.5 w-3.5 text-muted-foreground" />
                     {spec.label}
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
           ))}
         </div>
 
-        <div className="relative flex-1" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
+        <div className="relative order-1 flex-1 md:order-none" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
+          {definition.steps.length === 0 && (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
+              <div className="max-w-sm rounded-xl border border-dashed border-border bg-card/90 p-5 text-center shadow-sm backdrop-blur">
+                <p className="text-sm font-semibold">Start your automation</p>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Choose a supported step from the palette, then connect steps to define the order of execution. Approval steps visibly pause a run for a decision.</p>
+              </div>
+            </div>
+          )}
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -428,22 +437,28 @@ function BuilderCanvas({ workflowId }: { workflowId: string }) {
             onPaneClick={() => setSelectedStepId(null)}
             fitView
             colorMode="system"
+            nodesFocusable
+            edgesFocusable
+            snapToGrid
+            snapGrid={[16, 16]}
+            defaultEdgeOptions={{ animated: false, style: { strokeWidth: 2 } }}
           >
-            <Background gap={16} />
-            <Controls />
-            <MiniMap pannable zoomable className="!bg-card" />
+            <Background gap={16} size={1} />
           </ReactFlow>
         </div>
 
         {selectedStep && (
-          <StepConfigPanel
-            key={selectedStep.id}
-            step={selectedStep}
-            allStepIds={allOtherStepIds}
-            onChange={(next) => updateStep(selectedStep.id, next)}
-            onDelete={() => deleteStep(selectedStep.id)}
-            onClose={() => setSelectedStepId(null)}
-          />
+          <>
+            <button type="button" aria-label="Close step configuration" className="fixed inset-0 z-30 bg-background/45 backdrop-blur-[1px] md:hidden" onClick={() => setSelectedStepId(null)} />
+            <StepConfigPanel
+              key={selectedStep.id}
+              step={selectedStep}
+              allStepIds={allOtherStepIds}
+              onChange={(next) => updateStep(selectedStep.id, next)}
+              onDelete={() => deleteStep(selectedStep.id)}
+              onClose={() => setSelectedStepId(null)}
+            />
+          </>
         )}
       </div>
     </div>

@@ -1,5 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { TenantContextService } from '../../../common/tenant/tenant-context.service';
+import { Inject } from '@nestjs/common';
+import {
+  EXECUTIVE_CONTEXT_INVALIDATOR,
+  ExecutiveContextInvalidator,
+} from '../../ai/context/context.types';
 import { AuditService } from '../../audit/audit.service';
 import { WebhookDispatchService } from '../../webhooks/webhook-dispatch.service';
 import { SalesAiActionDto, SalesAiActionResponseDto } from '../dto/sales-ai.dto';
@@ -16,6 +21,8 @@ export class LeadsService {
     private readonly auditService: AuditService,
     private readonly webhookDispatchService: WebhookDispatchService,
     private readonly tenantContextService: TenantContextService,
+    @Inject(EXECUTIVE_CONTEXT_INVALIDATOR)
+    private readonly contextInvalidation: ExecutiveContextInvalidator,
   ) {}
 
   async create(dto: CreateLeadDto): Promise<LeadResponseDto> {
@@ -28,6 +35,7 @@ export class LeadsService {
       notes: dto.notes?.trim(),
       metadata: dto.metadata,
     });
+    await this.invalidateContext();
 
     await this.auditService.record({
       action: 'create',
@@ -92,6 +100,7 @@ export class LeadsService {
     if (!entity) {
       throw new NotFoundException(`Lead with id "${id}" not found`);
     }
+    await this.invalidateContext();
 
     await this.auditService.record({
       action: 'update',
@@ -108,6 +117,7 @@ export class LeadsService {
     if (!entity) {
       throw new NotFoundException(`Lead with id "${id}" not found`);
     }
+    await this.invalidateContext();
 
     await this.auditService.record({
       action: 'delete',
@@ -144,6 +154,7 @@ export class LeadsService {
       qualificationSummary: aiResult.outputText,
       status: inferLeadStatus(score),
     });
+    await this.invalidateContext();
 
     await this.auditService.record({
       action: 'qualify',
@@ -165,6 +176,13 @@ export class LeadsService {
     }
 
     return entity;
+  }
+
+  private invalidateContext(): Promise<void> {
+    return this.contextInvalidation.invalidateSource(
+      this.tenantContextService.getOrThrow().organizationId,
+      'crm',
+    );
   }
 }
 

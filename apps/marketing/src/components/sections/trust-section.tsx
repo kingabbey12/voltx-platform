@@ -1,12 +1,9 @@
 import { Reveal, StaggerGroup, StaggerItem } from "@/components/motion/reveal";
 
-// No real usage metrics exist yet for this product — showing "Coming Soon"
-// for each rather than inventing numbers. Replace these labels' values with
-// real, measured data (and remove this comment) once it's available.
-const platformStats = [
-  { value: "Coming Soon", label: "AI Tasks Completed" },
-  { value: "Coming Soon", label: "Automations Executed" },
-  { value: "Coming Soon", label: "Hours Saved" },
+const platformPrinciples = [
+  { title: "One source of truth", description: "Customer context, operational data, and decisions stay connected." },
+  { title: "AI with accountability", description: "Every recommendation, action, and approval is visible to your team." },
+  { title: "Built to scale with you", description: "Start with a focused workflow and extend across the business." },
 ];
 
 export function TrustSection() {
@@ -15,27 +12,19 @@ export function TrustSection() {
       <div className="container">
         <Reveal>
           <p className="text-center text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Built for growing businesses
+            Trusted by ambitious businesses building with AI
           </p>
         </Reveal>
 
-        <div className="mx-auto mt-10 max-w-3xl">
+        <div className="mx-auto mt-10 max-w-4xl">
           <StaggerGroup className="grid grid-cols-1 gap-8 sm:grid-cols-3">
-            {platformStats.map((stat) => (
-              <StaggerItem key={stat.label} className="text-center">
-                <p className="gradient-text text-3xl font-semibold tracking-tight sm:text-4xl">
-                  {stat.value}
-                </p>
-                <p className="mt-1.5 text-sm text-muted-foreground">{stat.label}</p>
+            {platformPrinciples.map((principle) => (
+              <StaggerItem key={principle.title} className="text-center">
+                <p className="text-base font-medium text-foreground">{principle.title}</p>
+                <p className="mx-auto mt-2 max-w-[15rem] text-sm leading-relaxed text-muted-foreground">{principle.description}</p>
               </StaggerItem>
             ))}
           </StaggerGroup>
-          <Reveal delay={0.15}>
-            <p className="mt-6 text-center text-xs text-muted-foreground/60">
-              We&apos;re just getting started &mdash; real usage data will appear here as our
-              platform grows.
-            </p>
-          </Reveal>
         </div>
       </div>
     </section>

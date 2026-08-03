@@ -17,10 +17,12 @@ test.describe("Workflows", () => {
 
   test("create workflow button exists", async ({ page }) => {
     await page.goto("/workflows");
-    const createBtn = page.getByRole("button", { name: /create|new workflow/i });
-    if (await createBtn.isVisible()) {
-      await expect(createBtn).toBeVisible();
-    }
+    const pageHeader = page.locator("header").filter({
+      has: page.getByRole("heading", { name: "Workflows", exact: true }),
+    });
+    await expect(
+      pageHeader.getByRole("button", { name: "New workflow", exact: true }),
+    ).toBeVisible();
   });
 
   test("templates section loads", async ({ page }) => {

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';
 
@@ -54,6 +54,16 @@ const prometheus = readYaml<PrometheusConfig>('prometheus/prometheus.yml');
 const alerts = readYaml<AlertRules>('prometheus/alerts.yml');
 const compose = readYaml<ComposeFile>('docker-compose.yml');
 const allRules = alerts.groups.flatMap((group) => group.rules);
+
+/**
+ * Watchdog is a dead-man's switch, not an incident alert. It is deliberately
+ * always-firing with no `for:` delay (a gap in delivery is the signal, so any
+ * delay would blunt it) and carries its own `watchdog` severity so it routes
+ * to the heartbeat endpoint rather than to whoever is on call. Every other
+ * rule must still satisfy both requirements below.
+ */
+const HEARTBEAT_ALERTS = new Set(['Watchdog']);
+const incidentRules = allRules.filter((rule) => !HEARTBEAT_ALERTS.has(rule.alert));
 
 describe('Prometheus is wired to alert, not just collect', () => {
   it('loads the alert rule file', () => {
@@ -113,7 +123,7 @@ describe('alert rules are well-formed and actionable', () => {
     }
   });
 
-  it.each(allRules.map((rule) => [rule.alert, rule] as const))(
+  it.each(incidentRules.map((rule) => [rule.alert, rule] as const))(
     '%s has a severity, a summary and a runbook link',
     (_name, rule) => {
       expect(['critical', 'warning']).toContain(rule.labels?.severity);
@@ -122,10 +132,23 @@ describe('alert rules are well-formed and actionable', () => {
     },
   );
 
-  it.each(allRules.map((rule) => [rule.alert, rule] as const))(
+  it.each(incidentRules.map((rule) => [rule.alert, rule] as const))(
     '%s waits before firing so a single scrape blip cannot page anyone',
     (_name, rule) => {
       expect(rule.for).toBeTruthy();
+    },
+  );
+
+  it.each([...HEARTBEAT_ALERTS].map((name) => [name] as const))(
+    '%s is an always-firing heartbeat, documented and separately routed',
+    (name) => {
+      const rule = allRules.find((candidate) => candidate.alert === name);
+      expect(rule).toBeDefined();
+      // No `for:` and a non-paging severity are the point, not an oversight.
+      expect(rule?.for).toBeUndefined();
+      expect(rule?.labels?.severity).toBe('watchdog');
+      expect(rule?.expr).toContain('vector(1)');
+      expect(rule?.annotations?.runbook).toContain('monitoring-and-alerting.md');
     },
   );
 
@@ -169,6 +192,21 @@ describe('alert expressions only reference metrics something emits', () => {
     [...metricsService.matchAll(/name:\s*'(voltx_[a-z_]+)'/g)].map(([, name]) => name),
   );
 
+  // Cron-driven backup jobs have no scrape endpoint of their own, so they
+  // publish through node-exporter's textfile collector instead of the Nest
+  // registry. They are still `voltx_*` and must still be real, so read what
+  // the scripts actually write rather than exempting them.
+  const textfileMetrics = new Set(
+    readdirSync(join(repoRoot, 'deploy/scripts'))
+      .filter((file) => file.endsWith('.sh'))
+      .flatMap((file) => [
+        ...readFileSync(join(repoRoot, 'deploy/scripts', file), 'utf8').matchAll(
+          /^(voltx_[a-z_]+)\s/gm,
+        ),
+      ])
+      .map(([, name]) => name),
+  );
+
   const referencedVoltxMetrics = new Set(
     allRules.flatMap((rule) => [...rule.expr.matchAll(/\b(voltx_[a-z_]+)\b/g)].map(([, m]) => m)),
   );
@@ -176,7 +214,12 @@ describe('alert expressions only reference metrics something emits', () => {
   it.each([...referencedVoltxMetrics])('%s is defined in MetricsService', (metric) => {
     // Histograms are queried via their generated _bucket/_sum/_count series.
     const base = metric.replace(/_(bucket|sum|count)$/, '');
-    expect(emittedVoltxMetrics.has(base) || emittedVoltxMetrics.has(metric)).toBe(true);
+    expect(
+      emittedVoltxMetrics.has(base) ||
+        emittedVoltxMetrics.has(metric) ||
+        textfileMetrics.has(base) ||
+        textfileMetrics.has(metric),
+    ).toBe(true);
   });
 
   it.each([

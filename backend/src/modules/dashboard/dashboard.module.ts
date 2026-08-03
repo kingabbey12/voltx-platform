@@ -5,13 +5,18 @@ import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 import { DashboardMetricsService } from './dashboard-metrics.service';
 import { DashboardAggregationService } from './dashboard-aggregation.service';
+import { AuditModule } from '../audit/audit.module';
+import { SalesModule } from '../sales/sales.module';
+import { DashboardRecommendationActionService } from './recommendations/dashboard-recommendation-action.service';
+import { DashboardRecommendationProvider } from './recommendations/dashboard-recommendation.provider';
+import { DashboardRecommendationRepository } from './recommendations/dashboard-recommendation.repository';
+import { DashboardRecommendationService } from './recommendations/dashboard-recommendation.service';
+import { DashboardRecommendationsController } from './recommendations/dashboard-recommendations.controller';
 import {
   DASHBOARD_HEALTH_PROVIDER,
   DASHBOARD_INSIGHT_PROVIDER,
   DASHBOARD_PRIORITY_PROVIDER,
   NoopHealthProvider,
-  NoopInsightProvider,
-  NoopPriorityProvider,
 } from './dashboard-providers.interface';
 
 /**
@@ -36,15 +41,19 @@ import {
  * the controller, the response contract and the UI all stay as they are.
  */
 @Module({
-  imports: [DatabaseModule, SchedulerLockModule],
-  controllers: [DashboardController],
+  imports: [DatabaseModule, SchedulerLockModule, SalesModule, AuditModule],
+  controllers: [DashboardController, DashboardRecommendationsController],
   providers: [
     DashboardService,
     DashboardMetricsService,
     DashboardAggregationService,
-    { provide: DASHBOARD_INSIGHT_PROVIDER, useClass: NoopInsightProvider },
+    DashboardRecommendationRepository,
+    DashboardRecommendationService,
+    DashboardRecommendationActionService,
+    DashboardRecommendationProvider,
+    { provide: DASHBOARD_INSIGHT_PROVIDER, useExisting: DashboardRecommendationProvider },
     { provide: DASHBOARD_HEALTH_PROVIDER, useClass: NoopHealthProvider },
-    { provide: DASHBOARD_PRIORITY_PROVIDER, useClass: NoopPriorityProvider },
+    { provide: DASHBOARD_PRIORITY_PROVIDER, useExisting: DashboardRecommendationProvider },
   ],
   exports: [DashboardMetricsService],
 })

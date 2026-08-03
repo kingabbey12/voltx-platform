@@ -24,7 +24,7 @@
  * Gold is deliberately scarce. When everything is the brand colour, nothing
  * reads as important.
  */
-export type Accent = "gold" | "blue" | "orange" | "purple" | "green" | "red";
+export type Accent = "gold" | "blue" | "cyan" | "orange" | "purple" | "green" | "red";
 
 export interface AccentTokens {
   /** Raw HSL channels, for gradient stops and inline SVG that cannot use a class. */
@@ -53,6 +53,13 @@ export const ACCENTS: Record<Accent, AccentTokens> = {
     bg: "bg-info/10",
     border: "border-info/20",
     hoverBorder: "group-hover:border-info/40",
+  },
+  cyan: {
+    hsl: "188 86% 53%",
+    fg: "text-[hsl(188_86%_53%)]",
+    bg: "bg-[hsl(188_86%_53%/0.12)]",
+    border: "border-[hsl(188_86%_53%/0.22)]",
+    hoverBorder: "group-hover:border-[hsl(188_86%_53%/0.45)]",
   },
   orange: {
     hsl: "25 95% 58%",

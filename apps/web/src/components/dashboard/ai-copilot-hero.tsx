@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useDashboardRecommendations } from "@/hooks/use-dashboard";
 
 /**
  * The dashboard's statement of identity.
@@ -16,6 +17,9 @@ import { Button } from "@/components/ui/button";
  * loading state and cannot fail. The sections below carry the numbers.
  */
 export function AiCopilotHero() {
+  const { data: recommendations = [], isLoading } = useDashboardRecommendations();
+  const leadRecommendation = recommendations[0];
+
   return (
     <Card variant="raised" className="glow-primary relative overflow-hidden">
       {/* Three layers rather than one wash: a warm bloom top-right, a cooler
@@ -64,6 +68,17 @@ export function AiCopilotHero() {
             Ask questions about your pipeline, draft follow-ups, and automate the work
             between deals — grounded in your own CRM data, not generic answers.
           </p>
+
+          {!isLoading && (
+            <div className="mt-4 border-l-2 border-primary/60 pl-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">Chief of Staff</p>
+              <p className="mt-1 text-sm text-foreground">
+                {leadRecommendation
+                  ? `${recommendations.length} decision${recommendations.length === 1 ? "" : "s"} ready for review. ${leadRecommendation.title}`
+                  : "Monitoring verified business signals and preparing your next best action."}
+              </p>
+            </div>
+          )}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <Button asChild size="lg">

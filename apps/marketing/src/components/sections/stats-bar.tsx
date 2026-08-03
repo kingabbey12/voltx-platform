@@ -1,10 +1,10 @@
 import { Reveal, StaggerGroup, StaggerItem } from "@/components/motion/reveal";
 
 const stats = [
-  { value: "<1s", label: "Median AI response time" },
-  { value: "99.9%", label: "Uptime SLA" },
-  { value: "24/7", label: "Autonomous automation" },
-  { value: "SOC 2", label: "Aligned security controls" },
+  { value: "AI", label: "Agents with governed tool access" },
+  { value: "CRM", label: "Connected customer context" },
+  { value: "Workflow", label: "Automation with approvals" },
+  { value: "Knowledge", label: "Grounded answers from your data" },
 ];
 
 export function StatsBar() {

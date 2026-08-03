@@ -3,6 +3,8 @@
 export interface ContactFormState {
   status: "idle" | "success" | "error";
   message?: string;
+  fieldError?: "name" | "email" | "message";
+  values?: Record<string, string>;
 }
 
 function isValidEmail(email: string): boolean {
@@ -17,18 +19,34 @@ export async function submitContactForm(
   const email = String(formData.get("email") ?? "").trim();
   const company = String(formData.get("company") ?? "").trim();
   const message = String(formData.get("message") ?? "").trim();
+  const values = { name, email, company, message };
 
   if (!name || name.length > 200) {
-    return { status: "error", message: "Please enter your name." };
+    return { status: "error", message: "Please enter your name.", fieldError: "name", values };
   }
   if (!email || !isValidEmail(email) || email.length > 320) {
-    return { status: "error", message: "Please enter a valid email address." };
+    return {
+      status: "error",
+      message: "Please enter a valid email address.",
+      fieldError: "email",
+      values,
+    };
   }
   if (!message || message.length < 10) {
-    return { status: "error", message: "Please include a few details about what you need." };
+    return {
+      status: "error",
+      message: "Please include a few details about what you need.",
+      fieldError: "message",
+      values,
+    };
   }
   if (message.length > 5000) {
-    return { status: "error", message: "Message is too long. Please keep it under 5000 characters." };
+    return {
+      status: "error",
+      message: "Message is too long. Please keep it under 5000 characters.",
+      fieldError: "message",
+      values,
+    };
   }
 
   const apiKey = process.env.RESEND_API_KEY;
@@ -44,6 +62,7 @@ export async function submitContactForm(
     return {
       status: "error",
       message: "Something went wrong on our end. Please email us directly at sales@usevoltx.com.",
+      values,
     };
   }
 
@@ -76,6 +95,7 @@ export async function submitContactForm(
       return {
         status: "error",
         message: "We couldn't send your message right now. Please try again shortly.",
+        values,
       };
     }
 
@@ -85,6 +105,7 @@ export async function submitContactForm(
     return {
       status: "error",
       message: "We couldn't send your message right now. Please try again shortly.",
+      values,
     };
   }
 }

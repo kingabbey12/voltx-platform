@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { dashboardApi } from "@/lib/api/dashboard";
 
 /**
@@ -21,5 +21,55 @@ export function useDashboardMetrics(days = 30) {
     // keeps navigation back to the dashboard instant without serving figures
     // old enough to mislead.
     staleTime: 60_000,
+  });
+}
+
+export function useExecutiveBrief() {
+  return useQuery({
+    queryKey: ["dashboard", "brief"],
+    queryFn: () => dashboardApi.getBrief(),
+    staleTime: 30_000,
+  });
+}
+
+export function useDashboardRecommendations() {
+  return useQuery({
+    queryKey: ["dashboard", "recommendations"],
+    queryFn: () => dashboardApi.getRecommendations(),
+    staleTime: 30_000,
+  });
+}
+
+function useRefreshDashboard() {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ["dashboard", "recommendations"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard", "brief"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard", "metrics"] });
+  };
+}
+
+export function useApproveRecommendation() {
+  const refresh = useRefreshDashboard();
+  return useMutation({
+    mutationFn: dashboardApi.approveRecommendation,
+    onSuccess: refresh,
+  });
+}
+
+export function useDismissRecommendation() {
+  const refresh = useRefreshDashboard();
+  return useMutation({
+    mutationFn: dashboardApi.dismissRecommendation,
+    onSuccess: refresh,
+  });
+}
+
+export function useExecuteRecommendationAction() {
+  const refresh = useRefreshDashboard();
+  return useMutation({
+    mutationFn: ({ recommendationId, actionId }: { recommendationId: string; actionId: string }) =>
+      dashboardApi.executeRecommendationAction(recommendationId, actionId),
+    onSuccess: refresh,
   });
 }

@@ -1,15 +1,15 @@
-import type { Metadata } from "next";
 import { Building2, Clock, Mail } from "lucide-react";
 import { Reveal } from "@/components/motion/reveal";
 import { SectionEyebrow } from "@/components/sections/stats-bar";
 import { siteConfig } from "@/config/site";
+import { createPageMetadata } from "@/lib/metadata";
 import { ContactForm } from "./contact-form";
 
-export const metadata: Metadata = {
-  title: "Contact",
-  description:
-    "Talk to the Voltx team about your rollout, book a demo, or reach out with any question about the platform.",
-};
+export const metadata = createPageMetadata(
+  "Contact",
+  "Talk to the Voltx team about your rollout, book a demo, or reach out with any question about the platform.",
+  "/contact",
+);
 
 const contactPoints = [
   {

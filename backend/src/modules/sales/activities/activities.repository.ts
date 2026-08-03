@@ -5,6 +5,7 @@ import { PrismaService } from '../../../database/prisma.service';
 import { ActivityEntity, ActivityType } from './entities/activity.entity';
 
 export interface CreateActivityData {
+  recommendationActionId?: string;
   companyId?: string;
   contactId?: string;
   leadId?: string;
@@ -44,6 +45,7 @@ export interface PaginatedActivities {
 interface ActivityRecord {
   id: string;
   organizationId: string;
+  recommendationActionId: string | null;
   companyId: string | null;
   contactId: string | null;
   leadId: string | null;
@@ -65,6 +67,7 @@ interface ActivityClient {
   create(args: {
     data: {
       organizationId: string;
+      recommendationActionId?: string | null;
       companyId?: string | null;
       contactId?: string | null;
       leadId?: string | null;
@@ -102,6 +105,7 @@ export class ActivitiesRepository {
     const record = await this.client().create({
       data: {
         organizationId: tenant.organizationId,
+        recommendationActionId: data.recommendationActionId ?? null,
         companyId: data.companyId ?? null,
         contactId: data.contactId ?? null,
         leadId: data.leadId ?? null,
@@ -124,6 +128,20 @@ export class ActivitiesRepository {
     const record = await this.client().findFirst({
       where: {
         id,
+        organizationId: tenant.organizationId,
+        deletedAt: null,
+      },
+    });
+    return record ? toEntity(record) : null;
+  }
+
+  async findByRecommendationActionId(
+    recommendationActionId: string,
+  ): Promise<ActivityEntity | null> {
+    const tenant = this.tenantContextService.getOrThrow();
+    const record = await this.client().findFirst({
+      where: {
+        recommendationActionId,
         organizationId: tenant.organizationId,
         deletedAt: null,
       },
@@ -219,6 +237,7 @@ function toEntity(record: ActivityRecord): ActivityEntity {
   return {
     id: record.id,
     organizationId: record.organizationId,
+    recommendationActionId: record.recommendationActionId,
     companyId: record.companyId,
     contactId: record.contactId,
     leadId: record.leadId,

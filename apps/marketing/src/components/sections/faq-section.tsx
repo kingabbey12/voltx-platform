@@ -56,7 +56,7 @@ export const faqs: FaqItem[] = [
   {
     question: "How does pricing work?",
     answer:
-      "Per-seat pricing with usage-based AI credits, so you are not charged for capacity you do not use. Plans and current limits are on the pricing page, and enterprise agreements are available with custom terms.",
+      "Starter, Professional, and Business plans have clear monthly and annual rates with included usage allowances. Current plan limits are on the pricing page, and Enterprise agreements are scoped with your team.",
   },
   {
     question: "Do I need to replace my existing tools to start?",

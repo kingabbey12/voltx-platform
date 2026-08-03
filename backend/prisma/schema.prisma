@@ -92,6 +92,7 @@ enum AgentActionApprovalStatus {
   APPROVED
   REJECTED
   EXPIRED
+  CANCELLED
 }
 
 enum AiRequestType {
@@ -152,7 +153,52 @@ enum SalesActivityType {
   NOTE
 }
 
+enum DashboardRecommendationCategory {
+  SALES
+  CUSTOMER
+  OPERATIONS
+  FINANCE
+  WORKFLOW
+  EXECUTIVE
+}
+
+enum DashboardRecommendationSeverity {
+  INFO
+  OPPORTUNITY
+  WARNING
+  CRITICAL
+}
+
+enum DashboardRecommendationStatus {
+  OPEN
+  APPROVED
+  EXECUTING
+  COMPLETED
+  DISMISSED
+  FAILED
+}
+
+enum DashboardRecommendationActionType {
+  CREATE_TASK
+  OPEN_RECORD
+  DRAFT_EMAIL
+  RUN_WORKFLOW
+  DISMISS
+}
+
+enum FinancialTransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum FinancialTransactionStatus {
+  PENDING
+  POSTED
+  VOID
+}
+
 model Organization {
+  aiWorkflowPlans         AiWorkflowPlan[]
   id                      String                   @id @default(uuid()) @db.Uuid
   name                    String
   slug                    String                   @unique
@@ -198,6 +244,10 @@ model Organization {
   salesLeads              SalesLead[]
   salesOpportunities      SalesOpportunity[]
   salesActivities         SalesActivity[]
+  financialTransactions   FinancialTransaction[]
+  financialBudgets        FinancialBudget[]
+  dashboardRecommendations DashboardRecommendation[]
+  dashboardRecommendationActions DashboardRecommendationAction[]
   promises                Promise[]
   knowledgeSources        KnowledgeSource[]
   knowledgeEntities       KnowledgeEntity[]
@@ -251,6 +301,7 @@ model Organization {
 }
 
 model User {
+  aiWorkflowPlans AiWorkflowPlan[]
   id                      String                @id @default(uuid()) @db.Uuid
   email                   String                @unique
   passwordHash            String?               @map("password_hash")
@@ -493,7 +544,16 @@ model AgentRun {
 model AgentActionApproval {
   id             String                    @id @default(uuid()) @db.Uuid
   organizationId String                    @map("organization_id") @db.Uuid
-  agentRunId     String                    @map("agent_run_id") @db.Uuid
+  /// Null for approvals that aren't a paused tool call — VT-205 workflow
+  /// plans reuse this same table (and the same approver inbox and decide
+  /// endpoint) rather than standing up a second approval framework, and
+  /// they have no agent run behind them.
+  agentRunId     String?                   @map("agent_run_id") @db.Uuid
+  /// What the approval is about when it isn't a tool call, e.g.
+  /// "ai_workflow_plan" + the plan id. Kept as a loose pair rather than a
+  /// polymorphic FK so no new table needs a relation to this one.
+  resourceType   String?                   @map("resource_type")
+  resourceId     String?                   @map("resource_id") @db.Uuid
   toolName       String                    @map("tool_name")
   input          Json                      @default("{}")
   /// Owner-facing sentence describing the held work, written at creation
@@ -506,11 +566,12 @@ model AgentActionApproval {
   expiresAt      DateTime?                 @map("expires_at")
   decidedAt      DateTime?                 @map("decided_at")
   createdAt      DateTime                  @default(now()) @map("created_at")
-  agentRun       AgentRun                  @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  agentRun       AgentRun?                 @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([agentRunId])
   @@index([status])
+  @@index([resourceType, resourceId])
   @@map("agent_action_approvals")
 }
 
@@ -941,6 +1002,7 @@ model SalesOpportunity {
 model SalesActivity {
   id             String            @id @default(uuid()) @db.Uuid
   organizationId String            @map("organization_id") @db.Uuid
+  recommendationActionId String?   @unique @map("recommendation_action_id") @db.Uuid
   companyId      String?           @map("company_id") @db.Uuid
   contactId      String?           @map("contact_id") @db.Uuid
   leadId         String?           @map("lead_id") @db.Uuid
@@ -972,6 +1034,66 @@ model SalesActivity {
   @@index([deletedAt])
   @@index([createdAt])
   @@map("sales_activities")
+}
+
+/// An evidence-backed, tenant-scoped decision proposed by the Executive
+/// Dashboard. The fingerprint turns a deterministic business signal into one
+/// durable recommendation instead of a duplicate on every dashboard refresh.
+model DashboardRecommendation {
+  id                  String                           @id @default(uuid()) @db.Uuid
+  organizationId      String                           @map("organization_id") @db.Uuid
+  fingerprint         String
+  source              String                           @default("deterministic")
+  category            DashboardRecommendationCategory
+  severity            DashboardRecommendationSeverity
+  status              DashboardRecommendationStatus   @default(OPEN)
+  title               String
+  summary             String
+  explanation         String
+  businessImpact      String                           @map("business_impact")
+  recommendedNextStep String                           @map("recommended_next_step")
+  confidence          Float?
+  generatedAt         DateTime                         @default(now()) @map("generated_at")
+  expiresAt           DateTime?                        @map("expires_at")
+  staleAt             DateTime?                        @map("stale_at")
+  dismissedAt         DateTime?                        @map("dismissed_at")
+  approvedAt          DateTime?                        @map("approved_at")
+  completedAt         DateTime?                        @map("completed_at")
+  evidence            Json                             @default("[]")
+  metadata            Json                             @default("{}")
+  createdAt           DateTime                         @default(now()) @map("created_at")
+  updatedAt           DateTime                         @updatedAt @map("updated_at")
+  organization        Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actions             DashboardRecommendationAction[]
+
+  @@unique([organizationId, fingerprint])
+  @@index([organizationId, status, severity])
+  @@index([organizationId, expiresAt])
+  @@map("dashboard_recommendations")
+}
+
+/// A proposed action is persisted independently so approval, retries and
+/// idempotent execution are observable without trusting client-provided state.
+model DashboardRecommendationAction {
+  id               String                            @id @default(uuid()) @db.Uuid
+  organizationId   String                            @map("organization_id") @db.Uuid
+  recommendationId String                            @map("recommendation_id") @db.Uuid
+  type             DashboardRecommendationActionType
+  label            String
+  requiresApproval Boolean                           @default(true) @map("requires_approval")
+  payload          Json                              @default("{}")
+  idempotencyKey   String                            @map("idempotency_key")
+  executionStartedAt DateTime?                       @map("execution_started_at")
+  executedAt       DateTime?                         @map("executed_at")
+  result           Json?                             @default("{}")
+  createdAt        DateTime                          @default(now()) @map("created_at")
+  updatedAt        DateTime                          @updatedAt @map("updated_at")
+  organization     Organization                      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recommendation   DashboardRecommendation           @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, recommendationId])
+  @@map("dashboard_recommendation_actions")
 }
 
 // Promise (docs/design/COMPANY.md §2): the central primitive — a
@@ -3341,9 +3463,58 @@ model CostCenter {
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  financialTransactions FinancialTransaction[]
+  financialBudgets FinancialBudget[]
 
   @@index([organizationId])
   @@map("cost_centers")
+}
+
+model FinancialTransaction {
+  id                String                     @id @default(uuid()) @db.Uuid
+  organizationId    String                     @map("organization_id") @db.Uuid
+  costCenterId      String?                    @map("cost_center_id") @db.Uuid
+  type              FinancialTransactionType
+  status            FinancialTransactionStatus @default(POSTED)
+  category          String
+  counterpartyName  String?                    @map("counterparty_name")
+  description       String?
+  amount            Decimal                    @db.Decimal(18, 2)
+  currency          String                     @default("USD") @db.VarChar(3)
+  occurredAt        DateTime                   @map("occurred_at")
+  externalReference String?                    @map("external_reference")
+  metadata          Json                       @default("{}")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
+  deletedAt         DateTime?                  @map("deleted_at")
+  organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  costCenter        CostCenter?                @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, type, status, occurredAt])
+  @@index([costCenterId])
+  @@map("financial_transactions")
+}
+
+model FinancialBudget {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  costCenterId   String?      @map("cost_center_id") @db.Uuid
+  name           String
+  category       String?
+  amount         Decimal      @db.Decimal(18, 2)
+  currency       String       @default("USD") @db.VarChar(3)
+  periodStart    DateTime     @map("period_start") @db.Date
+  periodEnd      DateTime     @map("period_end") @db.Date
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  costCenter     CostCenter?  @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, periodStart, periodEnd])
+  @@index([costCenterId])
+  @@map("financial_budgets")
 }
 
 /// v2.2 Compliance Center — output format for a generated AuditExport file.
@@ -4298,4 +4469,54 @@ model DailyBusinessMetric {
   @@unique([organizationId, capturedOn])
   @@index([organizationId, capturedOn])
   @@map("daily_business_metrics")
+}
+
+/// Terminal and in-flight states for a VT-205 AI workflow plan. There is
+/// deliberately no EXECUTED member: the AI module hands an approved plan
+/// to the existing workflow module and that module owns execution, so
+/// nothing in this enum can represent "the AI ran a business action".
+enum AiWorkflowPlanStatus {
+  AWAITING_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+  EXPIRED
+  HANDED_OFF
+}
+
+/// A deterministic, approval-gated workflow plan derived from Executive
+/// Decisions. Persisted because the listing endpoint, approval-state
+/// synchronisation, expiration and handoff idempotency all need a durable
+/// record; the plan body is the already-sanitised planner output, never a
+/// raw prompt.
+model AiWorkflowPlan {
+  id                  String               @id @default(uuid()) @db.Uuid
+  organizationId      String               @map("organization_id") @db.Uuid
+  userId              String               @map("user_id") @db.Uuid
+  planKey             String               @map("plan_key")
+  planVersion         String               @map("plan_version")
+  plan                Json
+  status              AiWorkflowPlanStatus @default(AWAITING_APPROVAL)
+  approvalId          String?              @map("approval_id") @db.Uuid
+  workflowId          String?              @map("workflow_id") @db.Uuid
+  workflowExecutionId String?              @map("workflow_execution_id") @db.Uuid
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  expiresAt           DateTime             @map("expires_at")
+  approvedAt          DateTime?            @map("approved_at")
+  rejectedAt          DateTime?            @map("rejected_at")
+  handedOffAt         DateTime?            @map("handed_off_at")
+  deletedAt           DateTime?            @map("deleted_at")
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// One live plan per deterministic plan key per user — the idempotency
+  /// anchor for repeated generation of the same plan.
+  @@unique([organizationId, userId, planKey])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([approvalId])
+  @@index([expiresAt])
+  @@index([deletedAt])
+  @@map("ai_workflow_plans")
 }

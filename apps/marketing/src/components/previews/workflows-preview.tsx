@@ -20,8 +20,8 @@ const nodes: FlowNode[] = [
   { icon: Zap, label: "Trigger", sublabel: "New lead created", x: 8, y: 38, activeAt: 0 },
   { icon: Bot, label: "AI Agent", sublabel: "Qualify + enrich", x: 36, y: 38, activeAt: 1 },
   { icon: GitBranch, label: "Condition", sublabel: "Score > 70?", x: 63, y: 38, activeAt: 2 },
-  { icon: Mail, label: "Send intro", sublabel: "Personalized email", x: 86, y: 14, activeAt: 3 },
-  { icon: MessageSquare, label: "Notify rep", sublabel: "Slack #sales", x: 86, y: 64, activeAt: 3 },
+  { icon: Mail, label: "Send intro", sublabel: "Personalized email", x: 72, y: 14, activeAt: 3 },
+  { icon: MessageSquare, label: "Notify rep", sublabel: "Slack #sales", x: 72, y: 64, activeAt: 3 },
 ];
 
 // Straight connectors between node centers, in the same percentage space.

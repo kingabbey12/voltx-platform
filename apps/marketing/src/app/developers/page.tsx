@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import {
   Blocks,
   Boxes,
@@ -16,12 +15,13 @@ import { CtaSection } from "@/components/sections/cta-section";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
+import { createPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Developers",
-  description:
-    "A public REST API, OAuth applications, outbound webhooks, official SDKs for TypeScript, Python, and Flutter, a CLI, and a marketplace — build on Voltx directly.",
-};
+export const metadata = createPageMetadata(
+  "Developers",
+  "A public REST API, OAuth applications, outbound webhooks, official SDKs for TypeScript, Python, and Flutter, a CLI, and a marketplace — build on Voltx directly.",
+  "/developers",
+);
 
 interface Capability {
   icon: typeof Code2;

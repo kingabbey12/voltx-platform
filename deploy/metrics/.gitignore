@@ -1,0 +1,6 @@
+# Runtime job metrics written by backup.sh / verify-latest-backup.sh and
+# republished by node-exporter's textfile collector. The directory must exist
+# for the compose bind mount; its contents are per-host runtime state.
+*.prom
+.backup-failures
+.*.tmp

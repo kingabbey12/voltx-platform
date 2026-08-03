@@ -2,12 +2,15 @@ import { HttpStatus } from '@nestjs/common';
 import { Response } from 'express';
 import { AiGatewayStreamEvent } from '../gateway/ai-gateway-stream-event.types';
 import { MultiAgentStreamEvent } from '../agents/autonomous/multi-agent-stream-event.types';
+import { WorkflowPlanStreamEvent } from '../workflow-engine/workflow-engine.types';
+import { OrchestratorStreamEvent } from '../orchestrator/orchestrator.types';
 import { formatSseEvent } from './sse-event.formatter';
 import { withSequenceAndHeartbeat } from './with-heartbeat';
 
 const DEFAULT_HEARTBEAT_MS = 15_000;
 
-type StreamableEvent = AiGatewayStreamEvent | MultiAgentStreamEvent;
+type StreamableEvent =
+  AiGatewayStreamEvent | MultiAgentStreamEvent | OrchestratorStreamEvent | WorkflowPlanStreamEvent;
 
 /**
  * Shared SSE transport for the streaming conversation-message and agent-run

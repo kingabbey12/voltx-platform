@@ -4,14 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { CalendarClock, MoreHorizontal, Plus, Sparkles, Trash2 } from "lucide-react";
+import { CalendarClock, CheckSquare, Mail, MoreHorizontal, Phone, Plus, Sparkles, StickyNote, Trash2, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,6 +38,8 @@ const TYPE_VARIANT: Record<ActivityType, "secondary" | "success" | "warning" | "
   TASK: "warning",
   NOTE: "outline",
 };
+const TYPE_ICON = { CALL: Phone, EMAIL: Mail, MEETING: UsersRound, TASK: CheckSquare, NOTE: StickyNote };
+const TYPE_TONE = { CALL: "border-info/20 bg-info/10 text-info", EMAIL: "border-[hsl(268_83%_68%/0.22)] bg-[hsl(268_83%_68%/0.10)] text-[hsl(268_83%_76%)]", MEETING: "border-success/20 bg-success/10 text-success", TASK: "border-warning/20 bg-warning/10 text-warning", NOTE: "border-primary/20 bg-primary/10 text-primary" };
 
 export default function ActivitiesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -90,20 +91,20 @@ export default function ActivitiesPage() {
   const activeSummary = data?.items.find((activity) => activity.id === summaryFor?.id);
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">{data?.total ?? 0} activities</p>
+    <div className="space-y-5">
+      <div className="surface-widget flex flex-col gap-4 rounded-[24px] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div><p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-info">Customer pulse</p><p className="mt-1 text-sm text-muted-foreground">{data?.total ?? 0} moments across your customer relationships</p></div>
         <Button onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4" />
           Log activity
         </Button>
       </div>
 
-      <div className="mt-4 rounded-xl border border-border">
+      <div className="surface-widget overflow-hidden rounded-[24px]">
         {isLoading && (
-          <div className="flex flex-col gap-2 p-4">
+          <div className="flex flex-col gap-3 p-5">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-10 animate-pulse rounded-lg bg-secondary/60" />
+              <div key={i} className="skeleton h-20 w-full rounded-2xl" />
             ))}
           </div>
         )}
@@ -111,8 +112,8 @@ export default function ActivitiesPage() {
         {!isLoading && data?.items.length === 0 && (
           <EmptyState
             icon={CalendarClock}
-            title="No activity logged yet"
-            description="Calls, emails, meetings, and notes you log will appear here."
+            title="Create a living customer timeline"
+            description="Log calls, emails, meetings, and decisions so Voltx can surface the context behind your next move."
             action={
               <Button size="sm" onClick={() => setDialogOpen(true)}>
                 <Plus className="h-4 w-4" />
@@ -123,26 +124,12 @@ export default function ActivitiesPage() {
         )}
 
         {!isLoading && data && data.items.length > 0 && (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Subject</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>When</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.items.map((activity) => (
-                <TableRow key={activity.id}>
-                  <TableCell className="font-medium">{activity.subject}</TableCell>
-                  <TableCell>
-                    <Badge variant={TYPE_VARIANT[activity.type]}>{activity.type}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatRelativeTime(activity.occurredAt ?? activity.createdAt)}
-                  </TableCell>
-                  <TableCell>
+          <div className="relative space-y-1 p-3 before:absolute before:bottom-6 before:left-8 before:top-6 before:w-px before:bg-white/[0.07]">
+              {data.items.map((activity) => {
+                const Icon = TYPE_ICON[activity.type];
+                return <article key={activity.id} className="group relative flex gap-4 rounded-2xl p-3 transition-colors hover:bg-white/[0.035]">
+                  <span className={`relative z-10 grid h-10 w-10 shrink-0 place-items-center rounded-2xl border shadow-[0_10px_22px_-16px_currentColor] ${TYPE_TONE[activity.type]}`}><Icon className="h-4 w-4" /></span>
+                  <div className="min-w-0 flex-1 pt-0.5"><p className="truncate text-sm font-semibold tracking-tight">{activity.subject}</p>{activity.description && <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{activity.description}</p>}<div className="mt-2 flex items-center gap-2"><Badge variant={TYPE_VARIANT[activity.type]}>{activity.type}</Badge><span className="text-[11px] text-muted-foreground">{formatRelativeTime(activity.occurredAt ?? activity.createdAt)}</span>{activity.meetingSummary && <span className="inline-flex items-center gap-1 text-[11px] text-[hsl(268_83%_76%)]"><Sparkles className="h-3 w-3" />AI summary ready</span>}</div></div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="More options">
@@ -165,11 +152,9 @@ export default function ActivitiesPage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  </article>;
+                })}
+            </div>
         )}
       </div>
 

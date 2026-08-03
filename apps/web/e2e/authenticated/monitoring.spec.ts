@@ -50,9 +50,6 @@ test.describe("AI Monitoring", () => {
 
   test("incidents page has create alert button", async ({ page }) => {
     await page.goto("/ai/incidents");
-    const createBtn = page.getByRole("button", { name: /create|new alert/i });
-    if (await createBtn.isVisible()) {
-      await expect(createBtn).toBeVisible();
-    }
+    await expect(page.getByRole("button", { name: "Create Alert", exact: true })).toBeVisible();
   });
 });

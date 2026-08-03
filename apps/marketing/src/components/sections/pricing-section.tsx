@@ -17,8 +17,8 @@ export function PricingSection() {
           </Reveal>
           <Reveal delay={0.1}>
             <p className="text-pretty mt-5 text-lg leading-relaxed text-muted-foreground">
-              Simple per-seat pricing, a free-forever Starter plan, and 20% off annual
-              billing. Full details on the{" "}
+              Transparent monthly and annual plan rates, with a 14-day trial on paid plans.
+              Full details on the{" "}
               <a href="/pricing" className="text-primary underline-offset-4 hover:underline">
                 pricing page
               </a>

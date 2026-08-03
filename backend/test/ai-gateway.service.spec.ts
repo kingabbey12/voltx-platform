@@ -384,6 +384,8 @@ describe('AIGatewayService', () => {
         id: 'approval-1',
         organizationId: 'org-1',
         agentRunId: 'run-1',
+        resourceType: null,
+        resourceId: null,
         toolName: 'create_task',
         input: { subject: 'Follow up' },
         summary: 'Create task — Follow up',

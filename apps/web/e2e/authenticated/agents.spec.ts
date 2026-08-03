@@ -17,10 +17,10 @@ test.describe("AI Agents", () => {
 
   test("create agent button exists", async ({ page }) => {
     await page.goto("/ai/agents");
-    const createBtn = page.getByRole("button", { name: /create|new agent|add agent/i });
-    if (await createBtn.isVisible()) {
-      await expect(createBtn).toBeVisible();
-    }
+    const agentHero = page.locator(".surface-raised").filter({
+      has: page.getByRole("heading", { name: "AI Agents", exact: true }),
+    });
+    await expect(agentHero.getByRole("button", { name: "New Agent", exact: true })).toBeVisible();
   });
 
   test("filter or search controls exist", async ({ page }) => {

@@ -1,5 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { TenantContextService } from '../src/common/tenant/tenant-context.service';
+import { EXECUTIVE_CONTEXT_INVALIDATOR } from '../src/modules/ai/context/context.types';
 import { NotificationService } from '../src/modules/notifications/notification.service';
 import { NotificationRepository } from '../src/modules/notifications/notification.repository';
 import { CommsGateway } from '../src/modules/communications/realtime/comms.gateway';
@@ -44,6 +46,14 @@ describe('NotificationService', () => {
           },
         },
         { provide: CommsGateway, useValue: { emitNotification: jest.fn() } },
+        {
+          provide: TenantContextService,
+          useValue: { getOrThrow: jest.fn(() => ({ organizationId: 'org-1', userId: 'user-1' })) },
+        },
+        {
+          provide: EXECUTIVE_CONTEXT_INVALIDATOR,
+          useValue: { invalidateSource: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

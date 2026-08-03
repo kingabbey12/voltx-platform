@@ -283,3 +283,124 @@ groups:
             The endpoint is unreachable from outside the compose network, even
             if internal scrapes look healthy.
           runbook: docs/operations/monitoring-and-alerting.md#endpointprobefailing
+
+  # Backup jobs are cron-driven and have no scrape target of their own; they
+  # publish through node-exporter's textfile collector. The absent() guards
+  # matter more than the thresholds: a schedule that never runs produces no
+  # metric at all, which a plain comparison would silently ignore.
+  - name: voltx-backups
+    rules:
+      - alert: BackupOverdue
+        expr: >-
+          (time() - voltx_backup_last_success_timestamp_seconds) > 129600
+          or absent(voltx_backup_last_success_timestamp_seconds)
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database backup is overdue"
+          description: "No successful backup in over 36h, or the backup metric is missing entirely."
+          runbook: docs/operations/monitoring-and-alerting.md#backupoverdue
+
+      - alert: BackupSizeZero
+        expr: voltx_backup_last_size_bytes == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Last backup archive is empty"
+          description: "The most recent backup completed but wrote zero bytes."
+          runbook: docs/operations/monitoring-and-alerting.md#backupsizezero
+
+      - alert: BackupFailuresRepeating
+        expr: increase(voltx_backup_failures_total[24h]) >= 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Repeated backup failures"
+          description: "Two or more backup runs failed in the last 24h."
+          runbook: docs/operations/monitoring-and-alerting.md#backupfailuresrepeating
+
+      - alert: BackupVerificationOverdue
+        expr: >-
+          (time() - voltx_backup_verify_last_timestamp_seconds) > 864000
+          or absent(voltx_backup_verify_last_timestamp_seconds)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backup integrity verification is overdue"
+          description: "No integrity verification in over 10 days (weekly schedule)."
+          runbook: docs/operations/monitoring-and-alerting.md#backupverificationoverdue
+
+      - alert: BackupVerificationFailed
+        expr: voltx_backup_verify_last_success == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backup integrity verification failed"
+          description: "The most recent verification could not restore the latest archive."
+          runbook: docs/operations/monitoring-and-alerting.md#backupverificationfailed
+
+  # Object storage is a *degradable* dependency: readiness reports
+  # `degraded` rather than `not_ready`, so a storage outage never pulls
+  # healthy replicas out of rotation. That decision only holds if the
+  # degradation is loudly visible — which is what this alert is for.
+  - name: voltx-object-storage
+    rules:
+      - alert: ObjectStorageDown
+        expr: voltx_object_storage_health == 0 or absent(voltx_object_storage_health)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Object storage is unreachable"
+          description: >-
+            The continuous readiness probe cannot reach the attachment bucket.
+            Attachment upload/download is failing; the rest of the platform is
+            unaffected and stays in rotation by design.
+          runbook: docs/operations/monitoring-and-alerting.md#objectstoragedown
+
+  # ── Alerting-path self-test ──────────────────────────────────────────
+  # Every other rule in this file assumes the delivery path works. If the
+  # webhook receiver is misconfigured, revoked or silently dropping, a real
+  # incident produces no notification and nothing says so — the alerting
+  # system fails exactly when it is needed.
+  #
+  # Watchdog is the standard answer: an alert that is ALWAYS firing. A
+  # healthy pipeline delivers it continuously, so its *absence* at the
+  # receiving end is the signal. Configure a dead-man's-switch monitor
+  # (Healthchecks.io, Grafana OnCall, PagerDuty heartbeat) to page when it
+  # stops arriving. See docs/operations/monitoring-and-alerting.md#watchdog.
+  - name: voltx-alerting-selftest
+    rules:
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: watchdog
+        annotations:
+          summary: "Alerting pipeline is alive"
+          description: >-
+            Always firing by design. If this stops arriving at the configured
+            receiver, the alerting path is broken and every other alert in
+            this file is silently unreliable.
+          runbook: docs/operations/monitoring-and-alerting.md#watchdog
+
+      # The complement: Alertmanager itself reporting that it cannot deliver.
+      # Watchdog catches a dead path from outside; this catches it from inside,
+      # so a receiver returning 4xx/5xx is visible without waiting for the
+      # external heartbeat to lapse.
+      - alert: AlertDeliveryFailing
+        expr: >-
+          increase(alertmanager_notifications_failed_total[15m]) > 3
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alertmanager cannot deliver notifications"
+          description: >-
+            More than three notification failures in 15 minutes. Alerts are
+            being generated but not reaching their receiver.
+          runbook: docs/operations/monitoring-and-alerting.md#alertdeliveryfailing

@@ -3,6 +3,7 @@ export type ActivityType = 'CALL' | 'EMAIL' | 'MEETING' | 'TASK' | 'NOTE';
 export interface ActivityEntity {
   id: string;
   organizationId: string;
+  recommendationActionId: string | null;
   companyId: string | null;
   contactId: string | null;
   leadId: string | null;
