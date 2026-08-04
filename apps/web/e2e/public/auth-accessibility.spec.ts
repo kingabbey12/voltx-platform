@@ -28,6 +28,30 @@ const PAGES = [
   { path: "/forgot-password", heading: "Reset your password" },
 ] as const;
 
+/**
+ * The (auth) layout fades its content in (framer-motion, opacity 0 -> 1 over
+ * 0.5s). Colour-contrast sampled mid-fade blends foreground into background and
+ * reports failures that do not exist once the page settles, so wait for the
+ * landmark to reach full opacity before measuring anything.
+ */
+async function settle(page: import("@playwright/test").Page) {
+  await page.waitForLoadState("networkidle");
+  await page
+    .locator("main")
+    .evaluate((el) =>
+      Number(getComputedStyle(el).opacity) === 1
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            const done = () => {
+              if (Number(getComputedStyle(el).opacity) === 1) resolve();
+            };
+            el.addEventListener("transitionend", done);
+            el.addEventListener("animationend", done);
+            setTimeout(resolve, 2000);
+          }),
+    );
+}
+
 async function blockingViolations(page: import("@playwright/test").Page) {
   const results = await new AxeBuilder({ page }).analyze();
   return results.violations
@@ -58,6 +82,7 @@ for (const authPage of PAGES) {
     }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto(authPage.path);
+      await settle(page);
 
       // A sideways scrollbar on a login form is a layout bug on small screens.
       const overflow = await page.evaluate(
