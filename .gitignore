@@ -45,3 +45,13 @@ graphify-out/
 voltx-website/
 
 .uiqa/
+.vercel
+.env*
+
+# pnpm content-addressable store — a local cache, never a release artifact
+.pnpm-store/
+
+# Playwright run output
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
