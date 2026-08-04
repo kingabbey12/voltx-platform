@@ -11,12 +11,18 @@ overrides:
   # on every multipart request.
   multer: '>=2.2.0'
   # ReDoS, pulled in transitively through several build and telemetry chains.
-  brace-expansion: '>=5.0.8'
+  # GHSA-rgw5-rvv9-x895: 5.0.8 is itself vulnerable to DoS via unbounded
+  # intermediate arrays, bypassing the CVE-2026-14257 mitigation.
+  brace-expansion: '>=5.0.9'
   minimatch: '>=5.0.8'
   # Prototype pollution in XML parsing (AWS SDK dependency chain).
   fast-xml-parser: '>=5.10.1'
-  # ReDoS in URI parsing, via ajv under the Nest CLI.
-  fast-uri: '>=3.1.4'
+  # ReDoS in URI parsing, via ajv under the Nest CLI. The floor moved to 3.1.5;
+  # 3.1.4 is still affected.
+  fast-uri: '>=3.1.5'
+  # socket.io resolves socket.io-parser 4.2.6, which can be crashed by a
+  # malformed packet. Reached from the WebSocket gateway.
+  socket.io-parser: '>=4.2.7'
   # Moderate advisories with published fixes. Both are pinned to a major that
   # still ships CommonJS: an open-ended '>=11.1.1' resolves uuid to 14.x, which
   # is ESM-only and breaks ts-jest's CJS transform for every suite that reaches

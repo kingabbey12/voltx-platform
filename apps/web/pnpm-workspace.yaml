@@ -17,8 +17,14 @@ overrides:
   # Only brace-expansion is pinned: forcing minimatch to its latest major here
   # drops the CommonJS default export that @eslint/eslintrc still imports, and
   # ESLint stops loading its own config. No advisory required it.
-  brace-expansion: '>=5.0.8'
+  # GHSA-rgw5-rvv9-x895 raised the floor to 5.0.9: 5.0.8 is itself vulnerable
+  # to DoS via unbounded intermediate arrays, which bypasses the earlier
+  # CVE-2026-14257 mitigation this pin was originally added for.
+  brace-expansion: '>=5.0.9'
   # Next bundles an older sharp; the advisory is in image processing.
   sharp: '>=0.35.0'
+  # socket.io-client 4.8.x still resolves socket.io-parser 4.2.6, which is
+  # vulnerable to a crash triggered by a malformed packet from the server.
+  socket.io-parser: '>=4.2.7'
   # postcss parsing advisories; next pins an older copy transitively.
   postcss: '>=8.5.18'
