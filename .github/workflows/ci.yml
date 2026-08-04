@@ -270,6 +270,19 @@ jobs:
           fi
           echo "onboarding completed for org ${ORG}"
 
+      # The permission-matrix spec signs in as CRM-limited, Finance-limited and
+      # approval-restricted identities. They live in the owner's organization,
+      # so this has to run after registration+onboarding above, not with
+      # prisma:seed. Without it those sign-ins cannot succeed — and the whole
+      # point of the fail-closed helper in e2e/authenticated/sign-in.ts is that
+      # this now fails the run loudly instead of silently re-verifying the owner.
+      - name: Seed restricted-role e2e fixtures
+        working-directory: backend
+        run: pnpm prisma:seed:e2e-fixtures
+        env:
+          OWNER_EMAIL: ${{ env.E2E_USER_EMAIL }}
+          E2E_FIXTURE_PASSWORD: ${{ env.E2E_USER_PASSWORD }}
+
       - name: Install web dependencies
         working-directory: apps/web
         run: pnpm install --frozen-lockfile
@@ -283,6 +296,10 @@ jobs:
         run: pnpm test:e2e:authenticated
         env:
           CI: true
+          # Must match what the fixtures were seeded with above; both sides
+          # default to the same literal, but pinning it here means a change to
+          # one is not silently survivable.
+          E2E_FIXTURE_PASSWORD: ${{ env.E2E_USER_PASSWORD }}
 
       - name: Dump API log on failure
         if: failure()
