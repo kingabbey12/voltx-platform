@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { AgentExecutor } from '../src/modules/ai/agents/agent.executor';
@@ -164,6 +169,37 @@ describe('AgentService', () => {
         systemPrompt: 'Duplicate',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  /**
+   * Regression: a deployment with no AI provider configured cannot create any
+   * agent at all. createAgent resolves provider+model to pin them on the
+   * record, and ModelRegistryService throws ServiceUnavailableException when
+   * no provider is enabled — so the whole feature returns 503.
+   *
+   * This went unnoticed because every agent e2e spec mocks
+   * resolveProviderAndModel (see ai-agents.e2e-spec.ts), so none of them ever
+   * exercises the unconfigured path that production actually ran.
+   *
+   * The behaviour itself is correct — an agent bound to a provider that does
+   * not exist would be broken — so what is pinned here is that it fails
+   * loudly and writes nothing, rather than half-creating a record.
+   */
+  it('fails closed, without persisting, when no AI provider is configured', async () => {
+    repository.findAgentByName.mockResolvedValue(null);
+    modelRegistry.resolveProviderAndModel.mockRejectedValue(
+      new ServiceUnavailableException('No AI providers are enabled'),
+    );
+
+    await expect(
+      service.createAgent({
+        name: 'Unconfigured',
+        description: 'No provider available',
+        systemPrompt: 'System',
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(repository.createAgent).not.toHaveBeenCalled();
   });
 
   it('creates and completes an agent run', async () => {

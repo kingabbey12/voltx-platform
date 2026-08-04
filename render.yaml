@@ -137,9 +137,43 @@ services:
         sync: false
       - key: CLAMAV_PORT
         value: '3310'
-      # Every other variable in backend/.env.example (AI provider keys,
-      # OAuth client credentials, Stripe keys, etc.) is optional at boot —
-      # each feature it gates degrades gracefully (e.g. a disabled AI
-      # provider, no-op error reporting) rather than crashing, so it isn't
-      # declared here. Add any you actually need in the Render dashboard
-      # once the service exists.
+      # AI providers. Optional at *boot*, but not optional for the AI
+      # features: model-registry.service.ts throws
+      # ServiceUnavailableException('No AI providers are enabled') when no
+      # provider is configured, and agent.service.ts calls it while creating
+      # an agent (to pin provider+model on the record). So with none of these
+      # set, POST /api/v1/ai/agents returns 503 and no agent can ever be
+      # created — the failure is a hard stop, not graceful degradation.
+      # Verified against this release: 503 "No AI providers are enabled".
+      #
+      # Set at least one provider: its *_ENABLED flag AND its key. The flag
+      # alone does nothing without the key, and the key alone does nothing
+      # without the flag (see config/configuration.ts).
+      - key: ANTHROPIC_ENABLED
+        value: 'true'
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_ENABLED
+        value: 'false'
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_AI_ENABLED
+        value: 'false'
+      - key: GOOGLE_AI_API_KEY
+        sync: false
+
+      # Google OAuth — required for the Inbox/Gmail integration to connect at
+      # all. integrations.providers.google reads these; without them the
+      # consent flow cannot be initiated. Register both redirect URIs on the
+      # Google client:
+      #   https://app.usevoltx.com/integrations/callback
+      #   https://app.usevoltx.com/settings/communications/callback
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+
+      # Remaining variables in backend/.env.example (Stripe keys, error
+      # reporting, other OAuth providers) genuinely are optional — each
+      # degrades to a disabled feature rather than a 5xx. Add them in the
+      # Render dashboard as you need them.
