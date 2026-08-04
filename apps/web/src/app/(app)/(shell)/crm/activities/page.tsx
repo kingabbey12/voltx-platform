@@ -29,6 +29,7 @@ import {
 import { activitySchema, type ActivityFormValues } from "@/lib/validations/crm";
 import { friendlyErrorMessage } from "@/lib/api/api-error";
 import { formatRelativeTime } from "@/lib/format";
+import { MarkdownMessage } from "@/components/ai/markdown-message";
 import type { ActivityType } from "@/lib/api/sales";
 
 const TYPE_VARIANT: Record<ActivityType, "secondary" | "success" | "warning" | "destructive" | "outline"> = {
@@ -239,9 +240,13 @@ export default function ActivitiesPage() {
           {meetingSummary.isPending && !activeSummary?.meetingSummary ? (
             <div className="h-24 animate-pulse rounded-lg bg-secondary/60" />
           ) : (
-            <p className="whitespace-pre-wrap rounded-lg border border-border bg-secondary/40 p-4 text-sm">
-              {activeSummary?.meetingSummary ?? "No summary yet."}
-            </p>
+            <div className="rounded-lg border border-border bg-secondary/40 p-4 text-sm">
+              {activeSummary?.meetingSummary ? (
+                <MarkdownMessage content={activeSummary.meetingSummary} />
+              ) : (
+                "No summary yet."
+              )}
+            </div>
           )}
         </DialogContent>
       </Dialog>

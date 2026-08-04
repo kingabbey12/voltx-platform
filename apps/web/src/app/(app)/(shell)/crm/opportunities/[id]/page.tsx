@@ -20,6 +20,7 @@ import { formatCurrency, formatDate, formatRelativeTime } from "@/lib/format";
 import { friendlyErrorMessage } from "@/lib/api/api-error";
 import { LoadingScreen } from "@/components/loading-screen";
 import { DetailLoadState } from "@/components/detail-load-state";
+import { MarkdownMessage } from "@/components/ai/markdown-message";
 import type { OpportunityStage } from "@/lib/api/sales";
 
 const STAGE_LABEL: Record<OpportunityStage, string> = {
@@ -163,7 +164,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           </CardHeader>
           <CardContent className="pt-0">
             {opportunity.insights ? (
-              <p className="whitespace-pre-wrap text-sm text-foreground">{opportunity.insights}</p>
+              <MarkdownMessage content={opportunity.insights} />
             ) : (
               <p className="text-sm leading-relaxed text-muted-foreground">
                 Ask Voltx to analyze this deal&apos;s strengths, risks, and blockers before the next customer move.
@@ -187,7 +188,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           </CardHeader>
           <CardContent className="pt-0">
             {opportunity.nextBestAction ? (
-              <p className="whitespace-pre-wrap text-sm text-foreground">{opportunity.nextBestAction}</p>
+              <MarkdownMessage content={opportunity.nextBestAction} />
             ) : (
               <p className="text-sm leading-relaxed text-muted-foreground">
                 Ask Voltx what to do next to advance this deal with confidence.
