@@ -44,7 +44,7 @@ export default function LoginPage() {
   return (
     <Card className="surface-raised glow-primary animate-rise border-0 p-2 shadow-none">
       <CardHeader className="gap-2 pb-6 pt-6 text-center">
-        <CardTitle className="text-gradient-gold text-3xl font-semibold tracking-tight">
+        <CardTitle as="h1" className="text-gradient-gold text-3xl font-semibold tracking-tight">
           Sign in
         </CardTitle>
         <CardDescription className="text-base">

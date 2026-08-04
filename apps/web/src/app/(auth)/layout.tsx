@@ -35,14 +35,20 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <span className="text-lg font-semibold tracking-tight">Voltx</span>
       </motion.div>
 
-      <motion.div
+      {/*
+        The page-level landmark for every (auth) route. These pages render
+        outside the app shell, which is where the only other <main> lives, so
+        this is the single landmark on the page — screen-reader users get a
+        "skip to content" target and the page is not one anonymous div.
+      */}
+      <motion.main
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-[400px]"
       >
         {children}
-      </motion.div>
+      </motion.main>
     </div>
   );
 }

@@ -52,7 +52,9 @@ export default function RegisterPage() {
   return (
     <Card className="border-border/70 shadow-lg">
       <CardHeader>
-        <CardTitle className="text-xl">Create account</CardTitle>
+        <CardTitle as="h1" className="text-xl">
+          Create your account
+        </CardTitle>
         <CardDescription>Start your Voltx workspace in minutes.</CardDescription>
       </CardHeader>
       <CardContent>

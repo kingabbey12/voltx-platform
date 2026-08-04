@@ -88,7 +88,9 @@ function ResetPasswordForm() {
   return (
     <Card className="border-border/70 shadow-lg">
       <CardHeader>
-        <CardTitle className="text-xl">Set a new password</CardTitle>
+        <CardTitle as="h1" className="text-xl">
+          Set a new password
+        </CardTitle>
         <CardDescription>Choose a strong password for your Voltx account.</CardDescription>
       </CardHeader>
       <CardContent>

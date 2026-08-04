@@ -25,6 +25,7 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
     "prisma:seed:e2e-fixtures": "ts-node --transpile-only prisma/seed-e2e-fixtures.ts",
+    "prisma:seed:live-qa": "ts-node --transpile-only prisma/seed-live-qa-fixtures.ts",
     "prisma:seed:templates": "ts-node --transpile-only prisma/seed-workflow-templates.ts",
     "prisma:seed:billing-plans": "ts-node --transpile-only prisma/seed-billing-plans.ts",
     "reencrypt-secrets": "ts-node --transpile-only scripts/reencrypt-secrets.ts",

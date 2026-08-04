@@ -51,15 +51,22 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardHeader.displayName = "CardHeader";
 
-const CardTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn("font-heading text-lg font-semibold leading-none tracking-tight", className)}
-      {...props}
-    />
-  ),
-);
+/**
+ * Renders a `div` by default because most cards sit inside a page that already
+ * owns its heading, and emitting a second `h1` there would be wrong. Pages
+ * where the card *is* the page — the (auth) routes — pass `as="h1"` so the
+ * page has exactly one real heading rather than a styled div.
+ */
+const CardTitle = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & { as?: React.ElementType }
+>(({ className, as: Component = "div", ...props }, ref) => (
+  <Component
+    ref={ref}
+    className={cn("font-heading text-lg font-semibold leading-none tracking-tight", className)}
+    {...props}
+  />
+));
 CardTitle.displayName = "CardTitle";
 
 const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
