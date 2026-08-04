@@ -202,6 +202,41 @@ describe('AgentService', () => {
     expect(repository.createAgent).not.toHaveBeenCalled();
   });
 
+  /**
+   * Regression: the agent details page had no endpoint to load from — the
+   * backend exposed GET /ai/agents, PATCH/DELETE :id and GET :id/stats, but no
+   * GET :id — so opening a just-created agent showed "Agent not found" while
+   * the record existed and listed fine.
+   */
+  it('returns a single agent by id', async () => {
+    repository.findAgentById.mockResolvedValue({
+      id: 'agent-1',
+      organizationId: 'org-1',
+      name: 'Retest CEO Agent',
+      description: 'ceo retest',
+      systemPrompt: 'System',
+      provider: 'anthropic',
+      model: 'claude-sonnet-5',
+      configuration: { kind: 'custom' },
+      enabled: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    });
+
+    await expect(service.getAgent('agent-1')).resolves.toMatchObject({
+      id: 'agent-1',
+      name: 'Retest CEO Agent',
+    });
+  });
+
+  it('does not leak an agent belonging to another organization', async () => {
+    // The repository is tenant-scoped, so a foreign id simply is not found.
+    repository.findAgentById.mockResolvedValue(null);
+
+    await expect(service.getAgent('foreign-agent')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('creates and completes an agent run', async () => {
     registry.ensureSystemAgents.mockResolvedValue(undefined);
     repository.findAgentById.mockResolvedValue({

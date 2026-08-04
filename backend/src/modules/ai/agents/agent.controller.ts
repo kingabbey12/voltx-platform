@@ -61,6 +61,18 @@ export class AgentController {
     return this.agentService.listAgents();
   }
 
+  // Single-segment ':id' cannot shadow the more specific ':id/stats' or
+  // 'runs/:runId/tree' below — those match more path segments.
+  @Get(':id')
+  @UseGuards(...AUTH_GUARDS, PermissionGuard)
+  @Permissions('ai.agent.read')
+  @ApiOperation({ summary: 'Get a single AI agent by id' })
+  @ApiOkResponse({ type: AgentSuccessResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid authentication context' })
+  get(@Param('id', ParseUUIDPipe) id: string): Promise<AgentResponseDto> {
+    return this.agentService.getAgent(id);
+  }
+
   @Post()
   @UseGuards(...AUTH_GUARDS, PermissionGuard)
   @Permissions('ai.agent.create')

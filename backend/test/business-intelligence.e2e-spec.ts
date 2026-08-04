@@ -405,8 +405,27 @@ describe('Business Intelligence HTTP API (e2e)', () => {
         const { value, raw } = await result(identity());
         const available = value.departments.filter((item) => item.score !== null);
         expect(available.map((item) => item.id)).toEqual(availableIds);
+
+        // Customer Success Health and Communications Health both score from the
+        // single `communications` section. Averaging over every available
+        // department therefore let that one source vote twice — this assertion
+        // previously reproduced that bug rather than catching it, which is why
+        // it went unnoticed. Executive Health counts each distinct source set
+        // once, so the expectation must too.
+        const seen = new Set<string>();
+        const contributing = available.filter((item) => {
+          const signature = [...item.sourceModules].sort().join('|');
+          if (seen.has(signature)) return false;
+          seen.add(signature);
+          return true;
+        });
         expect(value.executiveHealth.score).toBe(
-          Math.round(available.reduce((sum, item) => sum + item.score!, 0) / available.length),
+          Math.round(
+            contributing.reduce((sum, item) => sum + item.score!, 0) / contributing.length,
+          ),
+        );
+        expect(new Set(value.executiveHealth.sourceModules).size).toBe(
+          value.executiveHealth.sourceModules.length,
         );
         for (const item of value.departments.filter(
           (department) => !availableIds.includes(department.id),

@@ -106,4 +106,51 @@ describe('BusinessIntelligenceEngine', () => {
     );
     expect(result.executiveHealth).toMatchObject({ score: null, status: 'unavailable' });
   });
+
+  /**
+   * Regression: Customer Success Health and Communications Health both score
+   * from the single `communications` section, so averaging over every
+   * available department let that one source vote twice — a degraded
+   * communications section pulled Executive Health down twice as hard as any
+   * other source, and the explanation listed `communications` twice as though
+   * two independent inputs agreed.
+   *
+   * With one critical communications record and every other source clean:
+   *   finance 100, crm 100, operations 100, notifications 100,
+   *   communications 100 - 25 = 75 (scored by two departments)
+   *
+   * Double-counted: (100+100+100+75+75+100)/6 = 92  <- the bug
+   * Counted once:   (100+100+100+75+100)/5     = 95  <- correct
+   */
+  it('counts each distinct source once in executive health', () => {
+    const base = context();
+    const withDegradedComms: ExecutiveContext = {
+      ...base,
+      communications: {
+        items: [item('critical', 'comms-1')],
+        total: 1,
+        summary: 'Verified test data.',
+      },
+    };
+
+    const result = new BusinessIntelligenceEngine().build(withDegradedComms);
+
+    expect(result.executiveHealth.score).toBe(95);
+
+    // Both departments are still reported — only the duplicate vote is removed.
+    const byId = Object.fromEntries(result.departments.map((d) => [d.id, d.score]));
+    expect(byId.customer_success_health).toBe(75);
+    expect(byId.communications_health).toBe(75);
+
+    // The explanation must not claim communications twice.
+    const sources = result.executiveHealth.sourceModules;
+    expect([...sources].sort()).toEqual([
+      'communications',
+      'crm',
+      'finance',
+      'notifications',
+      'operations',
+    ]);
+    expect(new Set(sources).size).toBe(sources.length);
+  });
 });

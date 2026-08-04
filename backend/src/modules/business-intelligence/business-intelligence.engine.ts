@@ -86,16 +86,35 @@ export class BusinessIntelligenceEngine {
       score('compliance_health', 'Compliance Health', ['notifications']),
     ];
     const available = departments.filter((item) => item.score !== null);
-    const executiveHealth = available.length
+
+    // Customer Success Health and Communications Health both derive from the
+    // single `communications` section, so averaging over every available
+    // department let one source vote twice: with communications degraded it
+    // dragged Executive Health down twice as hard as any other source, and the
+    // explanation listed `communications` twice as if two inputs agreed.
+    //
+    // Collapse departments that share an identical source set, keeping the
+    // first. Departments with distinct sources are unaffected — this only
+    // removes the duplicate vote, it does not reweight anything.
+    const seenSourceSets = new Set<string>();
+    const contributing = available.filter((item) => {
+      const signature = [...item.sourceModules].sort().join('|');
+      if (seenSourceSets.has(signature)) return false;
+      seenSourceSets.add(signature);
+      return true;
+    });
+    const uniqueSources = [...new Set(contributing.flatMap((item) => item.sourceModules))];
+
+    const executiveHealth = contributing.length
       ? {
-          ...score(
-            'executive_health',
-            'Executive Health',
-            available.flatMap((item) => item.sourceModules),
-          ),
+          ...score('executive_health', 'Executive Health', uniqueSources),
           score: Math.round(
-            available.reduce((sum, item) => sum + item.score!, 0) / available.length,
+            contributing.reduce((sum, item) => sum + item.score!, 0) / contributing.length,
           ),
+          // score() describes the per-department calculation, which is not what
+          // this value is — it is the mean of the department scores. Inheriting
+          // that string described a computation that never ran.
+          formula: 'Mean of available department scores, counting each distinct source set once.',
         }
       : {
           id: 'executive_health' as const,

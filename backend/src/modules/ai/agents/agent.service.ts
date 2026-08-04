@@ -427,6 +427,18 @@ export class AgentService {
     return dto;
   }
 
+  /**
+   * Backs GET /ai/agents/:id. The agent details page had no endpoint to load
+   * from, so opening a freshly created agent showed "Agent not found" even
+   * though the record existed and was listed correctly.
+   *
+   * Tenant scoping is inherited from the repository, so an id belonging to
+   * another organization is simply not found — it does not leak existence.
+   */
+  async getAgent(id: string): Promise<AgentResponseDto> {
+    return AgentResponseDto.fromEntity(await this.getAgentOrThrow(id));
+  }
+
   private async getAgentOrThrow(id: string): Promise<AgentEntity> {
     const agent = await this.agentRepository.findAgentById(id);
     if (!agent) {
