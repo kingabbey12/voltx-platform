@@ -1,6 +1,7 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
+import { RedisConnectionService } from '../../common/redis/redis-connection.service';
 
 // ISO-8601 with a mandatory 'Z' or offset, matching what JSON.stringify(Date)
 // always produces — used to revive Date fields (e.g. PlanEntity.createdAt,
@@ -86,18 +87,14 @@ export class InMemoryCacheService implements CacheService {
  * to the database.
  */
 @Injectable()
-export class RedisCacheService implements CacheService, OnModuleDestroy {
+export class RedisCacheService implements CacheService {
   private readonly logger = new Logger(RedisCacheService.name);
   private readonly client: Redis;
   private readonly keyPrefix = 'voltx:cache:';
   private readonly tagPrefix = 'voltx:cache:tag:';
 
-  constructor(configService: ConfigService) {
-    const url = configService.get<string>('redis.url', 'redis://localhost:6379');
-    this.client = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1 });
-    this.client.on('error', (error) => {
-      this.logger.warn({ err: error }, 'Redis connection error; cache reads/writes will fail soft');
-    });
+  constructor(private readonly redisConnections: RedisConnectionService) {
+    this.client = redisConnections.requireClient();
   }
 
   async get<T>(key: string): Promise<T | null> {
@@ -106,7 +103,10 @@ export class RedisCacheService implements CacheService, OnModuleDestroy {
       const raw = await this.client.get(this.keyPrefix + key);
       return raw ? (JSON.parse(raw, reviveDates) as T) : null;
     } catch (error) {
-      this.logger.warn({ err: error, key }, 'Redis cache read failed; treating as a miss');
+      this.logger.warn(
+        { redisError: this.redisConnections.errorMessage(error), key },
+        'Redis cache read failed; treating as a miss',
+      );
       return null;
     }
   }
@@ -122,7 +122,7 @@ export class RedisCacheService implements CacheService, OnModuleDestroy {
       await pipeline.exec();
     } catch (error) {
       this.logger.warn(
-        { err: error, key },
+        { redisError: this.redisConnections.errorMessage(error), key },
         'Redis cache write failed; continuing without caching it',
       );
     }
@@ -133,7 +133,10 @@ export class RedisCacheService implements CacheService, OnModuleDestroy {
       await this.ensureConnected();
       await this.client.del(this.keyPrefix + key);
     } catch (error) {
-      this.logger.warn({ err: error, key }, 'Redis cache invalidation failed');
+      this.logger.warn(
+        { redisError: this.redisConnections.errorMessage(error), key },
+        'Redis cache invalidation failed',
+      );
     }
   }
 
@@ -146,18 +149,15 @@ export class RedisCacheService implements CacheService, OnModuleDestroy {
       }
       await this.client.del(this.tagPrefix + tag);
     } catch (error) {
-      this.logger.warn({ err: error, tag }, 'Redis cache tag invalidation failed');
+      this.logger.warn(
+        { redisError: this.redisConnections.errorMessage(error), tag },
+        'Redis cache tag invalidation failed',
+      );
     }
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    await this.client.quit();
   }
 
   private async ensureConnected(): Promise<void> {
-    if (this.client.status === 'wait' || this.client.status === 'end') {
-      await this.client.connect();
-    }
+    await this.redisConnections.ensureConnected();
   }
 }
 
@@ -165,10 +165,13 @@ export const CACHE_SERVICE = Symbol('CACHE_SERVICE');
 
 export const cacheServiceProvider = {
   provide: CACHE_SERVICE,
-  useFactory: (configService: ConfigService): CacheService => {
+  useFactory: (
+    configService: ConfigService,
+    redisConnections: RedisConnectionService,
+  ): CacheService => {
     return configService.get<boolean>('redis.enabled', false)
-      ? new RedisCacheService(configService)
+      ? new RedisCacheService(redisConnections)
       : new InMemoryCacheService();
   },
-  inject: [ConfigService],
+  inject: [ConfigService, RedisConnectionService],
 };

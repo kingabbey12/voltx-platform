@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
 import { AuthModule } from '../auth/auth.module';
 import { IntegrationModule } from '../integrations/integration.module';
 import { AgentModule } from '../ai/agents/agent.module';
@@ -42,7 +41,6 @@ import { AiProcessQueueService } from './jobs/ai-process-queue.service';
 import { AiProcessProcessor } from './jobs/ai-process.processor';
 import { CommsAiProcessingService } from './jobs/comms-ai-processing.service';
 import { CommsAiService } from './jobs/comms-ai.service';
-import { AI_PROCESS_QUEUE } from './jobs/communications-jobs.constants';
 import { CommsGateway } from './realtime/comms.gateway';
 
 // REDIS_ENABLED-gated at module-decoration time (not inside a factory) so
@@ -51,14 +49,6 @@ import { CommsGateway } from './realtime/comms.gateway';
 // isn't available, matching the graceful-degradation pattern the
 // knowledge embedding cache already uses elsewhere in this codebase.
 const redisEnabled = process.env.REDIS_ENABLED === 'true';
-const queueImports = redisEnabled
-  ? [
-      BullModule.forRoot({
-        connection: { url: process.env.REDIS_URL ?? 'redis://localhost:6379' },
-      }),
-      BullModule.registerQueue({ name: AI_PROCESS_QUEUE }),
-    ]
-  : [];
 
 @Module({
   imports: [
@@ -69,7 +59,6 @@ const queueImports = redisEnabled
     ToolModule,
     SalesModule,
     AttachmentsModule,
-    ...queueImports,
   ],
   controllers: [
     ChannelConnectionController,

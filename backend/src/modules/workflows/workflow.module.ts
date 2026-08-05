@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
 import { AIModule } from '../ai/ai.module';
 import { AgentModule } from '../ai/agents/agent.module';
 import { ToolModule } from '../ai/tools/tool.module';
@@ -48,7 +47,6 @@ import { WorkflowVariableService } from './workflow-variable.service';
 import { WorkflowWebhookController } from './workflow-webhook.controller';
 import { WorkflowWebhookRepository } from './workflow-webhook.repository';
 import { WorkflowWebhookService } from './workflow-webhook.service';
-import { WORKFLOW_RUN_QUEUE } from './jobs/workflow-run-queue.constants';
 import { WorkflowRunQueueService } from './jobs/workflow-run-queue.service';
 import { WorkflowRunProcessor } from './jobs/workflow-run.processor';
 
@@ -57,18 +55,7 @@ import { WorkflowRunProcessor } from './jobs/workflow-run.processor';
 // configured, WorkflowRunQueueService falls back to driving
 // WorkflowEngineService.executeRun() inline instead of enqueuing (today's
 // unchanged behavior; dev/test are unaffected since REDIS_ENABLED is unset
-// there). BullModule.forRoot is @Global() and safe to call again here with
-// the same connection config the other queue-owning modules already
-// register it with.
 const redisEnabled = process.env.REDIS_ENABLED === 'true';
-const queueImports = redisEnabled
-  ? [
-      BullModule.forRoot({
-        connection: { url: process.env.REDIS_URL ?? 'redis://localhost:6379' },
-      }),
-      BullModule.registerQueue({ name: WORKFLOW_RUN_QUEUE }),
-    ]
-  : [];
 const queueProcessors = redisEnabled ? [WorkflowRunProcessor] : [];
 
 @Module({
@@ -80,7 +67,6 @@ const queueProcessors = redisEnabled ? [WorkflowRunProcessor] : [];
     ToolModule,
     WebhooksModule,
     DeveloperPlatformModule,
-    ...queueImports,
   ],
   // WorkflowTemplateController/WorkflowSecretController/WorkflowVariableController
   // MUST be registered before WorkflowController — their bare 'templates'/

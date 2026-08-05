@@ -72,6 +72,7 @@ import { CompanyModule } from './modules/company/company.module';
 import { PromisesModule } from './modules/promises/promises.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { BusinessIntelligenceModule } from './modules/business-intelligence/business-intelligence.module';
+import { BullQueueModule } from './common/redis/bull-queue.module';
 
 @Module({
   imports: [
@@ -109,6 +110,7 @@ import { BusinessIntelligenceModule } from './modules/business-intelligence/busi
       }),
     }),
     ScheduleModule.forRoot(),
+    BullQueueModule,
     DatabaseModule,
     MetricsModule,
     CacheModule,

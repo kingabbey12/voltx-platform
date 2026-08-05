@@ -1,4 +1,4 @@
-import { ConfigService } from '@nestjs/config';
+import { RedisConnectionService } from '../src/common/redis/redis-connection.service';
 
 interface MockRedisClient {
   status: string;
@@ -115,10 +115,12 @@ describe('RedisCacheService (v2.2 Platform Scale) — command usage, mocked iore
   });
 
   function buildService(): RedisCacheService {
-    const configService = {
-      get: jest.fn((_key: string, fallback: unknown) => fallback),
-    } as unknown as ConfigService;
-    return new RedisCacheService(configService);
+    const redisConnections = {
+      requireClient: jest.fn(() => mockClient),
+      ensureConnected: jest.fn().mockResolvedValue(mockClient),
+      errorMessage: jest.fn((error: Error) => error.message),
+    } as unknown as RedisConnectionService;
+    return new RedisCacheService(redisConnections);
   }
 
   it('revives ISO-8601 date strings back into Date instances on read', async () => {

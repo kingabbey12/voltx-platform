@@ -1,6 +1,7 @@
 const mockConnect = jest.fn();
 const mockPing = jest.fn();
 const mockDisconnect = jest.fn();
+const mockOn = jest.fn();
 
 jest.mock('ioredis', () => {
   return {
@@ -9,6 +10,7 @@ jest.mock('ioredis', () => {
       connect: mockConnect,
       ping: mockPing,
       disconnect: mockDisconnect,
+      on: mockOn,
     })),
   };
 });

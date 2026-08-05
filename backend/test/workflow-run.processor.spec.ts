@@ -12,7 +12,12 @@ describe('WorkflowRunProcessor', () => {
         })(),
       ),
     };
-    const processor = new WorkflowRunProcessor(workflowEngineService as never);
+    const processor = new WorkflowRunProcessor(
+      workflowEngineService as never,
+      {
+        recordFailedJob: jest.fn(),
+      } as never,
+    );
     const job = {
       data: { workflowRunId: 'run-1', grantedPermissions: ['workflow.run'] },
     } as unknown as Job<WorkflowRunJobData>;
@@ -33,7 +38,12 @@ describe('WorkflowRunProcessor', () => {
         })(),
       ),
     };
-    const processor = new WorkflowRunProcessor(workflowEngineService as never);
+    const processor = new WorkflowRunProcessor(
+      workflowEngineService as never,
+      {
+        recordFailedJob: jest.fn(),
+      } as never,
+    );
     const job = {
       data: { workflowRunId: 'run-1', grantedPermissions: [] },
     } as unknown as Job<WorkflowRunJobData>;

@@ -1,6 +1,7 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
+import { RedisConnectionService } from '../../../common/redis/redis-connection.service';
 
 export interface EmbeddingCache {
   get(key: string): Promise<number[] | null>;
@@ -72,21 +73,14 @@ export class InMemoryEmbeddingCache implements EmbeddingCache {
  * setups keep using the in-memory cache with zero extra infra.
  */
 @Injectable()
-export class RedisEmbeddingCache implements EmbeddingCache, OnModuleDestroy {
+export class RedisEmbeddingCache implements EmbeddingCache {
   private readonly logger = new Logger(RedisEmbeddingCache.name);
   private readonly client: Redis;
   private readonly keyPrefix = 'voltx:knowledge:embedding:';
   private readonly metricPrefix = 'voltx:knowledge:embedding:metrics:';
 
-  constructor(configService: ConfigService) {
-    const url = configService.get<string>('redis.url', 'redis://localhost:6379');
-    this.client = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1 });
-    this.client.on('error', (error) => {
-      this.logger.warn(
-        { err: error },
-        'Redis connection error; embedding cache reads/writes will fail soft',
-      );
-    });
+  constructor(private readonly redisConnections: RedisConnectionService) {
+    this.client = redisConnections.requireClient();
   }
 
   async get(key: string): Promise<number[] | null> {
@@ -96,7 +90,10 @@ export class RedisEmbeddingCache implements EmbeddingCache, OnModuleDestroy {
       await this.client.incr(this.metricPrefix + (raw ? 'hits' : 'misses'));
       return raw ? (JSON.parse(raw) as number[]) : null;
     } catch (error) {
-      this.logger.warn({ err: error }, 'Redis embedding cache read failed; treating as a miss');
+      this.logger.warn(
+        { redisError: this.redisConnections.errorMessage(error) },
+        'Redis embedding cache read failed; treating as a miss',
+      );
       return null;
     }
   }
@@ -108,7 +105,7 @@ export class RedisEmbeddingCache implements EmbeddingCache, OnModuleDestroy {
       await this.client.incr(this.metricPrefix + 'writes');
     } catch (error) {
       this.logger.warn(
-        { err: error },
+        { redisError: this.redisConnections.errorMessage(error) },
         'Redis embedding cache write failed; continuing without caching it',
       );
     }
@@ -123,7 +120,10 @@ export class RedisEmbeddingCache implements EmbeddingCache, OnModuleDestroy {
       }
       await this.client.incr(this.metricPrefix + 'invalidations');
     } catch (error) {
-      this.logger.warn({ err: error }, 'Redis embedding cache invalidation failed');
+      this.logger.warn(
+        { redisError: this.redisConnections.errorMessage(error) },
+        'Redis embedding cache invalidation failed',
+      );
     }
   }
 
@@ -152,14 +152,8 @@ export class RedisEmbeddingCache implements EmbeddingCache, OnModuleDestroy {
     }
   }
 
-  async onModuleDestroy(): Promise<void> {
-    await this.client.quit();
-  }
-
   private async ensureConnected(): Promise<void> {
-    if (this.client.status === 'wait' || this.client.status === 'end') {
-      await this.client.connect();
-    }
+    await this.redisConnections.ensureConnected();
   }
 }
 
@@ -167,13 +161,16 @@ export const EMBEDDING_CACHE = Symbol('EMBEDDING_CACHE');
 
 export const embeddingCacheProvider = {
   provide: EMBEDDING_CACHE,
-  useFactory: (configService: ConfigService): EmbeddingCache => {
+  useFactory: (
+    configService: ConfigService,
+    redisConnections: RedisConnectionService,
+  ): EmbeddingCache => {
     const redisEnabled = configService.get<boolean>('redis.enabled', false);
     const nodeEnv = configService.get<string>('app.nodeEnv', 'development');
     if (nodeEnv === 'production' && !redisEnabled) {
       throw new Error('REDIS_ENABLED must be true in production for distributed embedding cache');
     }
-    return redisEnabled ? new RedisEmbeddingCache(configService) : new InMemoryEmbeddingCache();
+    return redisEnabled ? new RedisEmbeddingCache(redisConnections) : new InMemoryEmbeddingCache();
   },
-  inject: [ConfigService],
+  inject: [ConfigService, RedisConnectionService],
 };

@@ -1,87 +1,65 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Queue, QueueEvents } from 'bullmq';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import type { Job } from 'bullmq';
+import {
+  RedisConnectionService,
+  redisErrorMessage,
+} from '../../common/redis/redis-connection.service';
 import { AuthContextRepository } from '../auth/auth-context.repository';
 import { NotificationService } from '../notifications/notification.service';
-import { AGENT_TASK_QUEUE } from '../ai/agents/jobs/agent-task-queue.constants';
-import { ATTACHMENT_PROCESS_QUEUE } from '../attachments/processing/attachment-processing.constants';
-import { AI_PROCESS_QUEUE } from '../communications/jobs/communications-jobs.constants';
-import { WORKFLOW_RUN_QUEUE } from '../workflows/jobs/workflow-run-queue.constants';
-import { STRIPE_WEBHOOK_QUEUE } from '../billing/jobs/stripe-webhook-queue.constants';
-import { KNOWLEDGE_INGESTION_QUEUE } from '../knowledge/ingestion/knowledge-ingestion-queue.constants';
 import { BackgroundJobFailureRepository } from './background-job-failure.repository';
 
-const MONITORED_QUEUES = [
-  AGENT_TASK_QUEUE,
-  ATTACHMENT_PROCESS_QUEUE,
-  AI_PROCESS_QUEUE,
-  WORKFLOW_RUN_QUEUE,
-  STRIPE_WEBHOOK_QUEUE,
-  KNOWLEDGE_INGESTION_QUEUE,
-];
-
 /**
- * Subscribes to every BullMQ queue's `failed` event and persists a
- * BackgroundJobFailure row once a job has exhausted its configured retry
- * attempts (QueueEvents fires `failed` on every attempt, not just the
- * last one, so this checks attemptsMade against the job's own `attempts`
- * option before treating it as a genuine dead letter). Only active when
- * REDIS_ENABLED=true — with no queue backing jobs there is nothing to
- * subscribe to; each queue's producer already runs synchronously inline
- * in that mode and surfaces failures via its own logger.
+ * Records terminal failures reported by the existing BullMQ Workers. Every
+ * processor forwards its local `failed` event through @OnWorkerEvent, which
+ * avoids one dedicated QueueEvents Redis connection per queue. This still
+ * sees every job processed by this API instance and retains the existing
+ * retry-exhaustion and organization-attribution behavior.
  */
 @Injectable()
-export class DeadLetterListenerService implements OnModuleInit, OnModuleDestroy {
+export class DeadLetterListenerService {
   private readonly logger = new Logger(DeadLetterListenerService.name);
-  private readonly queues = new Map<string, Queue>();
-  private readonly queueEvents: QueueEvents[] = [];
 
   constructor(
-    private readonly configService: ConfigService,
     private readonly repository: BackgroundJobFailureRepository,
     private readonly authContextRepository: AuthContextRepository,
     private readonly notificationService: NotificationService,
+    @Optional() private readonly redisConnections?: RedisConnectionService,
   ) {}
 
-  onModuleInit(): void {
-    if (!this.configService.get<boolean>('redis.enabled', false)) {
+  logWorkerRedisError(queueName: string, error: Error): void {
+    this.logger.error(
+      {
+        queueName,
+        redisError: this.redisConnections?.errorMessage(error) ?? redisErrorMessage(error),
+      },
+      'BullMQ worker Redis connection error',
+    );
+  }
+
+  async recordFailedJob<DataType extends object>(
+    queueName: string,
+    job: Job<DataType> | undefined,
+    error: Error,
+  ): Promise<void> {
+    if (!job) {
       return;
     }
 
-    const connection = {
-      url: this.configService.get<string>('redis.url', 'redis://localhost:6379'),
-    };
-
-    for (const queueName of MONITORED_QUEUES) {
-      const queue = new Queue(queueName, { connection });
-      const events = new QueueEvents(queueName, { connection });
-      this.queues.set(queueName, queue);
-      this.queueEvents.push(events);
-
-      events.on('failed', ({ jobId, failedReason }) => {
-        this.handleFailed(queueName, jobId, failedReason).catch((error: unknown) => {
-          this.logger.error({ err: error, queueName, jobId }, 'Failed to record dead letter');
-        });
-      });
+    try {
+      await this.handleFailed(queueName, job, error.message);
+    } catch (recordError) {
+      this.logger.error(
+        { err: recordError, queueName, jobId: job.id },
+        'Failed to record dead letter',
+      );
     }
   }
 
-  async onModuleDestroy(): Promise<void> {
-    await Promise.all(this.queueEvents.map((events) => events.close()));
-    await Promise.all([...this.queues.values()].map((queue) => queue.close()));
-  }
-
-  private async handleFailed(
+  private async handleFailed<DataType extends object>(
     queueName: string,
-    jobId: string,
+    job: Job<DataType>,
     failedReason: string,
   ): Promise<void> {
-    const queue = this.queues.get(queueName);
-    if (!queue) return;
-
-    const job = await queue.getJob(jobId);
-    if (!job) return;
-
     const maxAttempts = job.opts.attempts ?? 1;
     if (job.attemptsMade < maxAttempts) {
       // Will retry again — only the final, exhausted failure is a dead letter.
@@ -106,7 +84,7 @@ export class DeadLetterListenerService implements OnModuleInit, OnModuleDestroy 
     }
   }
 
-  /** Best-effort — must never throw back into the queue-events handler. */
+  /** Best-effort — must never throw back into the worker event handler. */
   private async notifyOrgAdmins(
     organizationId: string,
     queueName: string,

@@ -1,7 +1,5 @@
-import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ToolModule } from '../ai/tools/tool.module';
-import { WEBHOOK_DELIVERY_QUEUE } from './jobs/webhook-delivery-queue.constants';
 import { WebhookDeliveryProcessor } from './jobs/webhook-delivery.processor';
 import { WebhookDeliveryQueueService } from './jobs/webhook-delivery-queue.service';
 import { WebhookDeliveryRepository } from './webhook-delivery.repository';
@@ -16,14 +14,6 @@ import { WebhookEndpointService } from './webhook-endpoint.service';
 // WebhookDeliveryQueueService falls back to driving
 // WebhookDeliveryService.attemptDelivery() inline instead of enqueuing.
 const redisEnabled = process.env.REDIS_ENABLED === 'true';
-const queueImports = redisEnabled
-  ? [
-      BullModule.forRoot({
-        connection: { url: process.env.REDIS_URL ?? 'redis://localhost:6379' },
-      }),
-      BullModule.registerQueue({ name: WEBHOOK_DELIVERY_QUEUE }),
-    ]
-  : [];
 const queueProcessors = redisEnabled ? [WebhookDeliveryProcessor] : [];
 
 /**
@@ -33,7 +23,7 @@ const queueProcessors = redisEnabled ? [WebhookDeliveryProcessor] : [];
  * storage — no parallel implementation of either.
  */
 @Module({
-  imports: [ToolModule, ...queueImports],
+  imports: [ToolModule],
   controllers: [WebhookEndpointController],
   providers: [
     WebhookEndpointRepository,
