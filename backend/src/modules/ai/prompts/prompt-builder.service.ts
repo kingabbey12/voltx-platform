@@ -20,10 +20,12 @@ export interface PromptBuildInput {
 export class PromptBuilderService {
   build(input: PromptBuildInput): Promise<AIMessage[]> {
     const messages: AIMessage[] = [];
+    const history = normalizeHistory(input.conversationHistory);
     const systemPrompt = this.buildSystemPrompt(
       input.systemPrompt,
       input.workspaceContext,
       input.relevantMemories,
+      [...history.toolContext, ...normalizeToolResults(input.toolResults)],
     );
 
     messages.push({
@@ -31,14 +33,10 @@ export class PromptBuilderService {
       content: systemPrompt,
     });
 
-    messages.push(
-      ...normalizeHistory(input.conversationHistory),
-      ...this.buildToolMessages(input.toolResults),
-      {
-        role: 'user',
-        content: buildUserContent(input.userPrompt.trim(), input.attachmentContentParts),
-      },
-    );
+    messages.push(...history.messages, {
+      role: 'user',
+      content: buildUserContent(input.userPrompt.trim(), input.attachmentContentParts),
+    });
 
     return Promise.resolve(messages);
   }
@@ -47,6 +45,7 @@ export class PromptBuilderService {
     systemPrompt?: string,
     workspaceContext?: string[],
     relevantMemories?: MemoryEntity[],
+    toolContext: string[] = [],
   ): string {
     const sections = [systemPrompt?.trim() || DEFAULT_SYSTEM_PROMPT];
     const normalizedWorkspaceContext = (workspaceContext ?? [])
@@ -74,43 +73,71 @@ export class PromptBuilderService {
       );
     }
 
-    return sections.join('\n\n');
-  }
-
-  private buildToolMessages(toolResults?: ToolResult[]): AIMessage[] {
-    if (!toolResults) {
-      return [];
+    if (toolContext.length > 0) {
+      sections.push(['Pre-executed Tool Results:', ...toolContext].join('\n\n'));
     }
 
-    return toolResults
-      .map((toolResult) => ({
-        role: 'tool' as const,
-        name: toolResult.toolName.trim(),
-        content: [
-          `Tool: ${toolResult.toolName.trim()}`,
-          `Status: ${toolResult.isError ? 'error' : 'success'}`,
-          toolResult.content.trim(),
-        ].join('\n'),
-      }))
-      .filter((message) => message.name.length > 0 && message.content.trim().length > 0);
+    return sections.join('\n\n');
   }
 }
 
-function normalizeHistory(history: AIMessage[] | undefined): AIMessage[] {
+function normalizeHistory(history: AIMessage[] | undefined): {
+  messages: AIMessage[];
+  toolContext: string[];
+} {
   if (!history) {
-    return [];
+    return { messages: [], toolContext: [] };
   }
 
   // History loaded from the database is always plain text (attachments are
   // never persisted as multimodal content — see PromptBuildInput's doc
-  // comment), but the type covers both, so normalize defensively.
-  return history
-    .map((message) => ({
+  // comment), but the type covers both, so normalize defensively. Tool
+  // messages persisted by Voltx are pre-executed results, not responses to
+  // native model tool_calls. Sending them as standalone `tool` role messages
+  // makes OpenAI-compatible APIs reject the entire request, so carry them in
+  // trusted system context instead.
+  const messages: AIMessage[] = [];
+  const toolContext: string[] = [];
+
+  for (const message of history) {
+    const content = messageContentToText(message.content).trim();
+    if (content.length === 0) {
+      continue;
+    }
+
+    if (message.role === 'tool') {
+      const name = message.name?.trim() || 'historical_tool';
+      toolContext.push(formatToolContext(name, content));
+      continue;
+    }
+
+    messages.push({
       role: message.role,
-      content: messageContentToText(message.content).trim(),
+      content,
       ...(message.name ? { name: message.name.trim() } : {}),
+    });
+  }
+
+  return { messages, toolContext };
+}
+
+function normalizeToolResults(toolResults: ToolResult[] | undefined): string[] {
+  if (!toolResults) {
+    return [];
+  }
+
+  return toolResults
+    .map((toolResult) => ({
+      name: toolResult.toolName.trim(),
+      content: toolResult.content.trim(),
+      status: toolResult.isError ? 'error' : 'success',
     }))
-    .filter((message) => message.content.length > 0);
+    .filter((toolResult) => toolResult.name.length > 0 && toolResult.content.length > 0)
+    .map((toolResult) => formatToolContext(toolResult.name, toolResult.content, toolResult.status));
+}
+
+function formatToolContext(name: string, content: string, status = 'recorded'): string {
+  return [`Tool: ${name}`, `Status: ${status}`, content].join('\n');
 }
 
 function buildUserContent(

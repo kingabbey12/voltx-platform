@@ -35,6 +35,7 @@ describe('PromptBuilderService', () => {
       conversationHistory: [
         { role: 'user', content: '  Earlier question  ' },
         { role: 'assistant', content: 'Previous answer' },
+        { role: 'tool', name: 'datetime', content: '2026-08-05T04:32:24.000Z' },
       ],
       toolResults: [
         {
@@ -49,6 +50,11 @@ describe('PromptBuilderService', () => {
     expect(messages[0].content).toContain('Custom system prompt');
     expect(messages[0].content).toContain('Workspace Context:');
     expect(messages[0].content).toContain('Relevant Memories:');
+    expect(messages[0].content).toContain('Pre-executed Tool Results:');
+    expect(messages[0].content).toContain('Tool: datetime');
+    expect(messages[0].content).toContain('2026-08-05T04:32:24.000Z');
+    expect(messages[0].content).toContain('Tool: search_files');
+    expect(messages[0].content).toContain('Found 3 matching files.');
     expect(messages[1]).toEqual({
       role: 'user',
       content: 'Earlier question',
@@ -57,11 +63,10 @@ describe('PromptBuilderService', () => {
       role: 'assistant',
       content: 'Previous answer',
     });
-    expect(messages[3].role).toBe('tool');
-    expect(messages[3].name).toBe('search_files');
-    expect(messages[4]).toEqual({
+    expect(messages[3]).toEqual({
       role: 'user',
       content: 'What should I do next?',
     });
+    expect(messages).not.toContainEqual(expect.objectContaining({ role: 'tool' }));
   });
 });

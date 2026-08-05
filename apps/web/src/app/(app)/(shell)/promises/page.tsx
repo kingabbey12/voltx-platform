@@ -37,7 +37,7 @@ const STATUSES: { key: PromiseStatus; label: string }[] = [
  */
 export default function PromisesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { data, isLoading } = usePromises({ limit: 200 });
+  const { data, isLoading, error } = usePromises({ limit: 100 });
   const { data: contacts } = useContacts({ limit: 100 });
   const createPromise = useCreatePromise();
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -71,7 +71,15 @@ export default function PromisesPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Promises</h1>
-          <p className="text-sm text-muted-foreground">{data?.total ?? 0} commitments</p>
+          <p className="text-sm text-muted-foreground">
+            {data
+              ? `${data.total} commitments`
+              : isLoading
+                ? "Loading commitments…"
+                : error
+                  ? "Commitments unavailable"
+                  : "0 commitments"}
+          </p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4" />
@@ -79,7 +87,17 @@ export default function PromisesPage() {
         </Button>
       </div>
 
-      {!isLoading && data?.items.length === 0 && (
+      {!isLoading && error && (
+        <div className="mt-6 rounded-xl border border-border">
+          <EmptyState
+            icon={Handshake}
+            title="Unable to load promises"
+            description={friendlyErrorMessage(error)}
+          />
+        </div>
+      )}
+
+      {!isLoading && !error && data?.items.length === 0 && (
         <div className="mt-6 rounded-xl border border-border">
           <EmptyState
             icon={Handshake}

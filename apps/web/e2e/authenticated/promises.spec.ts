@@ -14,6 +14,7 @@ function envelope<T>(data: T) {
 
 test("a successful promise appears before the background refetch completes", async ({ page }) => {
   let listRequests = 0;
+  let requestedLimit: string | null = null;
   const created = {
     id: "22222222-2222-4222-8222-222222222222",
     title: "Contract promise",
@@ -39,11 +40,12 @@ test("a successful promise appears before the background refetch completes", asy
     }
 
     listRequests += 1;
+    requestedLimit = new URL(route.request().url()).searchParams.get("limit");
     if (listRequests > 1) {
       await new Promise((resolve) => setTimeout(resolve, 2_000));
     }
     await route.fulfill({
-      json: envelope({ items: [], total: 0, page: 1, limit: 200, totalPages: 0 }),
+      json: envelope({ items: [], total: 0, page: 1, limit: 100, totalPages: 0 }),
     });
   });
   await page.route(/\/api\/v1\/sales\/contacts(?:\?.*)?$/, (route) =>
@@ -65,6 +67,7 @@ test("a successful promise appears before the background refetch completes", asy
   );
 
   await page.goto("/promises");
+  await expect.poll(() => requestedLimit).toBe("100");
   await page.getByRole("button", { name: "Propose a promise" }).first().click();
   await page.getByRole("textbox", { name: "Title" }).fill(created.title);
   await page.getByRole("combobox", { name: "Who is the company promising?" }).click();
@@ -73,4 +76,34 @@ test("a successful promise appears before the background refetch completes", asy
 
   await expect(page.getByText("1 commitments")).toBeVisible();
   await expect(page.getByText(created.title, { exact: true })).toBeVisible();
+});
+
+test("a failed promise query never renders a false zero", async ({ page }) => {
+  await page.route(/\/api\/v1\/promises(?:\?.*)?$/, (route) =>
+    route.fulfill({
+      status: 400,
+      json: {
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Unable to load commitments" },
+        meta: {
+          requestId: "promise-error-test",
+          timestamp: "2026-08-05T00:00:00.000Z",
+          path: "/api/v1/promises",
+          statusCode: 400,
+          version: "1",
+        },
+      },
+    }),
+  );
+  await page.route(/\/api\/v1\/sales\/contacts(?:\?.*)?$/, (route) =>
+    route.fulfill({
+      json: envelope({ items: [], total: 0, page: 1, limit: 100, totalPages: 0 }),
+    }),
+  );
+
+  await page.goto("/promises");
+
+  await expect(page.getByText("Commitments unavailable", { exact: true })).toBeVisible();
+  await expect(page.getByText("Unable to load promises", { exact: true })).toBeVisible();
+  await expect(page.getByText("0 commitments", { exact: true })).toHaveCount(0);
 });
