@@ -89,8 +89,8 @@ export class OpenAIProvider implements AIProvider {
    * literal string sent over the wire when routed through OpenRouter, so
    * the rest of the system is unaffected either way.
    */
-  private wireModel(modelId: string): string {
-    if (!this.baseUrl.includes('openrouter.ai')) {
+  private wireModel(modelId: string, baseUrl = this.baseUrl): string {
+    if (!baseUrl.includes('openrouter.ai')) {
       return modelId;
     }
     const openRouterModels: Record<string, string> = {
@@ -102,6 +102,32 @@ export class OpenAIProvider implements AIProvider {
     return openRouterModels[modelId] ?? modelId;
   }
 
+  private chatPayload(
+    request: AIProviderChatRequest,
+    baseUrl: string,
+    stream: boolean,
+  ): Record<string, unknown> {
+    // OpenAI reasoning-family GPT-5 models reject non-default temperature
+    // values on the Chat Completions endpoint. System agents intentionally
+    // carry temperatures, so forwarding one made every otherwise-valid run
+    // fail with HTTP 400. OpenRouter maps these stable IDs to GPT-4o models,
+    // where temperature remains supported.
+    const supportsTemperature =
+      baseUrl.includes('openrouter.ai') || !request.model.startsWith('gpt-5');
+
+    return {
+      model: this.wireModel(request.model, baseUrl),
+      ...(stream ? { stream: true, stream_options: { include_usage: true } } : {}),
+      messages: toOpenAIMessages(request.messages),
+      ...(supportsTemperature && request.temperature !== undefined
+        ? { temperature: request.temperature }
+        : {}),
+      ...(request.maxOutputTokens !== undefined
+        ? { max_completion_tokens: request.maxOutputTokens }
+        : {}),
+    };
+  }
+
   async chat(request: AIProviderChatRequest): Promise<AIChatResponse> {
     const { apiKey, baseUrl } = this.resolveCredential(request);
 
@@ -110,14 +136,7 @@ export class OpenAIProvider implements AIProvider {
       {
         method: 'POST',
         headers: this.buildHeaders(apiKey),
-        body: JSON.stringify({
-          model: this.wireModel(request.model),
-          messages: toOpenAIMessages(request.messages),
-          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
-          ...(request.maxOutputTokens !== undefined
-            ? { max_completion_tokens: request.maxOutputTokens }
-            : {}),
-        }),
+        body: JSON.stringify(this.chatPayload(request, baseUrl, false)),
         signal: request.signal,
       },
       this.name,
@@ -163,19 +182,10 @@ export class OpenAIProvider implements AIProvider {
       {
         method: 'POST',
         headers: this.buildHeaders(apiKey),
-        body: JSON.stringify({
-          model: this.wireModel(request.model),
-          stream: true,
-          // Without this, OpenAI never includes a `usage` field on any
-          // streamed chunk — token usage / cost tracking would silently
-          // report zero for every real (non-mocked) streaming chat call.
-          stream_options: { include_usage: true },
-          messages: toOpenAIMessages(request.messages),
-          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
-          ...(request.maxOutputTokens !== undefined
-            ? { max_completion_tokens: request.maxOutputTokens }
-            : {}),
-        }),
+        // chatPayload also sets stream_options.include_usage; without it,
+        // OpenAI omits usage from every streamed chunk and cost tracking
+        // silently reports zero.
+        body: JSON.stringify(this.chatPayload(request, baseUrl, true)),
         signal: request.signal,
       },
       this.name,
@@ -240,7 +250,7 @@ export class OpenAIProvider implements AIProvider {
         method: 'POST',
         headers: this.buildHeaders(apiKey),
         body: JSON.stringify({
-          model: this.wireModel(request.model),
+          model: this.wireModel(request.model, baseUrl),
           input: request.input,
         }),
         signal: request.signal,

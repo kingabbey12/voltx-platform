@@ -32,7 +32,28 @@ export function useCreatePromise() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreatePromiseInput) => promisesApi.create(input),
-    onSuccess: () => {
+    onSuccess: (created) => {
+      queryClient.setQueryData(["promises", "detail", created.id], created);
+
+      const cachedLists = queryClient.getQueriesData<PaginatedResult<PromiseRecord>>({
+        queryKey: ["promises", "list"],
+      });
+      for (const [key, current] of cachedLists) {
+        if (!current || current.items.some((promise) => promise.id === created.id)) continue;
+
+        const query = (key[2] ?? {}) as NonNullable<Parameters<typeof promisesApi.list>[0]>;
+        if (query.status && query.status !== created.status) continue;
+        if (query.ownerId && query.ownerId !== created.ownerId) continue;
+
+        const total = current.total + 1;
+        queryClient.setQueryData<PaginatedResult<PromiseRecord>>(key, {
+          ...current,
+          items: [created, ...current.items].slice(0, current.limit),
+          total,
+          totalPages: Math.ceil(total / current.limit),
+        });
+      }
+
       void queryClient.invalidateQueries({ queryKey: ["promises", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["company"] });
     },

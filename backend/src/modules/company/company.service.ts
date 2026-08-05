@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { OrganizationService } from '../organization/organization.service';
 import { UsersService } from '../users/users.service';
 import { CompaniesService } from '../sales/companies/companies.service';
@@ -128,6 +128,8 @@ const ASSETS_UNAVAILABLE_REASON =
  */
 @Injectable()
 export class CompanyService {
+  private readonly logger = new Logger(CompanyService.name);
+
   constructor(
     private readonly organizationService: OrganizationService,
     private readonly usersService: UsersService,
@@ -152,11 +154,11 @@ export class CompanyService {
     const organization = await this.organizationService.findOne(organizationId);
 
     const [people, documents, conversations, events, promises] = await Promise.all([
-      this.loadPeopleSection(has),
-      this.loadDocumentsSection(has),
-      this.loadConversationsSection(has),
-      this.loadEventsSection(has),
-      this.loadPromisesSection(has),
+      this.loadHomeSectionSafely('people', () => this.loadPeopleSection(has)),
+      this.loadHomeSectionSafely('documents', () => this.loadDocumentsSection(has)),
+      this.loadHomeSectionSafely('conversations', () => this.loadConversationsSection(has)),
+      this.loadHomeSectionSafely('events', () => this.loadEventsSection(has)),
+      this.loadHomeSectionSafely('promises', () => this.loadPromisesSection(has)),
     ]);
 
     return {
@@ -177,6 +179,29 @@ export class CompanyService {
       promises,
       assets: { available: false, reason: ASSETS_UNAVAILABLE_REASON },
     };
+  }
+
+  /**
+   * Company home is a projection over several independent modules. A missing
+   * optional table, provider outage, or temporarily unavailable subsystem
+   * must degrade that one card instead of replacing the entire company page
+   * with a 500 response.
+   */
+  private async loadHomeSectionSafely<T>(
+    section: string,
+    load: () => Promise<CompanyHomeSection<T>>,
+  ): Promise<CompanyHomeSection<T>> {
+    try {
+      return await load();
+    } catch (error) {
+      this.logger.error({ err: error, section }, 'Company home section failed to load');
+      return {
+        available: false,
+        reason: 'This section is temporarily unavailable.',
+        total: 0,
+        items: [],
+      };
+    }
   }
 
   async getTimeline(
