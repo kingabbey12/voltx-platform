@@ -6,8 +6,10 @@ import {
   workflowWebhooksApi,
   workflowsApi,
   type WorkflowDefinition,
+  type WorkflowRun,
   type WorkflowVariableType,
 } from "@/lib/api/workflows";
+import type { PaginatedResult } from "@/lib/api/types";
 
 export function useWorkflows(query: Parameters<typeof workflowsApi.list>[0] = {}) {
   return useQuery({ queryKey: ["workflows", query], queryFn: () => workflowsApi.list(query) });
@@ -145,7 +147,22 @@ export function useRunWorkflow(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input?: Record<string, unknown>) => workflowsApi.run(id, input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workflows", id, "runs"] }),
+    onSuccess: (run) => {
+      const key = ["workflows", id, "runs"] as const;
+      queryClient.setQueryData<PaginatedResult<WorkflowRun>>(key, (current) => {
+        if (current?.items.some((item) => item.id === run.id)) return current;
+        const total = (current?.total ?? 0) + 1;
+        const limit = current?.limit ?? 20;
+        return {
+          items: [run, ...(current?.items ?? [])].slice(0, limit),
+          total,
+          page: current?.page ?? 1,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        };
+      });
+      void queryClient.invalidateQueries({ queryKey: key });
+    },
   });
 }
 

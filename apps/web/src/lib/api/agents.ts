@@ -62,6 +62,48 @@ export interface UpdateAgentInput {
   enabled?: boolean;
 }
 
+interface AgentListQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  enabled?: boolean;
+}
+
+/**
+ * The backend deliberately keeps GET /ai/agents backward-compatible as a
+ * plain array. The web directory still needs pagination/filter metadata, so
+ * normalize that array at the API boundary instead of casting it to a shape
+ * the server never returns.
+ */
+async function listAgents(query: AgentListQuery = {}): Promise<PaginatedResult<Agent>> {
+  const agents = await apiClient.get<Agent[]>("/ai/agents");
+  const search = query.search?.trim().toLocaleLowerCase();
+  const page = Math.max(1, Math.trunc(query.page ?? 1));
+  const limit = Math.max(1, Math.trunc(query.limit ?? 50));
+
+  const filtered = agents.filter((agent) => {
+    if (query.enabled !== undefined && agent.enabled !== query.enabled) {
+      return false;
+    }
+    if (!search) {
+      return true;
+    }
+    return [agent.name, agent.description, agent.provider, agent.model]
+      .join(" ")
+      .toLocaleLowerCase()
+      .includes(search);
+  });
+
+  const start = (page - 1) * limit;
+  return {
+    items: filtered.slice(start, start + limit),
+    total: filtered.length,
+    page,
+    limit,
+    totalPages: filtered.length === 0 ? 0 : Math.ceil(filtered.length / limit),
+  };
+}
+
 // ─── Agent Run ──────────────────────────────────────────────────────
 
 export type AgentRunStatus =
@@ -343,10 +385,7 @@ async function* readSSEStream(
 
 export const agentsApi = {
   // ── CRUD ─────────────────────────────────────────────────────────
-  listAgents: (query: { page?: number; limit?: number; search?: string; enabled?: boolean } = {}) =>
-    apiClient.get<PaginatedResult<Agent>>("/ai/agents", {
-      query: { page: 1, limit: 50, ...query },
-    }),
+  listAgents,
 
   getAgent: (id: string) => apiClient.get<Agent>(`/ai/agents/${id}`),
 

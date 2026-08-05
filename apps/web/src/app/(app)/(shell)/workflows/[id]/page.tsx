@@ -111,6 +111,10 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
   }
 
   async function handleRun() {
+    if (workflow?.status !== "PUBLISHED") {
+      toast.error("Publish this workflow before running it");
+      return;
+    }
     try {
       await runWorkflow.mutateAsync(undefined);
       toast.success("Workflow run queued");
@@ -186,10 +190,21 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
             <Wand2 className="h-4 w-4" />
             Open builder
           </Button>
-          <Button onClick={handleRun} isLoading={runWorkflow.isPending} disabled={workflow.status === "ARCHIVED"}>
+          <Button
+            onClick={handleRun}
+            isLoading={runWorkflow.isPending}
+            disabled={workflow.status !== "PUBLISHED"}
+            aria-describedby={workflow.status === "DRAFT" ? "workflow-run-requirement" : undefined}
+            title={workflow.status === "DRAFT" ? "Publish this workflow before running it" : undefined}
+          >
             <Play className="h-4 w-4" />
             Run now
           </Button>
+          {workflow.status === "DRAFT" && (
+            <p id="workflow-run-requirement" className="basis-full text-right text-xs text-muted-foreground">
+              Publish this draft before it can run.
+            </p>
+          )}
         </div>
       </div>
 

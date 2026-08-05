@@ -68,6 +68,16 @@ describe('the production image can migrate itself', () => {
     const production = dockerfile.slice(dockerfile.indexOf('AS production'));
     expect(production).toMatch(/COPY\s+prisma\s+\.\/prisma/);
   });
+
+  it('applies pending migrations before starting the API in standalone image deployments', () => {
+    const dockerfile = readFileSync(join(backendDir, 'Dockerfile'), 'utf8');
+    const production = dockerfile.slice(dockerfile.indexOf('AS production'));
+    const migrateAt = production.lastIndexOf('node_modules/.bin/prisma migrate deploy');
+    const serverAt = production.lastIndexOf('node dist/main.js');
+
+    expect(migrateAt).toBeGreaterThan(-1);
+    expect(serverAt).toBeGreaterThan(migrateAt);
+  });
 });
 
 describe('migration history is coherent', () => {
@@ -107,9 +117,17 @@ describe('migration history is coherent', () => {
       .map((name) => readFileSync(join(migrationsDir, name, 'migration.sql'), 'utf8'))
       .join('\n');
 
-    for (const table of ['workflow_templates', 'workflow_schedules']) {
+    for (const table of [
+      'workflow_templates',
+      'workflow_schedules',
+      'dashboard_recommendations',
+      'financial_transactions',
+      'financial_budgets',
+    ]) {
       expect(sql).toContain(`"${table}"`);
     }
+
+    expect(sql).toContain('ADD COLUMN "recommendation_action_id" UUID');
   });
 });
 
@@ -145,9 +163,9 @@ describe('render blueprint applies migrations before traffic shifts', () => {
   });
 
   it('runs migrate deploy as a pre-deploy command', () => {
-    // Running migrations in the start command instead would race: every
-    // instance would migrate concurrently on scale-out, and a failure would
-    // crash-loop the new version rather than abort the deploy.
+    // Render's pre-deploy phase remains the primary path because it aborts a
+    // bad release before traffic shifts. The image start guard above is the
+    // fallback for runners that ignore this Blueprint.
     expect(api?.preDeployCommand).toContain('prisma migrate deploy');
   });
 

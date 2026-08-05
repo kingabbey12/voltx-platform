@@ -1,6 +1,40 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("AI Agents", () => {
+  test("renders the backend's array list contract", async ({ page }) => {
+    await page.route(/\/api\/v1\/ai\/agents(?:\?.*)?$/, (route) =>
+      route.fulfill({
+        json: {
+          success: true,
+          data: [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              name: "Contract Agent",
+              description: "Verifies array list normalization.",
+              systemPrompt: "Be concise.",
+              provider: "openai",
+              model: "gpt-5-mini",
+              configuration: { kind: "custom" },
+              enabled: false,
+              createdAt: "2026-08-05T00:00:00.000Z",
+              updatedAt: "2026-08-05T00:00:00.000Z",
+            },
+          ],
+          meta: {
+            requestId: "agent-contract-test",
+            timestamp: "2026-08-05T00:00:00.000Z",
+            version: "1",
+          },
+        },
+      }),
+    );
+
+    await page.goto("/ai/agents");
+
+    await expect(page.getByText("1 configured agents")).toBeVisible();
+    await expect(page.getByText("Contract Agent", { exact: true })).toBeVisible();
+  });
+
   test("agents page loads", async ({ page }) => {
     await page.goto("/ai/agents");
     await expect(page.locator("h1, h2").first()).toBeVisible();

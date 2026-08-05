@@ -53,4 +53,10 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3000/readiness').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 USER node
-CMD ["node", "dist/main.js"]
+# Render's pre-deploy command and the Compose migrate service remain the
+# preferred run-once migration paths. This final image-level guard covers
+# manually-created PaaS services and direct `docker run` deployments that do
+# not load either deployment manifest. `migrate deploy` is idempotent and uses
+# Prisma's database advisory lock, so an already-migrated database exits
+# quickly before the API starts.
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && exec node dist/main.js"]
