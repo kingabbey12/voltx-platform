@@ -1,5 +1,5 @@
-import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
+import { RedisConnectionService } from '../src/common/redis/redis-connection.service';
 import { PrismaService } from '../src/database/prisma.service';
 import { HealthService } from '../src/modules/health/health.service';
 import { STORAGE_PROVIDER } from '../src/modules/attachments/storage/storage-provider.interface';
@@ -26,13 +26,15 @@ describe('HealthService', () => {
           useValue: { name: 's3', checkHealth: jest.fn().mockResolvedValue(undefined) },
         },
         {
-          provide: ConfigService,
+          provide: RedisConnectionService,
           useValue: {
-            get: jest.fn((key: string, defaultValue?: unknown) => {
-              if (key === 'redis.enabled') return redisEnabled;
-              if (key === 'redis.url') return 'redis://localhost:6399';
-              return defaultValue;
-            }),
+            isEnabled: jest.fn(() => redisEnabled),
+            getClient: jest.fn(() =>
+              redisEnabled
+                ? { status: 'reconnecting', ping: jest.fn().mockRejectedValue(new Error('down')) }
+                : null,
+            ),
+            ensureConnected: jest.fn().mockRejectedValue(new Error('down')),
           },
         },
       ],

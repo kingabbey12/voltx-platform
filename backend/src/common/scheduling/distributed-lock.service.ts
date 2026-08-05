@@ -1,7 +1,8 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
 import { randomUUID } from 'node:crypto';
+import { RedisConnectionService } from '../redis/redis-connection.service';
 
 /**
  * Cross-replica mutual exclusion for background schedulers.
@@ -65,20 +66,13 @@ const EXTEND_IF_OWNER = `
 `;
 
 @Injectable()
-export class RedisDistributedLockService implements DistributedLockService, OnModuleDestroy {
+export class RedisDistributedLockService implements DistributedLockService {
   private readonly logger = new Logger(RedisDistributedLockService.name);
   private readonly client: Redis;
   private readonly keyPrefix = 'voltx:lock:';
 
-  constructor(configService: ConfigService) {
-    const url = configService.get<string>('redis.url', 'redis://localhost:6379');
-    this.client = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1 });
-    this.client.on('error', (error) => {
-      this.logger.warn(
-        { err: error },
-        'Redis connection error; scheduled sweeps will be skipped until it recovers',
-      );
-    });
+  constructor(private readonly redisConnections: RedisConnectionService) {
+    this.client = redisConnections.requireClient();
   }
 
   async runExclusive(key: string, ttlMs: number, task: () => Promise<void>): Promise<boolean> {
@@ -120,10 +114,6 @@ export class RedisDistributedLockService implements DistributedLockService, OnMo
     return true;
   }
 
-  async onModuleDestroy(): Promise<void> {
-    await this.client.quit();
-  }
-
   private async acquire(key: string, ttlMs: number): Promise<string | null> {
     const token = randomUUID();
     try {
@@ -138,7 +128,7 @@ export class RedisDistributedLockService implements DistributedLockService, OnMo
       return result === 'OK' ? token : null;
     } catch (error) {
       this.logger.warn(
-        { err: error, key },
+        { redisError: this.redisConnections.errorMessage(error), key },
         'Could not acquire scheduler lock; skipping this run rather than risking a duplicate',
       );
       return null;
@@ -149,7 +139,10 @@ export class RedisDistributedLockService implements DistributedLockService, OnMo
     try {
       await this.client.eval(EXTEND_IF_OWNER, 1, this.keyPrefix + key, token, Math.max(1, ttlMs));
     } catch (error) {
-      this.logger.warn({ err: error, key }, 'Could not extend scheduler lock');
+      this.logger.warn(
+        { redisError: this.redisConnections.errorMessage(error), key },
+        'Could not extend scheduler lock',
+      );
     }
   }
 
@@ -158,16 +151,14 @@ export class RedisDistributedLockService implements DistributedLockService, OnMo
       await this.client.eval(RELEASE_IF_OWNER, 1, this.keyPrefix + key, token);
     } catch (error) {
       this.logger.warn(
-        { err: error, key },
+        { redisError: this.redisConnections.errorMessage(error), key },
         'Could not release scheduler lock; it will expire on its own TTL',
       );
     }
   }
 
   private async ensureConnected(): Promise<void> {
-    if (this.client.status === 'wait' || this.client.status === 'end') {
-      await this.client.connect();
-    }
+    await this.redisConnections.ensureConnected();
   }
 }
 
@@ -221,12 +212,15 @@ export class InProcessDistributedLockService implements DistributedLockService {
 
 export const distributedLockServiceProvider = {
   provide: DISTRIBUTED_LOCK_SERVICE,
-  useFactory: (configService: ConfigService): DistributedLockService => {
+  useFactory: (
+    configService: ConfigService,
+    redisConnections: RedisConnectionService,
+  ): DistributedLockService => {
     return configService.get<boolean>('redis.enabled', false)
-      ? new RedisDistributedLockService(configService)
+      ? new RedisDistributedLockService(redisConnections)
       : new InProcessDistributedLockService();
   },
-  inject: [ConfigService],
+  inject: [ConfigService, RedisConnectionService],
 };
 
 /**

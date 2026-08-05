@@ -1,4 +1,4 @@
-import { ConfigService } from '@nestjs/config';
+import { RedisConnectionService } from '../src/common/redis/redis-connection.service';
 import { PrismaService } from '../src/database/prisma.service';
 import { HealthService } from '../src/modules/health/health.service';
 import { StorageProvider } from '../src/modules/attachments/storage/storage-provider.interface';
@@ -36,11 +36,13 @@ describe('Health readiness — object storage', () => {
       },
     } as unknown as PrismaService;
 
-    const config = {
-      get: jest.fn((key: string, fallback?: unknown) =>
-        key === 'redis.enabled' ? (overrides.redisEnabled ?? false) : fallback,
-      ),
-    } as unknown as ConfigService;
+    const redisEnabled = overrides.redisEnabled ?? false;
+    const redisClient = { status: 'ready', ping: jest.fn().mockResolvedValue('PONG') };
+    const redisConnections = {
+      isEnabled: jest.fn(() => redisEnabled),
+      getClient: jest.fn(() => (redisEnabled ? redisClient : null)),
+      ensureConnected: jest.fn().mockResolvedValue(redisClient),
+    } as unknown as RedisConnectionService;
 
     const storage = {
       name: 's3' as const,
@@ -48,7 +50,7 @@ describe('Health readiness — object storage', () => {
       ...overrides.storage,
     } as unknown as StorageProvider;
 
-    return { service: new HealthService(prisma, config, storage), storage };
+    return { service: new HealthService(prisma, redisConnections, storage), storage };
   }
 
   it('reports ready with storage up', async () => {

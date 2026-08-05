@@ -1,23 +1,11 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
-import { AGENT_TASK_QUEUE } from '../ai/agents/jobs/agent-task-queue.constants';
-import { ATTACHMENT_PROCESS_QUEUE } from '../attachments/processing/attachment-processing.constants';
-import { AI_PROCESS_QUEUE } from '../communications/jobs/communications-jobs.constants';
-import { WORKFLOW_RUN_QUEUE } from '../workflows/jobs/workflow-run-queue.constants';
-import { STRIPE_WEBHOOK_QUEUE } from '../billing/jobs/stripe-webhook-queue.constants';
-
-const MONITORED_QUEUES = [
-  AGENT_TASK_QUEUE,
-  ATTACHMENT_PROCESS_QUEUE,
-  AI_PROCESS_QUEUE,
-  WORKFLOW_RUN_QUEUE,
-  STRIPE_WEBHOOK_QUEUE,
-];
+import { BullQueueRegistry } from '../../common/redis/bull-queue.module';
 
 @Injectable()
-export class MetricsService implements OnModuleDestroy {
+export class MetricsService {
   /** Exposed read-only so feature modules (e.g. the multi-agent
    * orchestrator) can register their own collectors on the single shared
    * registry instead of standing up a second scrape target. */
@@ -197,18 +185,15 @@ export class MetricsService implements OnModuleDestroy {
     registers: [this.registry],
   });
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(_configService: ConfigService, @Optional() queueRegistry?: BullQueueRegistry) {
     collectDefaultMetrics({
       prefix: 'voltx_',
       register: this.registry,
     });
 
-    if (this.configService.get<boolean>('redis.enabled', false)) {
-      const connection = {
-        url: this.configService.get<string>('redis.url', 'redis://localhost:6379'),
-      };
-      for (const queueName of MONITORED_QUEUES) {
-        this.queues.set(queueName, new Queue(queueName, { connection }));
+    if (queueRegistry) {
+      for (const [queueName, queue] of queueRegistry.entries()) {
+        this.queues.set(queueName, queue);
       }
 
       const getQueueDepths = () => this.getQueueDepths();
@@ -393,7 +378,8 @@ export class MetricsService implements OnModuleDestroy {
     return this.registry.metrics();
   }
 
-  async onModuleDestroy(): Promise<void> {
-    await Promise.all([...this.queues.values()].map((queue) => queue.close()));
+  /** Queue and Redis lifecycle is owned by BullQueueModule/RedisClientModule. */
+  onModuleDestroy(): Promise<void> {
+    return Promise.resolve();
   }
 }

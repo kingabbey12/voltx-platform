@@ -1,5 +1,6 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { DeadLetterListenerService } from '../../background-jobs/dead-letter-listener.service';
 import { drainToReturnValue } from '../../ai/streaming/drain-generator';
 import { WorkflowEngineService } from '../engine/workflow-engine.service';
 import { WORKFLOW_RUN_QUEUE } from './workflow-run-queue.constants';
@@ -18,7 +19,10 @@ import { WorkflowRunJobData } from './workflow-run-queue.service';
  */
 @Processor(WORKFLOW_RUN_QUEUE)
 export class WorkflowRunProcessor extends WorkerHost {
-  constructor(private readonly workflowEngineService: WorkflowEngineService) {
+  constructor(
+    private readonly workflowEngineService: WorkflowEngineService,
+    private readonly deadLetters: DeadLetterListenerService,
+  ) {
     super();
   }
 
@@ -26,5 +30,15 @@ export class WorkflowRunProcessor extends WorkerHost {
     await drainToReturnValue(
       this.workflowEngineService.executeRun(job.data.workflowRunId, job.data.grantedPermissions),
     );
+  }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job<WorkflowRunJobData> | undefined, error: Error): Promise<void> {
+    await this.deadLetters.recordFailedJob(WORKFLOW_RUN_QUEUE, job, error);
+  }
+
+  @OnWorkerEvent('error')
+  onWorkerError(error: Error): void {
+    this.deadLetters.logWorkerRedisError(WORKFLOW_RUN_QUEUE, error);
   }
 }

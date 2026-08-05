@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
 import { UsersModule } from '../users/users.module';
 import { PlatformAdminGuard } from '../../common/guards/platform-admin.guard';
 import { PlanRepository } from './plan.repository';
@@ -23,7 +22,6 @@ import { StripeSubscriptionService } from './stripe/stripe-subscription.service'
 import { StripePaymentMethodService } from './stripe/stripe-payment-method.service';
 import { StripeCouponService } from './stripe/stripe-coupon.service';
 import { StripeWebhookDispatcherService } from './stripe/stripe-webhook-dispatcher.service';
-import { STRIPE_WEBHOOK_QUEUE } from './jobs/stripe-webhook-queue.constants';
 import { StripeWebhookQueueService } from './jobs/stripe-webhook-queue.service';
 import { StripeWebhookProcessor } from './jobs/stripe-webhook.processor';
 import { UsageRecordRepository } from './usage-record.repository';
@@ -40,18 +38,10 @@ import { StripeWebhookController } from './stripe-webhook.controller';
 // it, StripeWebhookQueueService.enqueue processes inline instead (dev/
 // test are unaffected, matching every other queue-owning module here).
 const redisEnabled = process.env.REDIS_ENABLED === 'true';
-const queueImports = redisEnabled
-  ? [
-      BullModule.forRoot({
-        connection: { url: process.env.REDIS_URL ?? 'redis://localhost:6379' },
-      }),
-      BullModule.registerQueue({ name: STRIPE_WEBHOOK_QUEUE }),
-    ]
-  : [];
 const queueProcessors = redisEnabled ? [StripeWebhookProcessor] : [];
 
 @Module({
-  imports: [UsersModule, ...queueImports],
+  imports: [UsersModule],
   // StripeWebhookController's route ('billing/webhooks/stripe') is more
   // specific than BillingController's bare 'billing' prefix, so it's
   // registered first — same ordering rationale WorkflowModule documents

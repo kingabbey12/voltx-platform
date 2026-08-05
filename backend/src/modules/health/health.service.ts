@@ -1,6 +1,6 @@
-import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type Redis from 'ioredis';
+import { RedisConnectionService } from '../../common/redis/redis-connection.service';
 import { PrismaService } from '../../database/prisma.service';
 import { MetricsService } from '../metrics/metrics.service';
 import {
@@ -49,25 +49,18 @@ export interface LivenessCheckResult {
 }
 
 @Injectable()
-export class HealthService implements OnModuleDestroy {
+export class HealthService {
   private readonly redisEnabled: boolean;
   private readonly redisClient: Redis | null;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
+    private readonly redisConnections: RedisConnectionService,
     @Inject(STORAGE_PROVIDER) private readonly storageProvider: StorageProvider,
     @Optional() private readonly metricsService?: MetricsService,
   ) {
-    this.redisEnabled = this.configService.get<boolean>('redis.enabled', false);
-    this.redisClient = this.redisEnabled
-      ? new Redis(this.configService.get<string>('redis.url', 'redis://localhost:6379'), {
-          lazyConnect: true,
-          maxRetriesPerRequest: 1,
-          connectTimeout: 3000,
-          retryStrategy: () => null,
-        })
-      : null;
+    this.redisEnabled = redisConnections.isEnabled();
+    this.redisClient = redisConnections.getClient();
   }
 
   async check(): Promise<HealthCheckResult> {
@@ -144,9 +137,8 @@ export class HealthService implements OnModuleDestroy {
     };
   }
 
-  onModuleDestroy(): void {
-    this.redisClient?.disconnect();
-  }
+  /** The shared Redis client is closed once by RedisConnectionService. */
+  onModuleDestroy(): void {}
 
   private async checkDatabase(): Promise<DependencyStatus> {
     const startedAt = performance.now();
@@ -173,9 +165,7 @@ export class HealthService implements OnModuleDestroy {
 
     const startedAt = performance.now();
     try {
-      if (this.redisClient.status === 'end' || this.redisClient.status === 'wait') {
-        await this.redisClient.connect();
-      }
+      await this.redisConnections.ensureConnected();
       await this.redisClient.ping();
       return {
         status: 'up',

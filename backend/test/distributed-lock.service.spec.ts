@@ -126,13 +126,10 @@ describe('RedisDistributedLockService', () => {
       ...overrides,
     };
     const lock = new RedisDistributedLockService({
-      get: jest.fn().mockReturnValue('redis://localhost:6379'),
+      requireClient: jest.fn(() => client),
+      ensureConnected: jest.fn().mockResolvedValue(client),
+      errorMessage: jest.fn((error: Error) => error.message),
     } as never);
-    // The constructor builds a real (lazy, unconnected) ioredis client; drop it
-    // before swapping in the stub so Jest has no socket left holding the run open.
-    const real = (lock as unknown as { client: { disconnect: () => void } }).client;
-    real.disconnect();
-    (lock as unknown as { client: RedisStub }).client = client;
     return { lock, client };
   }
 

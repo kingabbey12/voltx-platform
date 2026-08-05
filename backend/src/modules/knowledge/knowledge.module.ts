@@ -1,5 +1,4 @@
 import { forwardRef, Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
 import { AIModule } from '../ai/ai.module';
 import { TextChunkerService } from './chunking/text-chunker.service';
 import { KnowledgeChunkRepository } from './chunks/knowledge-chunk.repository';
@@ -16,7 +15,6 @@ import { KnowledgeGraphRepository } from './graph/knowledge-graph.repository';
 import { KnowledgeGraphService } from './graph/knowledge-graph.service';
 import { KnowledgeEmbeddingBackfillService } from './ingestion/knowledge-embedding-backfill.service';
 import { KnowledgeIngestionJobRepository } from './ingestion/knowledge-ingestion-job.repository';
-import { KNOWLEDGE_INGESTION_QUEUE } from './ingestion/knowledge-ingestion-queue.constants';
 import { KnowledgeIngestionProcessor } from './ingestion/knowledge-ingestion.processor';
 import { KnowledgeIngestionQueueService } from './ingestion/knowledge-ingestion-queue.service';
 import { KnowledgeIngestionRuntimeService } from './ingestion/knowledge-ingestion-runtime.service';
@@ -33,18 +31,10 @@ import { KnowledgeRetrievalService } from './retrieval/knowledge-retrieval.servi
 import { KnowledgeSourceRepository } from './sources/knowledge-source.repository';
 
 const redisEnabled = process.env.REDIS_ENABLED === 'true';
-const queueImports = redisEnabled
-  ? [
-      BullModule.forRoot({
-        connection: { url: process.env.REDIS_URL ?? 'redis://localhost:6379' },
-      }),
-      BullModule.registerQueue({ name: KNOWLEDGE_INGESTION_QUEUE }),
-    ]
-  : [];
 const queueProcessors = redisEnabled ? [KnowledgeIngestionProcessor] : [];
 
 @Module({
-  imports: [forwardRef(() => AIModule), ...queueImports],
+  imports: [forwardRef(() => AIModule)],
   controllers: [KnowledgeController],
   providers: [
     KnowledgeSourceRepository,

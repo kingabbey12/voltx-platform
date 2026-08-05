@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import { createRedisOptions, redisErrorMessage } from '../common/redis/redis-connection.service';
 
 const PING_TIMEOUT_MS = 5000;
 
@@ -35,10 +36,10 @@ export async function assertRedisRequirement(): Promise<void> {
 
   const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
   const client = new Redis(redisUrl, {
-    lazyConnect: true,
+    ...createRedisOptions('voltx-api-startup-check'),
     maxRetriesPerRequest: 1,
-    connectTimeout: PING_TIMEOUT_MS,
   });
+  client.on('error', () => undefined);
 
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -49,9 +50,8 @@ export async function assertRedisRequirement(): Promise<void> {
       }),
     ]);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `REDIS_ENABLED is "true" but Redis at "${redisUrl}" is not reachable: ${message}`,
+      `REDIS_ENABLED is "true" but Redis is not reachable: ${redisErrorMessage(error, redisUrl)}`,
     );
   } finally {
     clearTimeout(timeout);

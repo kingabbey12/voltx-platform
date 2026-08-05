@@ -10,8 +10,8 @@ import './error-reporting';
 import './tracing';
 
 async function bootstrap(): Promise<void> {
-  // Runs before any module bootstraps (in particular before BullModule's
-  // per-module forRoot() calls) so a production deploy without Redis, or
+  // Runs before any module bootstraps (in particular before the one global
+  // BullModule root) so a production deploy without Redis, or
   // with Redis enabled but unreachable, fails fast at startup rather than
   // booting successfully and silently dropping background work later.
   await assertRedisRequirement();

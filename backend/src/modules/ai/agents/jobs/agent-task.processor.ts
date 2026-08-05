@@ -1,12 +1,16 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { DeadLetterListenerService } from '../../../background-jobs/dead-letter-listener.service';
 import { AgentRunResumeService } from '../approvals/agent-run-resume.service';
 import { AGENT_TASK_QUEUE } from './agent-task-queue.constants';
 import { ResumeAfterApprovalJobData } from './agent-task-queue.service';
 
 @Processor(AGENT_TASK_QUEUE)
 export class AgentTaskProcessor extends WorkerHost {
-  constructor(private readonly agentRunResumeService: AgentRunResumeService) {
+  constructor(
+    private readonly agentRunResumeService: AgentRunResumeService,
+    private readonly deadLetters: DeadLetterListenerService,
+  ) {
     super();
   }
 
@@ -16,5 +20,15 @@ export class AgentTaskProcessor extends WorkerHost {
     // no BullMQ retry/backoff wired here, matching that "best-effort
     // continuation" contract.
     await this.agentRunResumeService.resume(job.data.agentRunId, job.data.approvalId);
+  }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job<ResumeAfterApprovalJobData> | undefined, error: Error): Promise<void> {
+    await this.deadLetters.recordFailedJob(AGENT_TASK_QUEUE, job, error);
+  }
+
+  @OnWorkerEvent('error')
+  onWorkerError(error: Error): void {
+    this.deadLetters.logWorkerRedisError(AGENT_TASK_QUEUE, error);
   }
 }

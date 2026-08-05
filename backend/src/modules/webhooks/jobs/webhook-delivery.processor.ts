@@ -1,5 +1,6 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { DeadLetterListenerService } from '../../background-jobs/dead-letter-listener.service';
 import { WebhookDeliveryService } from '../webhook-delivery.service';
 import { WEBHOOK_DELIVERY_QUEUE } from './webhook-delivery-queue.constants';
 import { WebhookDeliveryJobData } from './webhook-delivery-queue.service';
@@ -15,7 +16,10 @@ import { WebhookDeliveryJobData } from './webhook-delivery-queue.service';
  */
 @Processor(WEBHOOK_DELIVERY_QUEUE)
 export class WebhookDeliveryProcessor extends WorkerHost {
-  constructor(private readonly webhookDeliveryService: WebhookDeliveryService) {
+  constructor(
+    private readonly webhookDeliveryService: WebhookDeliveryService,
+    private readonly deadLetters: DeadLetterListenerService,
+  ) {
     super();
   }
 
@@ -34,5 +38,15 @@ export class WebhookDeliveryProcessor extends WorkerHost {
         `Webhook delivery ${job.data.deliveryId} attempt ${attemptNumber} failed — retrying`,
       );
     }
+  }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job<WebhookDeliveryJobData> | undefined, error: Error): Promise<void> {
+    await this.deadLetters.recordFailedJob(WEBHOOK_DELIVERY_QUEUE, job, error);
+  }
+
+  @OnWorkerEvent('error')
+  onWorkerError(error: Error): void {
+    this.deadLetters.logWorkerRedisError(WEBHOOK_DELIVERY_QUEUE, error);
   }
 }
